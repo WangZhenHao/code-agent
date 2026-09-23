@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     debug: bool
     cors_origins: str
 
+    # 本地依赖服务连接串，值与 docker-compose.yml 同源（见 .env.example）
+    database_url: str
+    redis_url: str
+
     @property
     def cors_origin_list(self) -> list[str]:
         """切分并去掉空白项；空字符串得到空列表（即不放开任何跨域来源）。"""
