@@ -5,7 +5,7 @@ UV   ?= uv
 PY   := apps/api
 
 .DEFAULT_GOAL := help
-.PHONY: help install dev dev-web dev-admin dev-api lint build test fmt clean
+.PHONY: help install dev dev-web dev-admin dev-api db-up db-migrate db-revision db-check lint build test fmt clean
 
 help: ## 显示所有命令
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -25,6 +25,19 @@ dev-admin: ## 只起 React SPA 管理台
 
 dev-api: ## 只起 FastAPI（热重载）
 	cd $(PY) && $(UV) run code-agent-api
+
+db-up: ## 起本地 Postgres(5433) + Redis(6380)
+	cd $(PY) && docker-compose up -d
+
+db-migrate: ## 应用数据库迁移到最新
+	cd $(PY) && $(UV) run alembic upgrade head
+
+db-revision: ## 生成迁移，用法：make db-revision m="add xxx"
+	@test -n "$(m)" || { echo '缺少消息，用法：make db-revision m="add xxx"'; exit 1; }
+	cd $(PY) && $(UV) run alembic revision --autogenerate -m "$(m)"
+
+db-check: ## 检查模型与数据库是否已同步（漂移检测）
+	cd $(PY) && $(UV) run alembic check
 
 lint: ## 前后端 lint
 	$(PNPM) -r lint

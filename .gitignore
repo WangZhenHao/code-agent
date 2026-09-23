@@ -33,7 +33,6 @@ workspace/
 # --- 编辑器 / 系统 ---
 .DS_Store
 .idea/
-.vscode/
 *.swp
 
 # --- 构建产物 ---
