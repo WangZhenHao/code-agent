@@ -1,0 +1,43 @@
+@import 'tailwindcss';
+
+/*
+ * Tailwind v4 走 CSS-first 配置，没有 tailwind.config.js。
+ * 设计 token 直接写在 @theme 里，会自动变成 Tailwind 的 utility（如 bg-brand-500）。
+ */
+@theme {
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #d9e5ff;
+  --color-brand-500: #2f6bff;
+  --color-brand-600: #1f55e0;
+  --color-brand-900: #16307a;
+
+  --font-sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/*
+ * Preflight 会把 body margin、button 背景等重置掉。
+ * antd 是 CSS-in-JS，运行时注入的优先级更高，所以这里只补一层基础底色。
+ */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 等宽展示，命令、日志、thread_id 用 */
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}

@@ -1,0 +1,78 @@
+# deploy/sandbox — 每个会话一个沙箱 Pod
+# 注意：这里放的是「模板与约束」，不是 Deployment。
+# 真正的 Pod 由 apps/api 的 sandbox/kubernetes.py 按会话动态创建/删除。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: code-agent-sandboxes
+  labels:
+    # 限制这层只能被 API 的 SA 操作
+    code-agent/purpose: sandbox
+---
+# 沙箱 Pod 的样板（照抄到 sandbox/kubernetes.py 的 Pod spec 里）
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sandbox-template
+  namespace: code-agent-sandboxes
+  labels:
+    code-agent/role: sandbox
+  annotations:
+    # 占位用，不会被真实调度
+    code-agent/template: "true"
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  activeDeadlineSeconds: 3600
+  containers:
+    - name: sandbox
+      image: code-agent/sandbox:latest
+      workingDir: /workspace
+      command: ["sleep", "infinity"]
+      resources:
+        requests: { cpu: 500m, memory: 1Gi }
+        limits: { cpu: "2", memory: 4Gi }
+  # 不挂载任何宿主机路径；workspace 用 emptyDir，Pod 删掉即消失
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: sandbox-quota
+  namespace: code-agent-sandboxes
+spec:
+  hard:
+    pods: "50"
+    requests.cpu: "40"
+    requests.memory: 80Gi
+    limits.cpu: "80"
+    limits.memory: 160Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: sandbox-defaults
+  namespace: code-agent-sandboxes
+spec:
+  limits:
+    - type: Container
+      default: { cpu: "1", memory: 2Gi }
+      defaultRequest: { cpu: 250m, memory: 512Mi }
+---
+# 默认拒绝所有出站，只放行 DNS 与 LLM API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sandbox-egress
+  namespace: code-agent-sandboxes
+spec:
+  podSelector:
+    matchLabels:
+      code-agent/role: sandbox
+  policyTypes: [Egress, Ingress]
+  ingress: []          # 沙箱不接受任何入站，命令由 API 通过 exec 发起
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 443 }

@@ -1,0 +1,40 @@
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# --- 环境变量（含密钥，只提交 .example）---
+.env
+.env.*
+!.env.example
+
+# --- 本地沙箱工作区 / 会话产物 ---
+.sandbox/
+workspace/
+*.log
+
+# --- 编辑器 / 系统 ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- 构建产物 ---
+deploy/**/charts/*.tgz
