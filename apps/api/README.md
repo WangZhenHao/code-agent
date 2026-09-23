@@ -21,14 +21,13 @@ uv run code-agent-api
 
 | 地址 | 说明 |
 | --- | --- |
-| http://localhost:8000/healthz | 健康检查，返回 `{"status":"ok","version":"..."}` |
 | http://localhost:8000/docs | Swagger UI |
 | http://localhost:8000/redoc | ReDoc |
 
 也可以用模块方式启动（等价）：
 
 ```bash
-uv run python -m code_agent_api.main
+uv run python -m app.main
 ```
 
 ## 技术栈
@@ -44,16 +43,16 @@ uv run python -m code_agent_api.main
 ## 目录结构
 
 ```
-src/code_agent_api/
+src/app/
 ├── __init__.py        # 版本号
-├── main.py            # create_app() + /healthz + main() 启动入口
+├── main.py            # create_app() + main() 启动入口
 └── settings.py        # 配置（环境变量前缀 CODE_AGENT_）
 ```
 
 规划中（尚未实现）：
 
 ```
-src/code_agent_api/
+src/app/
 ├── api/routes/        # chat(SSE) / sessions / sandbox
 ├── graph/             # LangGraph：state / builder / nodes / checkpoint
 ├── tools/             # Agent 可调用的能力：fs / shell / git
@@ -71,8 +70,7 @@ src/code_agent_api/
 | `CODE_AGENT_HOST` | `0.0.0.0` | 监听地址 |
 | `CODE_AGENT_PORT` | `8000` | 监听端口 |
 | `CODE_AGENT_DEBUG` | `true` | 同时控制 FastAPI debug 与 uvicorn 热重载 |
-| `CODE_AGENT_SANDBOX_PROVIDER` | `docker` | 沙箱实现，本地 `docker`、集群 `kubernetes` |
-| `CODE_AGENT_SANDBOX_NAMESPACE` | `code-agent-sandboxes` | 沙箱 Pod 所在 namespace |
+| `CODE_AGENT_CORS_ORIGINS` | `http://localhost:3000,http://localhost:5174` | 允许跨域的前端来源，逗号分隔；生产走同源反代可留空 |
 
 例：临时换端口跑
 

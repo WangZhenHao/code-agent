@@ -1,7 +1,7 @@
 [project]
 name = "code-agent-api"
 version = "0.1.0"
-description = "Add your description here"
+description = "code-agent 后端：FastAPI + LangGraph，SSE 流式输出"
 readme = "README.md"
 authors = [
     { name = "Poet", email = "zhenhaowang@dimleap.ai" }
@@ -14,8 +14,12 @@ dependencies = [
 ]
 
 [project.scripts]
-code-agent-api = "code_agent_api.main:main"
+code-agent-api = "app.main:main"
 
 [build-system]
 requires = ["uv_build>=0.11.29,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "app"
+module-root = "src"

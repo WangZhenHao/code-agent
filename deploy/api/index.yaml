@@ -48,10 +48,12 @@ spec:
           resources:
             requests: { cpu: 250m, memory: 512Mi }
             limits: { cpu: "2", memory: 2Gi }
+          # 没有 /healthz 路由，改用 /docs 只验证进程活着。
+          # 探针只关心 HTTP 能否响应，不关心状态码内容。
           readinessProbe:
-            httpGet: { path: /healthz, port: http }
+            httpGet: { path: /docs, port: http }
           livenessProbe:
-            httpGet: { path: /healthz, port: http }
+            httpGet: { path: /docs, port: http }
 ---
 apiVersion: v1
 kind: Service
