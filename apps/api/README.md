@@ -9,7 +9,11 @@
 # 安装依赖（uv 会自动按 .python-version 准备 3.12）
 uv sync
 
+# 起 Postgres + Redis
 docker-compose up -d
+
+# 建表/升级到最新
+uv run alembic upgrade head                 
 
 # 启动（热重载跟随 CODE_AGENT_DEBUG，默认开启）
 uv run code-agent-api
@@ -70,28 +74,6 @@ src/app/
 └── events/            # 流式事件模型（与 packages/protocol 同源）
 ```
 
-## 配置
-
-全部通过环境变量注入，前缀 `CODE_AGENT_`，也支持在 `apps/api/.env` 中写（已被 gitignore）。
-
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `CODE_AGENT_APP_NAME` | `code-agent-api` | 应用名，出现在 OpenAPI 文档 |
-| `CODE_AGENT_HOST` | `0.0.0.0` | 监听地址 |
-| `CODE_AGENT_PORT` | `8000` | 监听端口 |
-| `CODE_AGENT_DEBUG` | `true` | 同时控制 FastAPI debug 与 uvicorn 热重载 |
-| `CODE_AGENT_CORS_ORIGINS` | `http://localhost:3000,http://localhost:5174` | 允许跨域的前端来源，逗号分隔；生产走同源反代可留空 |
-| `CODE_AGENT_DATABASE_URL` | — | Postgres 连接串（**必填**），驱动段必须是 `postgresql+asyncpg` |
-| `CODE_AGENT_REDIS_URL` | — | Redis 连接串（**必填**） |
-
-`database_url` / `redis_url` 没有默认值：字段是必填的，漏配会在进程启动时直接报错，
-而不是跑到一半才失败。
-
-例：临时换端口跑
-
-```bash
-CODE_AGENT_PORT=9000 uv run code-agent-api
-```
 
 ## 数据库
 
@@ -117,27 +99,6 @@ uv run alembic check                                       # 检查模型与库�
 - 连接串只在 `.env` 里配置一处，`alembic.ini` 的 `sqlalchemy.url` 留空，由 `alembic/env.py`
   从 `app.settings` 读取——本地 / CI / 生产共用同一份迁移代码。
 
-## 核心约定
-
-1. **沙箱是唯一的代码执行入口**。`tools/` 里的 shell/文件操作一律经 `sandbox/` 抽象层，绝不在 API 进程内用 `subprocess` 跑用户代码。
-2. **`sandbox/` 之外不 import k8s 客户端**。集群实现只是抽象层的一个 provider，本地用 docker provider，避免改一行 prompt 就要走一遍镜像构建。
-3. **API 层无状态**。会话 ID 即 LangGraph `thread_id`，沙箱名由它派生；请求从 checkpointer 取 thread_id 再向沙箱层要 handle，因此可以随意扩缩容和滚动更新。
-4. **SSE 只传协议里定义的事件**（token / tool_call / tool_result / file_diff / done / error），协议定义在 `packages/protocol`，前后端共用。
-
-## 与其他子项目的关系
-
-| 目录 | 关系 |
-| --- | --- |
-| `apps/web` | Next.js 用户端，经 Route Handler 代理转发本服务的 SSE |
-| `apps/admin` | React SPA 管理台，生产走 nginx 反代 `/api/` 到本服务 |
-| `packages/protocol` | 流式事件协议的唯一来源，本服务的 `events/` 与之同源 |
-| `deploy/api` | 本服务的 k8s 清单（Deployment / Service / RBAC） |
-
-**数据库 schema 由本服务独占**：前端项目（web / admin）不直连 Postgres，也不要另建一套
-ORM/迁移指向同一个库——两边各写各的迁移，字段所有权立刻分叉，迟早互相打架。前端要数据
-就走本服务的 HTTP 接口。
-
-开发期 CORS 已放行 `http://localhost:3000`（web）与 `http://localhost:5174`（admin）。
 
 ## 常用命令
 
