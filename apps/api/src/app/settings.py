@@ -31,6 +31,23 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
 
+    # ---------- 鉴权 ----------
+
+    # JWT 签名密钥。同 host/port：不设默认值，缺失即启动失败。
+    # 给个弱默认值比启动失败更危险——生产会静默用上人尽皆知的密钥。
+    jwt_secret: str
+    # 令牌有效期（天）。本阶段产品，太短会让用户反复登录；改短只需改这一处。
+    jwt_expire_days: int = 7
+
+    # ---------- 短信验证码 ----------
+
+    # 验证码本身的有效期；也是「同号重发冷却」以外的另一个时间量
+    sms_code_ttl_seconds: int = 300
+    # 同一手机号两次发送之间的最小间隔，挡连点与短信轰炸
+    sms_resend_cooldown_seconds: int = 60
+    # 同一验证码允许的连续校验失败次数，超过即作废该码
+    sms_max_attempts: int = 5
+
     @property
     def cors_origin_list(self) -> list[str]:
         """切分并去掉空白项；空字符串得到空列表（即不放开任何跨域来源）。"""

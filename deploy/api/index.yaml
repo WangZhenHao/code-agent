@@ -41,6 +41,13 @@ spec:
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef: { name: code-agent-secrets, key: anthropic-api-key }
+            # JWT 签名密钥：泄漏等于任何人可伪造任意用户，必须走 secret，不写明文。
+            # openssl rand -hex 32 生成后：
+            #   kubectl -n <ns> patch secret code-agent-secrets \
+            #     -p "{\"data\":{\"jwt-secret\":\"$(openssl rand -hex 32 | base64)\"}}"
+            - name: CODE_AGENT_JWT_SECRET
+              valueFrom:
+                secretKeyRef: { name: code-agent-secrets, key: jwt-secret }
             - name: SANDBOX_NAMESPACE
               value: code-agent-sandboxes
             - name: SANDBOX_PROVIDER
