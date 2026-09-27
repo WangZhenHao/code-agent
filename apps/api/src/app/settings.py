@@ -6,11 +6,15 @@ ANTHROPIC_API_KEY 这类约定名，那些变量不走这里，只是同放在 .
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pathlib import Path
+
+_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"   # apps/api/.env
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="CODE_AGENT_",
-        env_file=".env",
+        env_file=_ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -47,6 +51,10 @@ class Settings(BaseSettings):
     sms_resend_cooldown_seconds: int = 60
     # 同一验证码允许的连续校验失败次数，超过即作废该码
     sms_max_attempts: int = 5
+
+    # ---------- 语言模型 ----------
+    api_key: str
+    api_url: str
 
     @property
     def cors_origin_list(self) -> list[str]:

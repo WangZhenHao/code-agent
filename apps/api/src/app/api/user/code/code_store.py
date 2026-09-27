@@ -8,6 +8,9 @@ A Pod 发的码 B Pod 查不到，用户看到的是「随机提示验证码错�
 **为什么还要留内存实现**：本地只是想跑通注册登录、不想起 Redis 时，
 用 MemoryCodeStore 就够了。两者实现同一个 CodeStore 协议，上层无感。
 
+连接的建立与回收不在这里：Redis client 由 app/redis.py 统一管（单例 + lifespan 回收），
+本模块只管验证码自己的 key 与 Lua 脚本。
+
 **验证码只存 sha256 摘要，不存明文**。验证码是 6 位数字、TTL 五分钟，
 本身不是长期秘密；但 Redis 的 RDB 快照、AOF、`MONITOR` 输出都可能被拿到，
 存明文等于把「当下谁都还没用掉的有效验证码」白送。摘要比对成本可以忽略。
@@ -23,6 +26,7 @@ from typing import Protocol
 
 from redis.asyncio import Redis
 
+from app.redis import get_redis
 from app.settings import settings
 
 CODE_KEY = "sms:code:{phone}"
@@ -190,29 +194,14 @@ class MemoryCodeStore:
         return VerifyResult.MISMATCH
 
 
-# 单例。Redis 客户端自己管连接池，每次请求新建会漏连接。
-_redis_client: Redis | None = None
-_store: CodeStore | None = None
-
-
 def get_code_store() -> CodeStore:
     """FastAPI 依赖：`store: CodeStore = Depends(get_code_store)`。
 
     默认用 Redis（settings.redis_url 指向 docker-compose 里的实例）。
     本地想免 Redis 时改这里返回 MemoryCodeStore() 即可——
     这也是为什么所有实现都藏在 CodeStore 协议后面。
+
+    不必缓存 RedisCodeStore 实例：它自己没有状态，唯一持有的 client
+    由 app/redis.py 保证单例。
     """
-    global _redis_client, _store
-    if _store is None:
-        _redis_client = Redis.from_url(settings.redis_url, decode_responses=False)
-        _store = RedisCodeStore(_redis_client)
-    return _store
-
-
-async def close_code_store() -> None:
-    """进程退出时释放连接池，挂到 main.py 的 lifespan 上。"""
-    global _redis_client, _store
-    if _redis_client is not None:
-        await _redis_client.aclose()
-    _redis_client = None
-    _store = None
+    return RedisCodeStore(get_redis())
