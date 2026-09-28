@@ -6,7 +6,8 @@ Alembic 的 autogenerate 只看得见已经 import 过的模型——Base.metada
 """
 
 from app.db.models.deployment import Deployment
+from app.db.models.point import PointRecord
 from app.db.models.session import Messages, Session
 from app.db.models.user import User
 
-__all__ = ["Deployment", "Messages", "Session", "User"]
+__all__ = ["Deployment", "Messages", "PointRecord", "Session", "User"]
