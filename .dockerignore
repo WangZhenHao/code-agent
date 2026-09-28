@@ -1,0 +1,8 @@
+# 构建上下文：见 sandbox-image/Dockerfile（仓库根 + 白名单 .dockerignore）
+deploy/api/sandbox-image/entrypoint.sh
+templete/nextjs/file
+# 模板自带的 git 仓库（gitlink 子模块，带独立历史）——绝不能进沙箱。
+templete/nextjs/file/.git/
+templete/nextjs/file/.DS_Store
+templete/nextjs/file/node_modules/
+templete/nextjs/file/.next/
