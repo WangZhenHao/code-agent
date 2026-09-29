@@ -18,6 +18,10 @@ from langgraph.graph.message import add_messages
 # 值域必须与 graphs.py 里 add_conditional_edges 的映射表逐字一致。
 Branch = Literal["plan", "agent"]
 
+class Session: 
+    id: str
+
+
 
 class State(TypedDict):
     """贯穿全图的共享状态。
@@ -35,3 +39,5 @@ class State(TypedDict):
     mode: Branch
     # planAgent 产出的步骤清单，供 codeAgent 消费。占位阶段为空。
     plan: list[str]
+
+    session: Session

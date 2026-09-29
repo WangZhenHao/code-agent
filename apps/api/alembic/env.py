@@ -39,6 +39,29 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# 不归 Alembic 管的对象。这些表由 LangGraph 的 checkpointer 自己建
+# （见 app/agents/memory/checkpointer.py 里的 saver.setup()），
+# 不在 Base.metadata 里。
+#
+# 必须显式排除：autogenerate 只认「数据库里有、metadata 里没有」= 该删，
+# 于是这四张表会被判定成漂移，`make db-revision` 生成的迁移里就是一串
+# DROP TABLE——跑一次就丢掉全部会话历史。`make db-check` 也会因此一直失败。
+_EXCLUDED_TABLES = frozenset(
+    {
+        "checkpoints",
+        "checkpoint_blobs",
+        "checkpoint_writes",
+        "checkpoint_migrations",
+    }
+)
+
+
+def include_object(obj, name, type_, reflected, compare_to):  # noqa: ANN001
+    """挡住 checkpointer 的私有表，其余一律放行。"""
+    if type_ == "table" and name in _EXCLUDED_TABLES:
+        return False
+    return True
+
 
 def run_migrations_offline() -> None:
     """离线模式：只渲染 SQL，不连库（`alembic upgrade head --sql`）。"""
@@ -50,6 +73,7 @@ def run_migrations_offline() -> None:
         compare_type=True,
         compare_server_default=True,
         include_schemas=False,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -65,6 +89,7 @@ def do_run_migrations(connection: Connection) -> None:
         compare_type=True,
         compare_server_default=True,
         include_schemas=False,
+        include_object=include_object,
     )
 
     with context.begin_transaction():

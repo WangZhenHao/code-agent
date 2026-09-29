@@ -57,8 +57,11 @@ async def _build_saver() -> AsyncPostgresSaver:
     # setup() 必须由使用者主动调用，LangGraph 不会自动建表。它建 4 张表：
     # checkpoint_migrations / checkpoints / checkpoint_blobs / checkpoint_writes。
     #
-    # 这几张表**不归 Alembic 管**，也不会出现在 Base.metadata 里，所以
-    # `make db-check` 看不到它们——这是预期行为，不是漏配。别去 alembic 里找。
+    # 这几张表**不归 Alembic 管**：它们不在 Base.metadata 里，由 langgraph
+    # 自己维护 DDL。代价是 autogenerate 会把「库里有、metadata 里没有」当成
+    # 该删的漂移，所以 alembic/env.py 里有一份 include_object 白名单挡着它们
+    # （_EXCLUDED_TABLES）。**改这里的表名或升级 langgraph 引入新表时，
+    # 那份名单也要跟着改**，否则 `make db-revision` 会生成 DROP TABLE。
     #
     # 幂等：方法内部按 checkpoint_migrations 的版本号决定跑哪些 DDL，重复调用
     # 是空操作。多副本同时冷启动理论上可能撞车（版本号那行 INSERT 是主键），
