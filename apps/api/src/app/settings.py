@@ -56,6 +56,19 @@ class Settings(BaseSettings):
     api_key: str
     api_url: str
 
+    # ---------- LangGraph checkpointer 连接池 ----------
+    # 这三个是可选调优项，不是必填项，所以给默认值；跟上面 host/port 那批
+    # 「缺失即启动失败」的性质不同，别照抄那种写法。
+    #
+    # 注意用的是 psycopg 的连接池，和 db/session.py 那个 SQLAlchemy engine
+    # 是两个独立池：前者给 checkpointer，后者给业务表。SQLAlchemy 的池参数
+    # 不作用于这里，反之亦然。
+    checkpoint_pool_min_size: int = 1
+    checkpoint_pool_max_size: int = 10
+    # 借连接的最长等待时间（秒）。池满时超过这个时间就抛 PoolTimeout，
+    # 而不是无限挂住整个请求。
+    checkpoint_pool_timeout: float = 30.0
+
     @property
     def cors_origin_list(self) -> list[str]:
         """切分并去掉空白项；空字符串得到空列表（即不放开任何跨域来源）。"""
