@@ -4,8 +4,6 @@
 仍是进程内字典占位，进程重启即丢。落地时换成真实查询，函数签名保持不变。
 """
 
-from uuid import uuid4
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.schemas import (
@@ -28,11 +26,11 @@ async def create_chat(
     尚未接入 LangGraph：现在只登记会话，不真的跑模型。
     """
     # add() 没有返回值，必须先把对象存进变量再登记，否则拿不到这个实例。
+    # 不传 id：主键的 default=new_id 会生成 12 位 cuid2，显式传 id 会绕过它。
     chat = Session(
-        id=str(uuid4()),
         title=req.message[:30],
         status=SessionStatus.running,
-        user_id=user_id    
+        user_id=user_id,
     )
     session.add(chat)
     await session.commit()
