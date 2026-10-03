@@ -1,6 +1,13 @@
 /** 与后端约定的资源类型。字段将来由 packages/protocol 生成，这里先手写占位。 */
 
-export type SessionStatus = 'running' | 'idle' | 'failed' | 'archived'
+/** 会话状态码，与后端 app.db.models.session.SessionStatus 对齐 */
+export const SessionStatus = {
+  /** 已删除（软删） */
+  delete: 0,
+  /** 进行中 */
+  running: 1,
+} as const
+export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus]
 
 export interface Session {
   id: string

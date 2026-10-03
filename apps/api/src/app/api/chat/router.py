@@ -5,7 +5,8 @@ POST /chat + GET /chat，是为了后面加 /chat/stop、/chat/resume 这类
 操作时路径形态保持一致。
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.schemas import (
     ChatCreateRequest,
@@ -13,6 +14,9 @@ from app.api.chat.schemas import (
     ChatListResponse,
 )
 from app.api.chat.service import create_chat, list_chats
+from app.db.models.user import User
+from app.db.session import get_session
+from app.security import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -21,16 +25,12 @@ router = APIRouter(prefix="/chat", tags=["chat"])
     "/create",
     response_model=ChatCreateResponse,
     summary="新建或复用会话",
-    description=(
-        "传 `thread_id` 则复用已有会话（turns +1、刷新 updated_at）；"
-        "不传则新建一个，返回的 `thread_id` 同时也是 LangGraph 的 thread_id "
-        "与沙箱 Pod 标签的来源。\n\n"
-        "当前尚未接入模型：只登记会话，不产生模型输出。"
-    ),
     responses={422: {"description": "message 为空，或 agent 名非法"}},
 )
-async def chat_create(req: ChatCreateRequest) -> ChatCreateResponse:
-    return create_chat(req)
+async def chat_create(req: ChatCreateRequest,
+                      user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)
+                    ):
+    return await create_chat(req, user_id=user.id, session=session)
 
 
 @router.get(

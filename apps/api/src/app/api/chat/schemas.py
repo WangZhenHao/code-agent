@@ -8,10 +8,23 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+class AttachmentType(StrEnum):
+    image = "image"
+    file = "file"
 
-class SessionStatus(StrEnum):
-    active = "active"
-    archived = "archived"
+
+class Part(BaseModel):
+    """一条消息里除文本外的附加内容。"""
+
+    type: AttachmentType = Field(
+        description="附件类型",
+        examples=["image", "file"],
+    )
+    url: str = Field(
+        min_length=1,
+        description="附件地址，沙箱内读得到或 api 能拉取的 URL",
+        examples=["https://example.com/a.png"],
+    )
 
 
 class ChatCreateRequest(BaseModel):
@@ -20,15 +33,15 @@ class ChatCreateRequest(BaseModel):
         description="用户这一轮说的话",
         examples=["帮我写个快排"],
     )
-    thread_id: str | None = Field(
-        default=None,
-        description="会话 ID；不传则新建。同时也是沙箱 Pod 标签的来源",
-        examples=["e9394c054c9641e8981ca78b99b70dde"],
-    )
-    agent: str = Field(
-        default="general",
+    mode: str = Field(
+        default="agent",
         description="用哪个 agent，见 /agents",
-        examples=["general", "coding"],
+        examples=["agent", "plan"],
+    )
+    parts: list[Part] = Field(
+        default_factory=list,
+        description="附加内容，按顺序跟在 message 后面",
+        examples=[[{"type": "image", "url": "https://example.com/a.png"}]],
     )
 
 
@@ -36,7 +49,8 @@ class ChatCreateResponse(BaseModel):
     thread_id: str = Field(examples=["e9394c054c9641e8981ca78b99b70dde"])
     title: str = Field(examples=["帮我写个快排"])
     agent: str = Field(examples=["general"])
-    status: SessionStatus = Field(examples=["active"])
+    # 会话状态码，见 app.db.models.session.SessionStatus：0=已删除，1=进行中
+    status: int = Field(examples=[1])
     created_at: datetime
 
 
@@ -44,7 +58,8 @@ class ChatSession(BaseModel):
     thread_id: str = Field(examples=["e9394c054c9641e8981ca78b99b70dde"])
     title: str = Field(examples=["帮我写个快排"])
     agent: str = Field(examples=["general"])
-    status: SessionStatus = Field(examples=["active"])
+    # 会话状态码，见 app.db.models.session.SessionStatus：0=已删除，1=进行中
+    status: int = Field(examples=[1])
     turns: int = Field(description="累计轮数", examples=[2])
     created_at: datetime
     updated_at: datetime = Field(description="最后活跃时间，列表按它倒序")

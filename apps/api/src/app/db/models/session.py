@@ -30,11 +30,15 @@ from app.db.ids import ID_LENGTH, new_id
 
 
 class SessionStatus(IntEnum):
-    """会话状态。Prisma 里是 `status Int @default(0)`，注释给了码值含义。"""
+    """会话状态。整数状态码，落 INTEGER 列。
 
-    running = 0  # 进行中
-    completed = 1  # 已完成
-    failed = 2  # 失败
+    删除是状态 0，不是独立的 is_deleted 列——整个表只有这一处表达「这条还在不在」，
+    列表查询带 `status != SessionStatus.delete`（不要用 `== running`，那样以后
+    加终态就会把新状态一起排除掉）。
+    """
+
+    delete = 0  # 已删除（软删）
+    running = 1  # 进行中
 
 
 class Role(StrEnum):
@@ -73,8 +77,9 @@ class Session(Base, TimestampMixin):
     所以没有额外的 thread_id 列。也因此主键必须是 String 而不是自增 int——
     checkpointer 的 thread_id 是字符串。
 
-    is_deleted 是软删：列表查询都要带上 `is_deleted = false`，本轮不加
-    全局 filter，等接接口时在 service 层显式写（和 user.py 一样不搞隐式魔法）。
+    is_deleted 列已去掉：删除是 `status == SessionStatus.delete`（0）。列表查询带
+    `status != SessionStatus.delete`，本轮不加全局 filter，等接接口时在 service 层
+    显式写（和 user.py 一样不搞隐式魔法）。
     """
 
     __tablename__ = "sessions"
@@ -105,10 +110,6 @@ class Session(Base, TimestampMixin):
     git_repo_name: Mapped[str | None] = mapped_column(String(256), default=None)
     git_repo_url: Mapped[str | None] = mapped_column(String(2048), default=None)
 
-    is_deleted: Mapped[bool] = mapped_column(
-        default=False, server_default=text("false")
-    )
-
     # ondelete="CASCADE"：用户注销时其会话一并清掉。DB 层做级联而不是 ORM 层
     # （不加 relationship + cascade="all, delete-orphan"），因为绕过 ORM 的
     # 删除/清理脚本也需要它。
@@ -117,9 +118,8 @@ class Session(Base, TimestampMixin):
     )
 
     __table_args__ = (
-        # 会话列表页的查询形态：where user_id = ? and is_deleted = false order by updated_at desc
+        # 会话列表页的查询形态：where user_id = ? and status != delete order by updated_at desc
         Index("ix_sessions_user_id_updated_at", "user_id", "updated_at"),
-        Index("ix_sessions_user_id_is_deleted", "user_id", "is_deleted"),
     )
 
     def __repr__(self) -> str:
@@ -158,10 +158,6 @@ class Messages(Base):
     # 就只能按 id 排序，而 id 是随机的 cuid 不可排序。
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    is_deleted: Mapped[bool] = mapped_column(
-        default=False, server_default=text("false")
     )
 
     __table_args__ = (

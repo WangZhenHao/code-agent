@@ -96,18 +96,22 @@ async def login_or_register(
     phone = _normalized(raw_phone)
 
     result = await store.verify(phone, code)
-    if result == VerifyResult.TOO_MANY:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="验证码错误次数过多，请重新获取",
-        )
-    if result != VerifyResult.OK:
-        # MISMATCH（码错）和 EXPIRED（不存在/已过期/已用过）返回同一句话：
-        # 区分开等于告诉攻击者「这个号确实刚发过码，继续试」。
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="验证码错误或已失效",
-        )
+
+    if settings.env == "dev": 
+        logger.info("开发环境不需要登陆")
+    else:
+        if result == VerifyResult.TOO_MANY:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="验证码错误次数过多，请重新获取",
+            )
+        if result != VerifyResult.OK:
+            # MISMATCH（码错）和 EXPIRED（不存在/已过期/已用过）返回同一句话：
+            # 区分开等于告诉攻击者「这个号确实刚发过码，继续试」。
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="验证码错误或已失效",
+            )
 
     user = await session.scalar(select(User).where(User.phone == phone))
     is_new = user is None

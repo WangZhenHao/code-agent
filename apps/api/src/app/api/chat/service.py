@@ -1,64 +1,55 @@
 """对话的业务编排。
 
-目前用进程内字典存会话，只为把接口跑通；进程重启即丢。
-落地时换成数据库 + LangGraph checkpointer，函数签名保持不变。
+会话落到 sessions 表（见 app/db/models/session.py）；列表接口还没接数据库，
+仍是进程内字典占位，进程重启即丢。落地时换成真实查询，函数签名保持不变。
 """
 
-from datetime import UTC, datetime
 from uuid import uuid4
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.schemas import (
     ChatCreateRequest,
     ChatCreateResponse,
     ChatListResponse,
     ChatSession,
-    SessionStatus,
 )
+from app.db.models.session import PreviewStatus, Session, SessionStatus
 
-# thread_id -> 会话
+# thread_id -> 会话（列表接口的临时占位，未接数据库）
 _SESSIONS: dict[str, ChatSession] = {}
 
 
-def create_chat(req: ChatCreateRequest) -> ChatCreateResponse:
-    """新建或复用会话，返回 thread_id。
+async def create_chat(
+    req: ChatCreateRequest, user_id: int, session: AsyncSession
+) -> ChatCreateResponse:
+    """新建会话，落库并返回。
 
     尚未接入 LangGraph：现在只登记会话，不真的跑模型。
     """
-    thread_id = req.thread_id or uuid4().hex
-    now = datetime.now(UTC)
-
-    existing = _SESSIONS.get(thread_id)
-    if existing is not None:
-        existing.turns += 1
-        existing.updated_at = now
-        return ChatCreateResponse(
-            thread_id=thread_id,
-            title=existing.title,
-            agent=existing.agent,
-            status=existing.status,
-            created_at=existing.created_at,
-        )
-
-    session = ChatSession(
-        thread_id=thread_id,
+    # add() 没有返回值，必须先把对象存进变量再登记，否则拿不到这个实例。
+    chat = Session(
+        id=str(uuid4()),
         title=req.message[:30],
-        agent=req.agent,
-        status=SessionStatus.active,
-        turns=1,
-        created_at=now,
-        updated_at=now,
+        status=SessionStatus.running,
+        user_id=user_id    
     )
-    _SESSIONS[thread_id] = session
+    session.add(chat)
+    await session.commit()
+    # commit 后取回 DB 端生成的 created_at（server_default），否则该字段仍是 None。
+    await session.refresh(chat)
+
     return ChatCreateResponse(
-        thread_id=thread_id,
-        title=session.title,
-        agent=session.agent,
-        status=session.status,
-        created_at=session.created_at,
+        thread_id=chat.id,
+        title=chat.title,
+        agent=req.mode,
+        status=chat.status,
+        created_at=chat.created_at,
     )
 
 
 def list_chats() -> ChatListResponse:
     """按最后活跃时间倒序列出会话。"""
-    items = sorted(_SESSIONS.values(), key=lambda s: s.updated_at, reverse=True)
+    items = sorted(_SESSIONS.values(),
+                   key=lambda s: s.updated_at, reverse=True)
     return ChatListResponse(items=items, total=len(items))

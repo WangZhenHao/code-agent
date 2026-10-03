@@ -69,6 +69,8 @@ class Settings(BaseSettings):
     # 而不是无限挂住整个请求。
     checkpoint_pool_timeout: float = 30.0
 
+    env: str
+
     @property
     def cors_origin_list(self) -> list[str]:
         """切分并去掉空白项；空字符串得到空列表（即不放开任何跨域来源）。"""
