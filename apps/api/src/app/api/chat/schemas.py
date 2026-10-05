@@ -6,7 +6,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 class AttachmentType(StrEnum):
     image = "image"
@@ -65,17 +65,26 @@ class ChatCreateResponse(BaseModel):
     created_at: datetime
 
 
-class ChatSession(BaseModel):
-    thread_id: str = Field(examples=["e9394c054c9641e8981ca78b99b70dde"])
-    title: str = Field(examples=["帮我写个快排"])
-    agent: str = Field(examples=["general"])
-    # 会话状态码，见 app.db.models.session.SessionStatus：0=已删除，1=进行中
-    status: int = Field(examples=[1])
-    turns: int = Field(description="累计轮数", examples=[2])
+class MessageItem(BaseModel):
+    """一条消息。对应 Messages 表的字段，parts 原样透出。"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: str = Field(examples=["an1hhebbsm8n"])
+    role: str = Field(description="user / assistant / error", examples=["user"])
+    status: str = Field(description="complete / interrupted", examples=["complete"])
+    model: str = Field(examples=["deepseek-v4-flash"])
+    mode: str = Field(examples=["agent"])
+    parts: list[Part | PartText] | None = Field(
+        default=None,
+        description="消息内容片段",
+        examples=[[{"type": "text", "content": "帮我写个快排"}]],
+    )
+    duration: int | None = Field(default=None, description="这一轮耗时，毫秒")
     created_at: datetime
-    updated_at: datetime = Field(description="最后活跃时间，列表按它倒序")
 
 
-class ChatListResponse(BaseModel):
-    items: list[ChatSession]
-    total: int = Field(description="会话总数", examples=[2])
+class MessageListResponse(BaseModel):
+    data: list[MessageItem]
+    total: int = Field(description="消息总数", examples=[2])
+
+

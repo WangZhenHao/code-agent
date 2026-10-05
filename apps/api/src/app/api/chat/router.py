@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.chat.schemas import (
     ChatCreateRequest,
     ChatCreateResponse,
-    ChatListResponse,
+    MessageListResponse,
 )
-from app.api.chat.service import create_chat, list_chats
+from app.api.chat.service import chat_message, create_chat
 from app.db.models.user import User
 from app.db.session import get_session
 from app.security import get_current_user
@@ -28,20 +28,23 @@ router = APIRouter(prefix="/chat", tags=["chat"])
     responses={422: {"description": "message 为空，或 agent 名非法"}},
 )
 async def chat_create(req: ChatCreateRequest,
-                      user: User = Depends(get_current_user), 
+                      user: User = Depends(get_current_user),
                       session: AsyncSession = Depends(get_session)
-                    ):
+                      ):
     return await create_chat(req, user_id=user.id, session=session)
 
 
 @router.get(
-    "/list",
-    response_model=ChatListResponse,
-    summary="列出会话",
-    description=(
-        "按最后活跃时间倒序返回。\n\n"
-        "当前存在进程内内存里，进程重启即清空；接入数据库后此行为不变。"
-    ),
+    "/message/{id}",
+    response_model=MessageListResponse,
+    summary="获取会话消息",
+    responses={404: {"description": "会话不存在或不属于当前用户"}},
 )
-async def chat_list() -> ChatListResponse:
-    return list_chats()
+async def message(id: str,
+                  user: User = Depends(get_current_user),
+                  session: AsyncSession = Depends(get_session)
+                  ):
+    """获取会话消息，按时间正序。"""
+    return await chat_message(id, user.id, session)
+
+

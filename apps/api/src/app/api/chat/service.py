@@ -4,19 +4,50 @@
 仍是进程内字典占位，进程重启即丢。落地时换成真实查询，函数签名保持不变。
 """
 
+import logging
+
+from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.schemas import (
     ChatCreateRequest,
     ChatCreateResponse,
-    ChatListResponse,
-    ChatSession,
+    MessageItem,
+    MessageListResponse,
 )
 from app.db.models.session import MessageStatus, Messages, PreviewStatus, Role, Session, SessionStatus
 
-# thread_id -> 会话（列表接口的临时占位，未接数据库）
-_SESSIONS: dict[str, ChatSession] = {}
 
+async def chat_message(
+    id: str, user_id: int, session: AsyncSession
+) -> MessageListResponse:
+    """取某个会话的消息列表，按时间正序。
+
+    id 是会话 id（= LangGraph thread_id）。先确认这个会话属于 user_id——
+    不属于就当 404 而不是 403：不泄露「这个 id 存在但不归你」，
+    拿别人的 id 来探测时两种情况响应一致。
+    """
+    owner = await session.scalar(
+        select(Session.id).where(
+            Session.id == id,
+            Session.user_id == user_id,
+            Session.status != SessionStatus.delete,
+        )
+    )
+    if owner is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="会话不存在",
+        )
+
+    rows = await session.scalars(
+        select(Messages)
+        .where(Messages.session_id == id)
+        .order_by(Messages.created_at.asc())
+    )
+    items = [MessageItem.model_validate(m) for m in rows]
+    return MessageListResponse(data=items, total=len(items))
 
 async def create_chat(
     req: ChatCreateRequest, user_id: int, session: AsyncSession
@@ -65,8 +96,3 @@ async def create_chat(
     )
 
 
-def list_chats() -> ChatListResponse:
-    """按最后活跃时间倒序列出会话。"""
-    items = sorted(_SESSIONS.values(),
-                   key=lambda s: s.updated_at, reverse=True)
-    return ChatListResponse(items=items, total=len(items))
