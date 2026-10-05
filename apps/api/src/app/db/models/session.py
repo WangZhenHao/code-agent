@@ -144,6 +144,7 @@ class Messages(Base):
     role: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16))
     model: Mapped[str] = mapped_column(String(64))
+    mode: Mapped[str] = mapped_column(String(16))
 
     # 模型输出的结构化片段。JSONB 而非 JSON：需要按键/路径查询，且写入时
     # 会做去重和解析，读性能也更好。

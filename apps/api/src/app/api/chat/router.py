@@ -28,7 +28,8 @@ router = APIRouter(prefix="/chat", tags=["chat"])
     responses={422: {"description": "message 为空，或 agent 名非法"}},
 )
 async def chat_create(req: ChatCreateRequest,
-                      user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)
+                      user: User = Depends(get_current_user), 
+                      session: AsyncSession = Depends(get_session)
                     ):
     return await create_chat(req, user_id=user.id, session=session)
 

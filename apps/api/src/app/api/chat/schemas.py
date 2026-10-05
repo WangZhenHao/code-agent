@@ -20,33 +20,44 @@ class Part(BaseModel):
         description="附件类型",
         examples=["image", "file"],
     )
-    url: str = Field(
+    content: str = Field(
         min_length=1,
         description="附件地址，沙箱内读得到或 api 能拉取的 URL",
         examples=["https://example.com/a.png"],
     )
+class PartText(BaseModel):
+    type: str = "text"
+
+    content: str = Field(
+        min_length=1,
+        description="文本内容",
+        examples=["请写一个快排"],
+    )
+
 
 
 class ChatCreateRequest(BaseModel):
-    message: str = Field(
-        min_length=1,
-        description="用户这一轮说的话",
-        examples=["帮我写个快排"],
+
+    model: str = Field(
+        default="deepseek-v4-flash",
+        description="模型名称",
+        examples=["deepseek-v4-flash", "deepseek-v4-pro"],
     )
+
     mode: str = Field(
         default="agent",
         description="用哪个 agent，见 /agents",
         examples=["agent", "plan"],
     )
-    parts: list[Part] = Field(
+    parts: list[PartText | Part] = Field(
         default_factory=list,
         description="附加内容，按顺序跟在 message 后面",
-        examples=[[{"type": "image", "url": "https://example.com/a.png"}]],
+        examples=[[{"type": "text", "content": "帮我写个快排"}]],
     )
 
 
 class ChatCreateResponse(BaseModel):
-    thread_id: str = Field(examples=["e9394c054c9641e8981ca78b99b70dde"])
+    id: str = Field(examples=["e9394c054c9641e8981ca78b99b70dde"])
     title: str = Field(examples=["帮我写个快排"])
     agent: str = Field(examples=["general"])
     # 会话状态码，见 app.db.models.session.SessionStatus：0=已删除，1=进行中
