@@ -11,7 +11,7 @@ client = SandboxClient(
 #     connection_config=SandboxLocalTunnelConnectionConfig(router_namespace="default")
 # )
 
-sandbox = client.create_sandbox(warmpool="python-sandbox-warmpool", namespace="default")
+sandbox = client.create_sandbox(warmpool="python-sandbox-warmpool", namespace="my-agent-sandbox-system")
 try:
     print(sandbox.commands.run("echo 'Hello from Local!'").stdout)
 finally:

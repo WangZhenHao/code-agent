@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Sandbox Router —— SDK 的 `SandboxLocalTunnelConnectionConfig` 会 port-forward
+# `svc/sandbox-router-svc`,控制器那套装不下这个数据面组件,缺了它 SDK 直接连不上。
+#
+# 清单取自上游 sandbox-router/deploy/（不在仓库里 vendored,与既有 deploy/api/agent-sandbox
+# 同一套做法）。该目录每个文件一个用途,故逐个列出而非整个目录——
+# **故意不引 networkpolicy.yaml**:它的 egress 只放行到 kube-system DNS 和
+# namespace=default:443,在本地 OrbStack 上会挡掉 router→sandbox Pod 的 8888 流量。
+# 生产要开网络策略时再单列,并按下文改 selector。
+resources:
+  - https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/v1.0.4/sandbox-router/deploy/serviceaccount.yaml
+  - https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/v1.0.4/sandbox-router/deploy/rbac.yaml
+  - https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/v1.0.4/sandbox-router/deploy/deployment.yaml
+  - https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/v1.0.4/sandbox-router/deploy/service.yaml
+  - https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/v1.0.4/sandbox-router/deploy/pdb.yaml
+
+# 上游把命名空间硬编码成 agent-sandbox-system,且 ClusterRoleBinding 的
+# subjects[].namespace 也写死。kustomize 的 namespace: 转换器会**自动同步 subjects**,
+# 只改 metadata.namespace 会让 SA 和授权对不上——这正是 agent-sandbox 那份 README
+# 里记过的坑。控制面已装在 my-agent-sandbox-system,这里必须跟它一致。
+namespace: my-agent-sandbox-system
+
+# 上游 deployment.yaml 钉的是 `:latest`,而 registry.k8s.io 上 **latest 是 404**,
+# 拉不到。这里改成 release tag,顺便让版本可复现。
+images:
+  - name: registry.k8s.io/agent-sandbox/sandbox-router-go
+    newTag: v1.0.4
