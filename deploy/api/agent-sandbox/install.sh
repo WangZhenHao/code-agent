@@ -8,7 +8,7 @@ VERSION="${VERSION:-v1.0.4}"
 MANIFEST="${MANIFEST:-sandbox-with-extensions.yaml}"
 DRY_RUN="${DRY_RUN:-}"
 
-NAMESPACE=agent-sandbox-system
+NAMESPACE=my-agent-sandbox-system
 DEPLOY=agent-sandbox-controller
 BASE="https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${VERSION}"
 
