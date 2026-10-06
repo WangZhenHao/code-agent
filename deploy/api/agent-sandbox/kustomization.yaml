@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 控制面命名空间。kustomize 的 namespace: 转换器会把这个值写进所有 namespaced
+# 资源的 metadata.namespace，并且**自动同步两个 ClusterRoleBinding 的
+# subjects[].namespace**。后者是关键：只改 metadata.namespace 会让 ServiceAccount
+# 和它的授权绑定对不上，RBAC 直接失效（症状是控制器疯狂刷 "cannot list resource
+# ... at the cluster scope"）。
+#
+# 换命名空间改这一行即可，不用碰下面的清单。
+namespace: my-agent-sandbox-system
+
+# 版本可复现性由 URL 路径里的 tag 保证。换 manifest 改这一行的文件名（三选一：
+# sandbox.yaml / extensions.yaml / sandbox-with-extensions.yaml，说明见 README）。
+resources:
+  - https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.4/sandbox-with-extensions.yaml
