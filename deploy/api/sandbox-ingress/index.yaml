@@ -1,0 +1,58 @@
+# 通配 Ingress：把 `<沙箱ID>.<域名>` 映射到对应沙箱。
+#
+# 为什么这样设计（而不是给每个沙箱建一个 Ingress）：
+#   agent-sandbox 的 router 是**无状态**的，靠请求头 `X-Sandbox-ID` 决定转发给哪个沙箱。
+#   所以只需**一条通配规则**覆盖所有沙箱：从 Host 里剥出子域名当沙箱 ID，塞进头里。
+#   新沙箱创建后无需任何额外配置，域名立刻可用。
+#
+# 两条域名规则并存：
+#   *.localtest.me      —— 公共 DNS，所有子域名解析到 127.0.0.1（含正常回环 IPv6 ::1）。
+#                          本机 80 端口可达 ingress，故直接命中。**Chrome 首选**：
+#                          不受 Clash/198.18 污染，也没有 OrbStack 那个不可达的 IPv6。
+#   *.k8s.orb.local     —— OrbStack magic DNS 后备。注意它同时解析出一个不可达的 IPv6
+#                          （fd07:…），Chrome 会优先试它而挂起；且与 Clash 的 fake-ip
+#                          网段冲突时会污染 DNS。仅作备用。
+#
+# 端口：子域名只编码了 ID，编码不了端口，所以固定转发到 3000（沙箱里的 Next dev server）。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sandbox-wildcard
+  namespace: my-agent-sandbox-system
+  annotations:
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      # 从 Host 剥出沙箱 ID（子域名部分）。下面两组 server_name 通配已限定域名，
+      # 这里再兜一层，两个域名都认。
+      set $sandbox_id "";
+      if ($host ~ "^([a-z0-9][a-z0-9-]*)\.(k8s\.orb\.local|localtest\.me)$") {
+        set $sandbox_id $1;
+      }
+      # router 靠这三个头定位沙箱目标。端口固定 3000（Next dev server）。
+      proxy_set_header X-Sandbox-ID $sandbox_id;
+      proxy_set_header X-Sandbox-Namespace "default";
+      proxy_set_header X-Sandbox-Port "3000";
+    # Next dev server 的 HMR 用 WebSocket；静态资源路径是绝对的（/_next/...），
+    # 通配子域名下根路径即 app 根，因此不需要 basePath。
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "*.localtest.me"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sandbox-router-svc
+                port:
+                  number: 8080
+    - host: "*.k8s.orb.local"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sandbox-router-svc
+                port:
+                  number: 8080
