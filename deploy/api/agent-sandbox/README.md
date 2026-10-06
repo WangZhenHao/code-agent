@@ -93,5 +93,12 @@ kubectl -n $NS logs deploy/agent-sandbox-controller | grep -c forbidden   # 应�
 **边界**：agent-sandbox 只管到「Pod 起没起、活没活」，**不碰代码执行**——容器内读写文件、跑命令
 仍是 `apps/api` 的沙箱层负责（`exec` 进容器）。core 约定 1（沙箱唯一入口）不变。
 
-**当前状态**：`apps/api` 侧的沙箱层尚未存在，也就谈不上提交 `Sandbox` CR。
-切换是独立的一步，涉及 RBAC 调整（API 的 SA 要拿到 `sandboxes` / `sandboxclaims` 权限）。
+**当前状态**：控制面、Router、SandboxTemplate（[../sandbox-image/index.yaml](../sandbox-image/index.yaml)）、
+SandboxWarmPool（[../sandbox-warmpool/index.yaml](../sandbox-warmpool/index.yaml)，`replicas: 0` 占位）
+均已就位。`create_sandbox` 端到端可跑通（claim → 池 → 模板 → Pod → Router 路由）。
+
+**但 `commands.run()` 尚不可用**：SDK 的事件执行走 `POST /execute`，该端点由 agent-sandbox
+约定的沙箱运行时提供；而 [sandbox-image](../sandbox-image/) 目前是纯 Next dev server，
+Pod 内 `/execute` 返回 404。要让 agent 真正在沙箱里跑命令，需给镜像补上运行时实现，
+作为**后续独立一步**。切换沙箱层是独立的一步，涉及 RBAC 调整（API 的 SA 要拿到
+`sandboxes` / `sandboxclaims` 权限）。

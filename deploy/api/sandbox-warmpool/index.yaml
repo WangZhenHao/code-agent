@@ -1,0 +1,16 @@
+# SandboxWarmPool —— 预热池。提前跑 N 个沙箱 Pod 待命，让 create_sandbox 秒级拿到。
+#
+# replicas: 1 = 常驻 1 个预热 Pod。SDK 来要沙箱时直接领走一个跑起来的，不必冷启动
+# （冷启动要拉镜像 + npm ci，分钟级）。领走一个后控制器会自动补一个新的，保持 1 个待命。
+#
+# metadata.name 必须与 apps/api 里 create_sandbox(warmpool="...") 逐字一致。
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: python-sandbox-warmpool
+  namespace: default
+spec:
+  replicas: 1
+  sandboxTemplateRef:
+    # 指向 deploy/api/sandbox-image/index.yaml 里的 SandboxTemplate。
+    name: python-sandbox-template

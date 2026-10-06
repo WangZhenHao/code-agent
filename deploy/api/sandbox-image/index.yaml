@@ -1,0 +1,56 @@
+# SandboxTemplate —— 沙箱「长什么样」。WarmPool 只引用它，自身不定义镜像。
+#
+# 命名空间必须与 WarmPool、SDK 提交的 SandboxClaim 一致（都是 default）——
+# SDK 用 spec.warmPoolRef.name 引用池，池用 sandboxTemplateRef.name 引用本模板，
+# 三者任一不在同一命名空间都会解析失败。
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: python-sandbox-template
+  namespace: default
+spec:
+  podTemplate:
+    spec:
+      containers:
+        - name: sandbox
+          # 本地构建的镜像（deploy/api/sandbox-image/Dockerfile）。
+          image: code-agent/sandbox-base:latest
+          # latest 的默认 imagePullPolicy 是 Always，会去 registry 拉一个不存在的
+          # 私有镜像 → ImagePullBackOff。OrbStack 与集群共用镜像库，声明 IfNotPresent
+          # 才会用节点本地这份。
+          imagePullPolicy: IfNotPresent
+          ports:
+            # 官方运行时（uvicorn main:app）监听 8888 —— 这就是 /execute 服务。
+            # SDK 侧用 SandboxLocalTunnelConnectionConfig(server_port=8888) 对齐，
+            # 该值会作为 X-Sandbox-Port 头交给 router。
+            - containerPort: 8888
+      restartPolicy: OnFailure
+  # 控制器会给沙箱 Pod 自动生成一个 NetworkPolicy（Managed 模式）。它的默认 ingress
+  # 只放行 **agent-sandbox-system** 命名空间的 router —— 而本项目把 router 装在了
+  # my-agent-sandbox-system（见 deploy/api/agent-sandbox-router/），选择器对不上，
+  # router → 沙箱 的流量被拒（症状：dial tcp <podIP>:8888: no route to host）。
+  # 这里显式声明 ingress，放行实际 router 的命名空间 + 标签。
+  # egress 保持宽松（沙箱要能出网装依赖 / 跑 Next）。
+  networkPolicy:
+    ingress:
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: my-agent-sandbox-system
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: sandbox-router
+    egress:
+      - to:
+          - ipBlock:
+              cidr: 0.0.0.0/0
+              except:
+                - 10.0.0.0/8
+                - 172.16.0.0/12
+                - 192.168.0.0/16
+                - 169.254.0.0/16
+          - ipBlock:
+              cidr: ::/0
+              except:
+                - fc00::/7
+                - fe80::/10
