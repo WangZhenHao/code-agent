@@ -48,9 +48,18 @@ RUN mkdir -p /home/node && chown -R 1000:0 /home/node
 # 以 1000 装依赖，node_modules 与 npm 缓存自然归它所有，不用事后 chown -R
 # （后者会在层里复制一份完整的 node_modules，~500MB）。npm ci 严格按 lockfile
 # 还原，package.json 与锁文件不一致会直接失败 —— 这是构建可复现性的来源。
+#
+# npm registry 换源：默认 npmmirror（国内加速）。内网/私有源部署时用它覆盖：
+#   docker build --build-arg NPM_REGISTRY=https://npm.corp.internal/ ...
+# 写进 node 用户的 ~/.npmrc（下面 HOME=/home/node 就是它），而不是只给 docker
+# build 用 —— 沙箱运行期用户也是 1000、HOME 也是 /home/node，所以运行期
+# `npm install` 同样走这个源，不必每次 extra 一个 --registry。
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
 USER 1000
 ENV HOME=/home/node
-RUN cd /workspace \
+RUN npm config set registry "${NPM_REGISTRY}" \
+ && cd /workspace \
  && npm ci --no-audit --no-fund \
  && rm -rf "${HOME}/.npm/_cacache"
 

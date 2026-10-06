@@ -31,6 +31,12 @@ spec:
   # router → 沙箱 的流量被拒（症状：dial tcp <podIP>:8888: no route to host）。
   # 这里显式声明 ingress，放行实际 router 的命名空间 + 标签。
   # egress 保持宽松（沙箱要能出网装依赖 / 跑 Next）。
+  #
+  # 关键：这条 except 里的私有网段**必须排除集群自己的 CIDR**，否则会误伤 DNS。
+  # 本集群（OrbStack）的 Pod/Service CIDR 就是 192.168.194.0/24，kube-dns = 192.168.194.138。
+  # 早期的 except 列了 192.168.0.0/16，正好把 kube-dns 一起挡住 —— 症状是沙箱内
+  # `curl https://registry.npmjs.org` 报 "Could not resolve host"，npm install 全挂。
+  # 这里去掉 192.168.0.0/16。若换集群、其 CIDR 落在 10/8 或 172.16/12，也要一并去掉。
   networkPolicy:
     ingress:
       - from:
@@ -41,13 +47,24 @@ spec:
               matchLabels:
                 app.kubernetes.io/name: sandbox-router
     egress:
+      # DNS 必须显式放行：namespaceSelector 规则的放行不受下面 ipBlock.except 影响，
+      # 即便 kube-dns 的 ClusterIP 落在被 except 的网段里也能通。
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+        ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
       - to:
           - ipBlock:
               cidr: 0.0.0.0/0
               except:
                 - 10.0.0.0/8
                 - 172.16.0.0/12
-                - 192.168.0.0/16
+                # 云元数据端点，必须挡（本地集群没有，放着无碍）
                 - 169.254.0.0/16
           - ipBlock:
               cidr: ::/0
