@@ -24,6 +24,13 @@ SERVER_PORT = 8888
 SANDBOX_NAMESPACE = "default"
 WARMPOOL = "python-sandbox-warmpool"
 
+# 沙箱里 Next 应用的公网访问域名。这是**部署层约定**，不是 SDK 能告诉你的：
+# 通配 Ingress（deploy/api/sandbox-ingress/index.yaml）把 `<沙箱ID>.<域名>` 的
+# 子域名剥出来当 X-Sandbox-ID 交给 router，固定转发到沙箱内 3000 端口的 dev server。
+# 必须与那条 Ingress 的通配 host 对齐。*.localtest.me 全解析到 127.0.0.1，
+# 是本地 Chrome 首选；备用 *.k8s.orb.local 有不可达 IPv6 的坑。
+PUBLIC_DOMAIN = "localtest.me"
+
 
 sandbox_client = SandboxClient(
     connection_config=SandboxLocalTunnelConnectionConfig(
@@ -31,3 +38,13 @@ sandbox_client = SandboxClient(
         server_port=SERVER_PORT,
     )
 )
+
+
+def sandbox_url(sandbox, domain: str = PUBLIC_DOMAIN) -> str:
+    """拼沙箱里 Next 应用的公网访问地址。
+
+    用 sandbox_id 而非 claim_name：Ingress 正则从 Host 剥出的子域名要能被 router
+    解析回沙箱目标，warmpool 场景下这俩不相等（claim 是新建的，sandbox 名来自池）。
+    端口由 Ingress 固定成 3000，所以这里不编码端口。
+    """
+    return f"http://{sandbox.sandbox_id}.{domain}/"

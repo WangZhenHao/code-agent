@@ -9,6 +9,10 @@ import 本包即建立到 router 的连接（副作用），别在循环依赖�
 
 from app.agents.client.sandbox import (
     sandbox_client,
+    sandbox_url,
 )
 
-__all__ = ["sandbox_client"]
+__all__ = [
+    "sandbox_client",
+    "sandbox_url",
+]
