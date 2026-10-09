@@ -5,6 +5,7 @@
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,6 +13,13 @@ class AttachmentType(StrEnum):
     image = "image"
     file = "file"
 
+# 分类结果。
+#
+# 注意与节点名的错位：mode == "plan" 走的是 planAgent 节点，
+# mode == "agent" 走的是 codeAgent 节点。"agent" 这个词描述的是
+# "直接动手改代码"这一档，而不是"进入某个 agent"——所有节点都是 agent。
+# 值域必须与 graphs.py 里 add_conditional_edges 的映射表逐字一致。
+Branch = Literal["plan", "agent"]
 
 class Part(BaseModel):
     """一条消息里除文本外的附加内容。"""
@@ -44,7 +52,7 @@ class ChatCreateRequest(BaseModel):
         examples=["deepseek-v4-flash", "deepseek-v4-pro"],
     )
 
-    mode: str = Field(
+    mode: Branch = Field(
         default="agent",
         description="用哪个 agent，见 /agents",
         examples=["agent", "plan"],
@@ -73,7 +81,7 @@ class MessageItem(BaseModel):
     role: str = Field(description="user / assistant / error", examples=["user"])
     status: str = Field(description="complete / interrupted", examples=["complete"])
     model: str = Field(examples=["deepseek-v4-flash"])
-    mode: str = Field(examples=["agent"])
+    mode: Branch = Field(examples=["agent"])
     parts: list[Part | PartText] | None = Field(
         default=None,
         description="消息内容片段",
