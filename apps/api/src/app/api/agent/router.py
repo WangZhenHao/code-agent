@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends
 
+from app.api.agent.service import agent_retalk
 from app.api.chat.schemas import ChatCreateRequest
 from app.db.models.user import User
 from app.db.session import get_session
@@ -20,10 +21,10 @@ async def talk(
     session: AsyncSession = Depends(get_session)
 ):
     """与 agent 对话。"""
-    return user
+    return agent_talk(session_id=session_id, user_id=user.id, req=req, session=session)
 
 
 @router.post("/retalk/{session_id}")
-async def retalk(id: str) -> str:
+async def retalk(id: str, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     """与 agent 对话。"""
-    return "hello"
+    return agent_retalk(session_id=id, user_id=user.id, session=session)

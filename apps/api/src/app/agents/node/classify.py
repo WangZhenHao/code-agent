@@ -16,4 +16,4 @@ def classify(state: State) -> dict:
        而真正的错因在模型输出，排查会绕远路。
     3. 判别器用 temperature=0，让它别自由发挥。
     """
-    return {"mode": "plan"}
+    return {"mode": state.get("mode")}  # 占位实现，固定返回 plan
