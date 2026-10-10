@@ -26,21 +26,21 @@ class Part(BaseModel):
 
     type: AttachmentType = Field(
         description="附件类型",
-        examples=["image", "file"],
+        examples=["image", "file", "text"],
     )
     content: str = Field(
         min_length=1,
         description="附件地址，沙箱内读得到或 api 能拉取的 URL",
         examples=["https://example.com/a.png"],
     )
-class PartText(BaseModel):
-    type: str = "text"
+# class PartText(BaseModel):
+#     type: str = "text"
 
-    content: str = Field(
-        min_length=1,
-        description="文本内容",
-        examples=["请写一个快排"],
-    )
+#     content: str = Field(
+#         min_length=1,
+#         description="文本内容",
+#         examples=["请写一个快排"],
+#     )
 
 
 
@@ -57,7 +57,7 @@ class ChatCreateRequest(BaseModel):
         description="用哪个 agent，见 /agents",
         examples=["agent", "plan"],
     )
-    parts: list[PartText | Part] = Field(
+    parts: list[Part] = Field(
         default_factory=list,
         description="附加内容，按顺序跟在 message 后面",
         examples=[[{"type": "text", "content": "帮我写个快排"}]],

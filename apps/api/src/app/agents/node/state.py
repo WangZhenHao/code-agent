@@ -6,16 +6,17 @@ graphs 又导入 nodes 的函数）。State 作为最底层的类型定义，谁
 它不依赖任何人，就没有环。
 """
 
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, NotRequired, TypedDict
 
 from langgraph.graph.message import add_messages
 
-from app.api.chat.schemas import Branch
+from app.api.chat.schemas import Branch, Part
 
 
 
 class Session: 
     id: str
+    user_id: int
 
 
 
@@ -30,10 +31,10 @@ class State(TypedDict):
     不是覆盖。其余字段是普通字段，返回即覆盖。
     """
 
-    currentRoundMessages: Annotated[list, add_messages]
+    currentRoundMessages: NotRequired[Annotated[list, add_messages]]
     # classify 判定出的走向，同时也是路由函数读的依据。
     mode: Branch
 
     session: Session
 
-    input: dict
+    input: list[Part]

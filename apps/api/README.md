@@ -3,6 +3,8 @@
 对话式代码 Agent 的后端：FastAPI 负责 HTTP/SSE，LangGraph 负责编排对话与工具调用。
 一次会话对应一个沙箱，Agent 在沙箱内读写代码、执行命令。
 
+langchain文档： https://docs.langchain.com/build-overview
+
 ## 快速开始
 
 ```bash
