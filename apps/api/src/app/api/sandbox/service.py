@@ -11,6 +11,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from k8s_agent_sandbox import SandboxError
@@ -70,14 +71,29 @@ async def _find_existing(id: str):
 
 
 async def _persist_preview(
-    id: str, preview_status: PreviewStatus, preview_url: str | None
+    id: str,
+    preview_status: PreviewStatus,
+    preview_url: str | None,
+    preview_time: datetime | None,
 ) -> None:
-    """把预览状态与地址写回 sessions 行。用 UPDATE 而非先 SELECT 再改，省一次往返。"""
+    """把预览状态、地址与启动时刻写回 sessions 行。
+
+    用 UPDATE 而非先 SELECT 再改，省一次往返。preview_time 传 None 即清空
+    （停止沙箱时），传具体时刻即记录本次启动时间。
+
+    preview_time 语义 = "最近一次 start 调用的时刻"：会话已在跑时 start 会复用
+    沙箱，但同样刷新该值（与 preview_status 一并刷成 running）。若将来想要
+    "沙箱真正启动的时刻、复用时不改"，得改成只在新建分支写。
+    """
     async with SessionLocal() as session:
         await session.execute(
             update(Session)
             .where(Session.id == id)
-            .values(preview_status=preview_status.value, preview_url=preview_url)
+            .values(
+                preview_status=preview_status.value,
+                preview_url=preview_url,
+                preview_time=preview_time,
+            )
         )
         await session.commit()
 
@@ -105,7 +121,7 @@ async def start_sandbox(id: str) -> SandboxInfo:
 
     # preview_url 由 sandbox_id 拼出（见 client/sandbox.py 的 sandbox_url）。
     url = sandbox_url(sandbox)
-    await _persist_preview(id, PreviewStatus.running, url)
+    await _persist_preview(id, PreviewStatus.running, url, datetime.now(timezone.utc))
     return SandboxInfo(id=id, preview_status=PreviewStatus.running.value, preview_url=url)
 
 
@@ -124,5 +140,5 @@ async def stop_sandbox(id: str) -> SandboxInfo:
             sandbox_client.delete_sandbox, sandbox.claim_name, SANDBOX_NAMESPACE
         )
 
-    await _persist_preview(id, PreviewStatus.idle, None)
+    await _persist_preview(id, PreviewStatus.idle, None, None)
     return SandboxInfo(id=id, preview_status=PreviewStatus.idle.value, preview_url=None)

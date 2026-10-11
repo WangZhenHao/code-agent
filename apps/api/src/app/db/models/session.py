@@ -106,6 +106,11 @@ class Session(Base, TimestampMixin):
         String(16), default=PreviewStatus.idle, server_default=PreviewStatus.idle.value
     )
     preview_url: Mapped[str | None] = mapped_column(String(2048), default=None)
+    # 沙箱本次启动的时刻。stop 时清空（NULL），与 preview_status 复位成 idle 同步。
+    # 可空、不设 server_default：NULL 就是「当前没有在跑的沙箱」，是合法状态。
+    preview_time: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
 
     git_repo_name: Mapped[str | None] = mapped_column(String(256), default=None)
     git_repo_url: Mapped[str | None] = mapped_column(String(2048), default=None)
