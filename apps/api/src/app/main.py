@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 from app.agents.graphs import get_graph
 from app.agents.memory import close_checkpointer, init_checkpointer
-from app.api import api_router
+from app.api.router import api_router
 from app.redis import close_redis
 from app.settings import settings
 

@@ -1,13 +1,12 @@
 """Agent 注册表。目前只暴露有哪些 agent，未接编排。"""
 
-import json
 import logging
 from collections.abc import AsyncIterator
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.graphs import get_graph
+from app.agents.helper import agent_stream, sse
 from app.agents.node.state import State
 from app.api.chat.schemas import ChatCreateRequest
 # ORM 模型起别名 SessionModel：app.agents.node.state 里有个**同名**的 Session
@@ -24,15 +23,6 @@ logger = logging.getLogger(__name__)
 def agent_flows():
 
     pass
-
-
-def _sse(event: str, data: dict) -> str:
-    """把一条消息编成 SSE 帧。
-
-    必须是 `data: <单行>` + 两个换行。json.dumps 默认会带换行吗？不会——
-    ensure_ascii=False 保留中文原样，不转成 \\uXXXX，前端拿到的就是可读文本。
-    """
-    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 async def agent_retalk_stream(
@@ -92,37 +82,17 @@ async def agent_retalk_stream(
         # 会话 ID 即 thread_id（仓库根 README 约定 #4）。
         config = {"configurable": {"thread_id": session_id}}
 
-        graph = await get_graph()
-
-        yield _sse("start", {"session_id": session_id, "mode": mode})
-
-        # 只要 custom 这一档：节点里 get_stream_writer() 推什么就透什么，
-        # 事件格式由节点决定（token / node_start / tool_call ...）。
-        # "updates" 是"节点跑完"的事件，粒度太粗，前端要的是字。
-        #
-        # 注意 stream_mode 传**单个字符串**时，每次迭代直接给 data 本身；
-        # 传**列表**才会包成 (mode, data) 二元组。这里传的 "custom"，所以
-        # 直接拿 data——写成 `for mode, data in ...` 会去解包那个 dict，
-        # 正好两个键时解成 ("type","token") 静默错，三个键时 ValueError。
-        async for data in graph.astream(
-            state, config=config, stream_mode="custom"
-        ):
-            # 事件名取节点推的 data["type"]（node_start / token / tool_call ...），
-            # 前端按事件名分流，不用先解析 JSON 再判断。
-            # 节点直接推字符串（或没带 type）时兜底成 token，不然 SSE 的
-            # event 字段会是 "None"，前端 addEventListener 挂不上。
-            if isinstance(data, dict):
-                yield _sse(data.get("type") or "token", data)
-            else:
-                yield _sse("token", {"text": str(data)})
-
-        yield _sse("done", {"session_id": session_id})
+        # 跑图 + 透传事件都在 agent_stream 里（含 start/done/error 帧与内部异常兜底）。
+        # 这里只负责前置校验和装配 state/config。
+        async for frame in agent_stream(state, config):
+            yield frame
 
     except Exception as exc:
-        # generator 里抛异常会变成半截响应，客户端只能看到连接断掉。
-        # 兜住并转成 error 事件，断在哪一步至少是可见的。
+        # 前置校验阶段的异常（如 DB 查询失败）。generator 里抛异常会变成半截响应，
+        # 客户端只能看到连接断掉，所以兜住转成 error 事件。跑图阶段的异常已被
+        # agent_stream 兜住，不会冒到这里。
         logger.exception("agent_retalk_stream 失败 session_id=%s", session_id)
-        yield _sse("error", {"code": 500, "detail": str(exc)})
+        yield sse("error", {"code": 500, "detail": str(exc)})
 
 
 async def agent_talk(session_id: str, user_id: int, req: ChatCreateRequest, session: AsyncSession) -> str:

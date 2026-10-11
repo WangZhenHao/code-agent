@@ -82,7 +82,7 @@ class MessageItem(BaseModel):
     status: str = Field(description="complete / interrupted", examples=["complete"])
     model: str = Field(examples=["deepseek-v4-flash"])
     mode: Branch = Field(examples=["agent"])
-    parts: list[Part | PartText] | None = Field(
+    parts: list[Part] | None = Field(
         default=None,
         description="消息内容片段",
         examples=[[{"type": "text", "content": "帮我写个快排"}]],
