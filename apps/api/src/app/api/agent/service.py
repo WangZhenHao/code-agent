@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.client.sandbox import create_sandbox_for_id
+from app.api.sandbox.client.sandbox import create_sandbox_for_id
 from app.agents.helper import agent_stream, sse
 from app.agents.node.state import State
 from app.api.chat.schemas import ChatCreateRequest
@@ -14,6 +14,7 @@ from app.api.chat.schemas import ChatCreateRequest
 # （图状态的数据类，只有 id/user_id 两个注解，不是 ORM 模型）。两边一起 import
 # 时后者会盖掉前者，select(Session.id) 就在一个普通类上取属性，报
 # AttributeError。别名让两个名字互不干扰。
+from app.api.sandbox.service import start_sandbox
 from app.db.models.session import Messages, Role
 from app.db.models.session import Session as SessionModel
 from app.db.session import SessionLocal
@@ -85,7 +86,7 @@ async def agent_retalk_stream(
 
         # 跑图 + 透传事件都在 agent_stream 里（含 start/done/error 帧与内部异常兜底）。
         # 这里只负责前置校验和装配 state/config。
-        create_sandbox_for_id(session_id)
+        await start_sandbox(session_id)
         async for frame in agent_stream(state, config):
             yield frame
 

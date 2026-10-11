@@ -8,7 +8,7 @@
 返回值），不是客户端本身——客户端持有 port-forward 隧道，只负责创建沙箱。
 所以这里用工厂函数而不是模块级常量：
 
-    from app.agents.client import sandbox_client, SANDBOX_NAMESPACE, WARMPOOL
+    from app.api.sandbox.client import sandbox_client, SANDBOX_NAMESPACE, WARMPOOL
     from app.agents.tools import build_tools
 
     sandbox = sandbox_client.create_sandbox(

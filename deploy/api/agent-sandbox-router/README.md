@@ -2,7 +2,7 @@
 
 [agent-sandbox](../agent-sandbox/) 的**数据面**。控制面只管「Pod 起没起」,真正把 SDK 的
 HTTP 请求转发到具体沙箱 Pod 的是 router;SDK 侧
-[`SandboxLocalTunnelConnectionConfig`](../../../apps/api/src/app/agents/client/sandbox.py)
+[`SandboxLocalTunnelConnectionConfig`](../../../apps/api/src/app/api/sandbox/client/sandbox.py)
 会 `kubectl port-forward svc/sandbox-router-svc`,**没有这个 Service 就连不上**。
 
 用的是上游的 **Go** router——Python 版已被标记为参考实现、推荐换 Go 版。Go 版保留了
