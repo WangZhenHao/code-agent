@@ -6,7 +6,6 @@ from collections.abc import AsyncIterator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.sandbox.client.sandbox import create_sandbox_for_id
 from app.agents.helper import agent_stream, sse
 from app.agents.node.state import State
 from app.api.chat.schemas import ChatCreateRequest
@@ -86,9 +85,16 @@ async def agent_retalk_stream(
 
         # 跑图 + 透传事件都在 agent_stream 里（含 start/done/error 帧与内部异常兜底）。
         # 这里只负责前置校验和装配 state/config。
-        await start_sandbox(session_id)
+        # start_sandbox 幂等（已有则复用），且直接返回句柄——别再调 create_sandbox_for_id，
+        # 那个不去重，每调一次建一个。
+        sandbox = await start_sandbox(session_id)
+
         async for frame in agent_stream(state, config):
             yield frame
+
+        sandbox.commands.run(
+            "sh -c 'cd /workspace && nohup npm run dev > /tmp/next.log 2>&1 &'"
+        )
 
     except Exception as exc:
         # 前置校验阶段的异常（如 DB 查询失败）。generator 里抛异常会变成半截响应，
