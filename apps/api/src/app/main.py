@@ -48,6 +48,9 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         debug=settings.debug,
         lifespan=lifespan,
+        # 让 Swagger UI 把「Authorize」里填的 token 落到 localStorage，
+        # 否则它只存在页面内存里，刷新一下就没了。
+        swagger_ui_parameters={"persistAuthorization": True},
     )
 
     # 允许的来源由 CODE_AGENT_CORS_ORIGINS 控制（逗号分隔）。

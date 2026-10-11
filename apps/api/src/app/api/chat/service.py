@@ -13,11 +13,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.chat.schemas import (
     ChatCreateRequest,
     ChatCreateResponse,
+    ChatDetailResponse,
     MessageItem,
     MessageListResponse,
 )
-from app.db.models.session import MessageStatus, Messages, PreviewStatus, Role, Session, SessionStatus
+from app.db.models.session import MessageStatus, Messages, Role, Session, SessionStatus
 
+
+async def chat_detail(
+    id: str, user_id: int, session: AsyncSession
+) -> ChatDetailResponse:
+    """取某个会话的详情。
+
+    id 是会话 id（= LangGraph thread_id）。先确认这个会话属于 user_id——
+    不属于就当 404 而不是 403：不泄露「这个 id 存在但不归你」，
+    拿别人的 id 来探测时两种情况响应一致。
+    """
+    chat = await session.scalar(
+        select(Session).where(
+            Session.id == id,
+            Session.user_id == user_id,
+            Session.status != SessionStatus.delete,
+        )
+    )
+    if chat is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="会话不存在",
+        )
+
+    # from_attributes=True 让 Pydantic 直接读 ORM 实例的属性，无需手工搬字段。
+    return ChatDetailResponse.model_validate(chat)
 
 async def chat_message(
     id: str, user_id: int, session: AsyncSession
