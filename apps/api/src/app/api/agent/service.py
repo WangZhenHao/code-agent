@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.client.sandbox import create_sandbox_for_id
 from app.agents.helper import agent_stream, sse
 from app.agents.node.state import State
 from app.api.chat.schemas import ChatCreateRequest
@@ -49,7 +50,7 @@ async def agent_retalk_stream(
                 .where(SessionModel.user_id == user_id)
             )
             if session_data is None:
-                yield _sse("error", {"code": 404, "detail": "会话不存在"})
+                yield sse("error", {"code": 404, "detail": "会话不存在"})
                 return
 
             last_message = await session.scalar(
@@ -61,11 +62,11 @@ async def agent_retalk_stream(
             if last_message is None:
                 # 会话在但一条消息都没有。原来的同步版没这层判断，读 .role
                 # 会 AttributeError 变 500，这里给个能讲清楚的说法。
-                yield _sse("error", {"code": 404, "detail": "会话没有消息，无法继续对话"})
+                yield sse("error", {"code": 404, "detail": "会话没有消息，无法继续对话"})
                 return
 
             if last_message.role != Role.user:
-                yield _sse("error", {"code": 409, "detail": "当前会话没有中断的消息，无法继续对话"})
+                yield sse("error", {"code": 409, "detail": "当前会话没有中断的消息，无法继续对话"})
                 return
 
             # 先取成普通值。下面 commit/rollback 之后 ORM 对象可能过期，
@@ -84,6 +85,7 @@ async def agent_retalk_stream(
 
         # 跑图 + 透传事件都在 agent_stream 里（含 start/done/error 帧与内部异常兜底）。
         # 这里只负责前置校验和装配 state/config。
+        create_sandbox_for_id(session_id)
         async for frame in agent_stream(state, config):
             yield frame
 

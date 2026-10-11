@@ -8,11 +8,21 @@ import 本包即建立到 router 的连接（副作用），别在循环依赖�
 """
 
 from app.agents.client.sandbox import (
+    SANDBOX_ID_LABEL,
+    SANDBOX_NAMESPACE,
+    WARMPOOL,
+    create_sandbox_for_id,
+    get_sandbox_for_id,
     sandbox_client,
     sandbox_url,
 )
 
 __all__ = [
+    "SANDBOX_ID_LABEL",
+    "SANDBOX_NAMESPACE",
+    "WARMPOOL",
+    "create_sandbox_for_id",
+    "get_sandbox_for_id",
     "sandbox_client",
     "sandbox_url",
 ]
