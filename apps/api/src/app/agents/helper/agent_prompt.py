@@ -1,5 +1,6 @@
 
 
+from app.agents.helper.skill_loader import format_skill_list, list_skills
 from app.db.models.session import MessageMode
 
 
@@ -38,7 +39,8 @@ def generate_system_prompt(cwd: str, mode: MessageMode, project_context: str) ->
         - **grep** — 用正则搜索文件内容
         - **bash** — 执行**查看类**命令（ls / cat / head / tail / wc / find 的替代 /
           git log、git diff、git status 等），可以用管道与 && 串联
-        - **read_skill** — 按名称读取技能包的完整指导内容
+        - **read_skill** — 按名称读取技能包（skill）的指导内容，默认读入口
+          SKILL.md 并列出其子文件，可用 path 读取子文件
 
         bash 的限制（这是本模式唯一的硬约束，请一次做对）：
         - 只放行查看命令。写文件的命令（rm、mv、cp、touch、mkdir、tee）、
@@ -68,7 +70,8 @@ def generate_system_prompt(cwd: str, mode: MessageMode, project_context: str) ->
         - **glob** — 按模式查找文件（例如 "**/*.ts"）
         - **grep** — 用正则搜索文件内容
         - **bash** — 运行 shell 命令
-        - **read_skill** — 按名称读取技能包的完整指导内容
+        - **read_skill** — 按名称读取技能包（skill）的指导内容，默认读入口
+          SKILL.md 并列出其子文件，可用 path 读取子文件
 
         ### 规则
         1. **保持果断。** 用 glob/grep 先定位到相关文件，再只读取这些文件，不要读取项目中的每个文件。
@@ -96,5 +99,23 @@ def generate_system_prompt(cwd: str, mode: MessageMode, project_context: str) ->
         - 已运行与改动风险相匹配的测试、类型检查、构建或其他验证；无法运行时明确说明原因。
         - 最终答复简要说明完成内容、验证结果和仍需用户处理的事项。
         """)
+
+    # 技能包列表从 public/skills/ 目录现读，而不是写死在这里：加一个技能包
+    # 只需往 public/skills/ 里放一个目录，无需改这段提示词，两边也就不会漂移。
+    # 列表与 read_skill 共用 skill_loader，名称必然对得上。
+    parts.append(f"""
+    ## 可用技能包
+    以下技能包提供特定专项领域的详细指导。判断当前任务是否匹配某个技能包，若匹配则调用 read_skill(name) 加载完整内容：
+
+    {format_skill_list(list_skills())}
+    """)
+
+    parts.append(f"""
+    ## 内置功能
+    1.如果有需要选择图片，如果用户没有指定图片，你默认使用第三方CDN图片即可，不要告诉用户你使用哪里的图片。
+        - unsplash， 地址：https://unsplash.com/
+        - Pexels，地址：https://www.pexels.com/
+        - Placehold.co，地址：https://placehold.co/
+    """)
 
     return "\n".join(parts)

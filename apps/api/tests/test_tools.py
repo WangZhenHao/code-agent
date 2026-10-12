@@ -9,6 +9,9 @@
      工具里的 to_sandbox_path 就是为了消掉这个前缀。
 
 跑法：uv run pytest tests/ -q
+
+技能包（read_skill / skill_loader）的测试走 SkillToolTestCase：它把 SKILLS_DIR
+指到临时目录，所以既不依赖 public/skills/ 的现有内容，也不需要沙箱。
 """
 
 from __future__ import annotations
@@ -21,10 +24,15 @@ import subprocess
 import tempfile
 import unittest
 from dataclasses import dataclass
+from pathlib import Path
+from unittest import mock
 
+from app.agents.helper import skill_loader
+from app.agents.helper.agent_prompt import generate_system_prompt
 from app.agents.tools import READ_ONLY_TOOL_NAMES, build_tools, create_tools
 from app.agents.tools._common import shell_command, to_sandbox_path
 from app.agents.tools.glob import _find_name_expr, _find_path_expr
+from app.agents.tools.skill import build_read_skill_tool
 from app.db.models.session import MessageMode
 
 
@@ -265,13 +273,135 @@ class ToolTestCase(unittest.TestCase):
         self.assertEqual(names, set(READ_ONLY_TOOL_NAMES))
         # 逐个点名断言，而不是只比集合：READ_ONLY_TOOL_NAMES 被误改时，
         # 上面那句会跟着一起变，等于没测。
-        self.assertEqual(names, {"read_file", "glob", "grep"})
+        self.assertEqual(names, {"bash", "read_file", "glob", "grep", "read_skill"})
 
     def test_tool_order_is_unchanged_by_filtering(self):
         # plan 是 agent 的子序列，模型的工具偏好顺序才不会在切模式时翻个儿。
         full = [t.name for t in build_tools(FakeSandbox(self.base))]
         plan = [t.name for t in create_tools(FakeSandbox(self.base), MessageMode.plan)]
         self.assertEqual(plan, [n for n in full if n in set(plan)])
+
+
+class SkillToolTestCase(unittest.TestCase):
+    """read_skill / skill_loader 的离线测试。
+
+    技能包不在沙箱里，所以这里不用 FakeSandbox，而是把 SKILLS_DIR 指到一个
+    临时目录——测试因此可以随手造技能包，不依赖 public/skills/ 的现有内容
+    （往那里加技能包不该让测试变红）。
+    """
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="skills-test-")
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+
+        self._write(
+            "frontend-design/SKILL.md",
+            "---\n"
+            "name: frontend-design\n"
+            "description: Guidance for distinctive visual design.\n"
+            "---\n"
+            "\n"
+            "# Frontend Design\n"
+            "line three\n"
+            "line four\n",
+        )
+        self._write("frontend-design/references/QUERIES.md", "query: hello\n")
+        # 没有 frontmatter、也没有描述的技能包：描述要回落成占位符。
+        self._write("bare-skill/SKILL.md", "# Bare\n")
+
+        self._patch = mock.patch.object(skill_loader, "SKILLS_DIR", Path(self.root))
+        self._patch.start()
+        self.addCleanup(self._patch.stop)
+
+        self.tool = build_read_skill_tool()
+
+    def _write(self, rel: str, content: str) -> None:
+        path = Path(self.root) / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    # --- 列表解析 ---------------------------------------------------------
+
+    def test_list_skills_parses_frontmatter(self):
+        skills = {s.name: s.description for s in skill_loader.list_skills()}
+        self.assertEqual(skills["frontend-design"], "Guidance for distinctive visual design.")
+        self.assertEqual(skills["bare-skill"], skill_loader.NO_DESCRIPTION)
+
+    def test_list_skills_ignores_dirs_without_entry_file(self):
+        self._write("empty-dir/references/x.md", "x\n")
+        self.assertNotIn("empty-dir", [s.name for s in skill_loader.list_skills()])
+
+    def test_missing_skills_dir_is_not_an_error(self):
+        # 资源目录缺失时提示词仍要能生成，不能把整次对话带崩。
+        with mock.patch.object(skill_loader, "SKILLS_DIR", Path(self.root) / "nope"):
+            self.assertEqual(skill_loader.list_skills(), [])
+            self.assertEqual(
+                skill_loader.format_skill_list([]), "（当前没有可用技能包）"
+            )
+
+    def test_format_skill_list_renders_names_and_descriptions(self):
+        out = skill_loader.format_skill_list(skill_loader.list_skills())
+        self.assertIn("**frontend-design**", out)
+        self.assertIn("Guidance for distinctive visual design.", out)
+
+    # --- read_skill -------------------------------------------------------
+
+    def test_reads_entry_file_with_line_numbers(self):
+        out = self.tool.invoke({"name": "frontend-design"})
+        self.assertIn("# 技能包 frontend-design / SKILL.md", out)
+        # frontmatter 被剥掉，编号改从正文第 1 行（那是个空行）起。
+        self.assertIn("2\t# Frontend Design", out)
+        self.assertNotIn("description: Guidance", out)
+
+    def test_entry_read_lists_sub_files(self):
+        # 关键行为：模型看完入口得知道还有 references/QUERIES.md 可读。
+        out = self.tool.invoke({"name": "frontend-design"})
+        self.assertIn("references/QUERIES.md", out)
+
+    def test_reads_sub_file_by_path(self):
+        out = self.tool.invoke(
+            {"name": "frontend-design", "path": "references/QUERIES.md"}
+        )
+        self.assertIn("query: hello", out)
+        # 读子文件时不重复整个文件清单。
+        self.assertNotIn("全部子文件", out)
+
+    def test_paginates(self):
+        # 正文 4 行（空行 / 标题 / line three / line four）。取第 2 行、限 1 行，
+        # 应当只剩后面没读的部分，并给出续读用的 offset。
+        out = self.tool.invoke({"name": "frontend-design", "offset": 2, "limit": 1})
+        self.assertIn("2\t# Frontend Design", out)
+        self.assertIn("offset=3", out)
+        # 没读完就不附子文件清单（那是读完才给的收尾信息）。
+        self.assertNotIn("全部子文件", out)
+
+    def test_unknown_name_lists_available_skills(self):
+        out = self.tool.invoke({"name": "nope"})
+        self.assertIn("错误", out)
+        self.assertIn("frontend-design", out)
+
+    def test_missing_sub_file_lists_files(self):
+        out = self.tool.invoke({"name": "frontend-design", "path": "references/no.md"})
+        self.assertIn("错误", out)
+        self.assertIn("references/QUERIES.md", out)
+
+    def test_rejects_path_escape(self):
+        for path in ("../../etc/passwd", "/etc/passwd"):
+            out = self.tool.invoke({"name": "frontend-design", "path": path})
+            self.assertIn("错误", out, path)
+        # 真逃出去了的话，下面这个文件就读到了。
+        self.assertNotIn("root:", self.tool.invoke({"name": "frontend-design"}))
+
+    def test_rejects_bad_limit_and_offset(self):
+        self.assertIn("错误", self.tool.invoke({"name": "frontend-design", "limit": 0}))
+        self.assertIn("错误", self.tool.invoke({"name": "frontend-design", "offset": 999}))
+
+    # --- 提示词 -----------------------------------------------------------
+
+    def test_system_prompt_embeds_skill_list(self):
+        prompt = generate_system_prompt("/workspace", MessageMode.agent, "")
+        self.assertIn("**frontend-design**", prompt)
+        self.assertIn("Guidance for distinctive visual design.", prompt)
 
 
 if __name__ == "__main__":
