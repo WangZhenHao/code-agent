@@ -11,7 +11,6 @@ import json
 import logging
 from collections.abc import AsyncIterator
 
-from app.agents.graphs import get_graph
 from app.agents.node.state import State
 
 logger = logging.getLogger(__name__)
@@ -38,6 +37,12 @@ async def agent_stream(state: State, config: dict) -> AsyncIterator[str]:
     """
     # 会话 ID 从 state 里取（调用方已保证存在）。start 帧和 done 帧都要带它。
     session_id = state["session"]["id"]
+
+    # 延迟导入：graphs → node → code_agent → agent_prompt 会触发 helper 包的
+    # __init__，而本模块又是 __init__ 导出的一员。顶层 import get_graph 会让
+    # 这条链绕回还没建好的 graphs，报 partially initialized module。放到运行时
+    # 导入，环就断在这里（本模块其余部分不依赖 graphs）。
+    from app.agents.graphs import get_graph
 
     try:
         # start 帧在 get_graph() 之前发？不——放在之后。get_graph 首次会建连接池、

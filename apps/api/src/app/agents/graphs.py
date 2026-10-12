@@ -16,11 +16,11 @@ from langgraph.graph.state import CompiledStateGraph
 
 from app.agents.memory.checkpointer import get_checkpointer
 from app.agents.node import classify, code_agent, finish, plan_agent
-from app.agents.node.state import Branch, State
+from app.agents.node.state import State
 from app.db.models.session import MessageMode
 
 
-def route_after_classify(state: State) -> Branch:
+def route_after_classify(state: State) -> MessageMode:
     """条件边：决定 classify 之后走哪个节点。
 
     只做一次查表，不重复 classify 的判定逻辑——判定归 classify，路由只负责
@@ -31,8 +31,8 @@ def route_after_classify(state: State) -> Branch:
     （TypedDict 无法声明默认值，见 node/state.py），一旦缺失就是 KeyError。
     """
     if state.get("mode") == MessageMode.agent:
-        return "agent"
-    return "plan"
+        return MessageMode.agent
+    return MessageMode.plan
 
 
 def build_graph(checkpointer: BaseCheckpointSaver | None = None):

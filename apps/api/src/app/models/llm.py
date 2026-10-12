@@ -20,9 +20,25 @@ from app.settings import settings
 
 @lru_cache(maxsize=8)
 def get_model(name: str = "claude-sonnet-5") -> BaseChatModel:
-    """按名字取一个 chat model，结果缓存复用。"""
+    """按名字取一个 chat model，结果缓存复用。
+
+    模型名到厂商的映射**交给网关，不交给 LangChain**。
+
+    init_chat_model 默认按模型名前缀猜厂商（claude-* → anthropic 包、
+    deepseek-* → deepseek 包……），猜中的那个包必须是**独立安装的原生集成包**，
+    没装就在运行时抛 "requires the langchain-xxx package"。但我们走的是统一的
+    OpenAI 兼容网关（CODE_AGENT_API_URL），claude / deepseek / kimi 都由网关
+    按 OpenAI 格式转发——既不该、也不需要为每家装原生包。
+
+    显式传 model_provider="openai" 关掉那个前缀推断：所有请求都编成 OpenAI 协议，
+    发往 base_url，由网关负责路由到真正的后端。代价是拿不到厂商独有参数
+    （Anthropic 的 cache_control / thinking 等）——需要时再改回原生包。
+
+    新增模型 = 网关侧支持 + 传个名字即可，这里和依赖都不用动。
+    """
     return init_chat_model(
         name,
+        model_provider="openai",
         timeout=30,
         api_key=settings.api_key,
         base_url=settings.api_url,

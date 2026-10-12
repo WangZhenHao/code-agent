@@ -11,16 +11,17 @@ from app.db.models.session import Role
 from app.models.llm import get_model
 
 
-def code_agent(state: State) -> dict:
+def code_agent(state: State):
     """agent 节点的核心逻辑：按计划读写沙箱内文件。"""
 
-    sandbox = get_sandbox_for_id(state['session'].id)
+    session_id = state['session']['id']
+    sandbox = get_sandbox_for_id(session_id)
     tools = create_tools(sandbox, mode=state['mode'])
     model = get_model(state['model'])
     system_prompt = generate_system_prompt(cwd=WORKSPACE, mode=state['mode'], project_context='')
 
     agent = create_agent(model=model, tools=tools, system_prompt=system_prompt)
-    config = {"configurable": {"thread_id": state['session'].id}}
+    config = {"configurable": {"thread_id": session_id}}
 
     input = state['input']
     message = [item['content'] for item in input if item['type'] == 'text']
