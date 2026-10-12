@@ -89,13 +89,13 @@ async def agent_retalk_stream(
         # start_sandbox 幂等（已有则复用），且直接返回句柄——别再调 create_sandbox_for_id，
         # 那个不去重，每调一次建一个。
         sandbox = await start_sandbox(session_id)
-
-        async for frame in agent_stream(state, config):
-            yield frame
-
         sandbox.commands.run(
             "sh -c 'cd /workspace && nohup npm run dev > /tmp/next.log 2>&1 &'"
         )
+        async for frame in agent_stream(state, config):
+            yield frame
+
+        
 
     except Exception as exc:
         # 前置校验阶段的异常（如 DB 查询失败）。generator 里抛异常会变成半截响应，
