@@ -56,7 +56,6 @@ from app.agents.tools.write_file import build_write_file_tool
 from app.db.models.session import MessageMode
 
 __all__ = [
-    "READ_ONLY_TOOL_NAMES",
     "WORKSPACE",
     "SandboxLike",
     "SandboxToolError",
@@ -70,22 +69,6 @@ __all__ = [
     "build_write_file_tool",
     "create_tools",
 ]
-
-# 只读工具的名字集合。plan 模式下只给它这几个——规划阶段的任务是"看清楚再写计划"，
-# 给了写权限就会在用户还没审阅计划时先把代码改了，plan 也就白做了。
-#
-# read_skill 在里面：它读的是 API 主机上的技能包文档（public/skills/），
-# 既不碰沙箱也不写任何东西，而规划阶段正好需要它——先看看有没有相关技能再定方案。
-#
-# bash 在里面，但它是**收窄过的**（readonly=True，见 guard.py），不是普通 bash。
-# 所以 create_tools 不能按名字过滤出一份列表来用——那会把无限制的 bash 交给
-# plan。正确的用法是：按这个集合判断某工具在 plan 下要不要给，bash 单独按
-# readonly 构造。名字集合与构造方式这两件事必须分开，别把它们合并。
-#
-# 用名字的集合而不是硬编码一份工具列表：过滤规则靠 name 匹配，不依赖构造顺序，
-# 以后往 build_tools 里加新工具时，只要它不在这个集合里就自动只在 agent 模式可见
-# （新工具默认带写权限，所以加之前先想清楚它是不是只读的）。
-READ_ONLY_TOOL_NAMES = frozenset({"bash", "read_file", "glob", "grep", "read_skill"})
 
 
 def build_tools(sandbox: SandboxLike) -> list[BaseTool]:

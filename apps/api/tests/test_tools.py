@@ -29,7 +29,7 @@ from unittest import mock
 
 from app.agents.helper import skill_loader
 from app.agents.helper.agent_prompt import generate_system_prompt
-from app.agents.tools import READ_ONLY_TOOL_NAMES, build_tools, create_tools
+from app.agents.tools import build_tools, create_tools
 from app.agents.tools._common import shell_command, to_sandbox_path
 from app.agents.tools.glob import _find_name_expr, _find_path_expr
 from app.agents.tools.skill import build_read_skill_tool
@@ -269,11 +269,15 @@ class ToolTestCase(unittest.TestCase):
         self.assertEqual(names, [t.name for t in build_tools(FakeSandbox(self.base))])
 
     def test_plan_mode_gets_only_read_only_tools(self):
+        # 直接写死期望的名字集合，不从源码里导入任何"只读工具清单"常量：
+        # 那样常量一改断言就跟着变，等于没测。这里要的正是"改动了就得有测试红"。
         names = {t.name for t in create_tools(FakeSandbox(self.base), MessageMode.plan)}
-        self.assertEqual(names, set(READ_ONLY_TOOL_NAMES))
-        # 逐个点名断言，而不是只比集合：READ_ONLY_TOOL_NAMES 被误改时，
-        # 上面那句会跟着一起变，等于没测。
         self.assertEqual(names, {"bash", "read_file", "glob", "grep", "read_skill"})
+
+    def test_plan_mode_has_no_write_tools(self):
+        names = {t.name for t in create_tools(FakeSandbox(self.base), MessageMode.plan)}
+        for writer in ("write_file", "edit_file"):
+            self.assertNotIn(writer, names)
 
     def test_tool_order_is_unchanged_by_filtering(self):
         # plan 是 agent 的子序列，模型的工具偏好顺序才不会在切模式时翻个儿。
