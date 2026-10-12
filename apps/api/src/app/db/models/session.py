@@ -55,6 +55,11 @@ class MessageStatus(StrEnum):
     complete = "complete"
     interrupted = "interrupted"
 
+class MessageMode(StrEnum):
+    """模式。"""
+
+    agent = "agent"
+    plan = "plan"
 
 class PreviewStatus(StrEnum):
     """沙箱预览的状态。Prisma 里只给了 `@default(idle)`，其余值待补。

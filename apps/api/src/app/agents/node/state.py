@@ -10,7 +10,8 @@ from typing import Annotated, NotRequired, TypedDict
 
 from langgraph.graph.message import add_messages
 
-from app.api.chat.schemas import Branch, Part
+from app.api.chat.schemas import Part
+from app.db.models.session import MessageMode
 
 
 
@@ -33,7 +34,7 @@ class State(TypedDict):
 
     currentRoundMessages: NotRequired[Annotated[list, add_messages]]
     # classify 判定出的走向，同时也是路由函数读的依据。
-    mode: Branch
+    mode: MessageMode
 
     session: Session
 

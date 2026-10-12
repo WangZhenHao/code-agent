@@ -17,6 +17,7 @@ from langgraph.graph.state import CompiledStateGraph
 from app.agents.memory.checkpointer import get_checkpointer
 from app.agents.node import classify, code_agent, finish, plan_agent
 from app.agents.node.state import Branch, State
+from app.db.models.session import MessageMode
 
 
 def route_after_classify(state: State) -> Branch:
@@ -29,7 +30,7 @@ def route_after_classify(state: State) -> Branch:
     用 .get 而不是 state["mode"]：第一轮进图时该字段可能还不存在
     （TypedDict 无法声明默认值，见 node/state.py），一旦缺失就是 KeyError。
     """
-    if state.get("mode") == "agent":
+    if state.get("mode") == MessageMode.agent:
         return "agent"
     return "plan"
 
