@@ -22,9 +22,10 @@ import tempfile
 import unittest
 from dataclasses import dataclass
 
-from app.agents.tools import build_tools
+from app.agents.tools import READ_ONLY_TOOL_NAMES, build_tools, create_tools
 from app.agents.tools._common import shell_command, to_sandbox_path
 from app.agents.tools.glob import _find_name_expr, _find_path_expr
+from app.db.models.session import MessageMode
 
 
 @dataclass
@@ -252,6 +253,25 @@ class ToolTestCase(unittest.TestCase):
     def test_grep_excludes_node_modules(self):
         out = self.tools["grep"].invoke({"pattern": "hello", "glob": "*.js"})
         self.assertNotIn("node_modules", out)
+
+    # --- 按模式取工具 -----------------------------------------------------
+
+    def test_agent_mode_gets_every_tool(self):
+        names = [t.name for t in create_tools(FakeSandbox(self.base), MessageMode.agent)]
+        self.assertEqual(names, [t.name for t in build_tools(FakeSandbox(self.base))])
+
+    def test_plan_mode_gets_only_read_only_tools(self):
+        names = {t.name for t in create_tools(FakeSandbox(self.base), MessageMode.plan)}
+        self.assertEqual(names, set(READ_ONLY_TOOL_NAMES))
+        # 逐个点名断言，而不是只比集合：READ_ONLY_TOOL_NAMES 被误改时，
+        # 上面那句会跟着一起变，等于没测。
+        self.assertEqual(names, {"read_file", "glob", "grep"})
+
+    def test_tool_order_is_unchanged_by_filtering(self):
+        # plan 是 agent 的子序列，模型的工具偏好顺序才不会在切模式时翻个儿。
+        full = [t.name for t in build_tools(FakeSandbox(self.base))]
+        plan = [t.name for t in create_tools(FakeSandbox(self.base), MessageMode.plan)]
+        self.assertEqual(plan, [n for n in full if n in set(plan)])
 
 
 if __name__ == "__main__":
