@@ -10,6 +10,7 @@ from app import __version__
 from app.agents.graphs import get_graph
 from app.agents.memory import close_checkpointer, init_checkpointer
 from app.api.router import api_router
+from app.api.sandbox.sweeper import start_sweeper, stop_sweeper
 from app.redis import close_redis
 from app.settings import settings
 
@@ -18,8 +19,8 @@ from app.settings import settings
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     """进程启停钩子：管理长连接资源的生命周期。
 
-    启动：建 checkpointer 的连接池（含建表）并编译一次图。
-    退出：按**启动的逆序**关掉它们——先关后建的，因为连接池和 Redis client
+    启动：建 checkpointer 的连接池（含建表）、编译一次图、起预览回收调度器。
+    退出：按**启动的逆序**关掉它们——后建的先关，因为连接池和 Redis client
     之间虽然无依赖，但逆序是不用思考就能保证正确的顺序。
 
     为什么在这里建连而不是等第一个请求：数据库连不上就该启动失败。
@@ -29,13 +30,18 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     关闭不能省：redis-py 和 psycopg_pool 的连接池都挂在 client 实例上，进程
     结束时若不释放，这些连接会被内核直接 RST 掉而不是走正常的 FIN 挥手。
     开发期看不出问题，生产滚动更新时就会有若干请求正好卡在被硬断的连接上。
+
+    调度器同理，且必须显式停：`uvicorn --reload` 下每次重载都是一个新进程，
+    不管的话旧进程的调度器会攥着 DB 连接不放。
     """
     await init_checkpointer()
     # 先把图编译出来，免得第一个请求额外承担一次编译。
     await get_graph()
+    start_sweeper()
 
     yield
 
+    stop_sweeper()
     await close_checkpointer()
     await close_redis()
 

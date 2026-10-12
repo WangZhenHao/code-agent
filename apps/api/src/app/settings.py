@@ -69,6 +69,17 @@ class Settings(BaseSettings):
     # 而不是无限挂住整个请求。
     checkpoint_pool_timeout: float = 30.0
 
+    # ---------- 沙箱预览回收 ----------
+    # 同样是有默认值的调优项，不是必填项。
+    #
+    # preview_time 距现在超过这个分钟数的沙箱，会被 sweeper 回收。preview_time
+    # 在每次 start 时刷新（含复用），所以这个值衡量的是"最后一次启动到现在"，
+    # 而不是"沙箱真实存活时长"。
+    sandbox_preview_ttl_minutes: int = 30
+    # 扫描间隔（分钟）。只是扫描频率，不需要和 ttl 一个量级：取 ttl 的零头即可，
+    # 代价是多扫几次空表，收益是回收延迟小。
+    sandbox_sweep_interval_minutes: int = 5
+
     env: str
 
     @property
