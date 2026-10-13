@@ -12,6 +12,7 @@ from langgraph.graph.message import add_messages
 
 from app.api.chat.schemas import Part
 from app.db.models.session import MessageMode
+from langchain.messages import ContentBlock
 
 
 
@@ -42,4 +43,4 @@ class State(TypedDict):
 
     session: Session
 
-    input: list[Part]
+    input: list[ContentBlock]

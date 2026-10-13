@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from app.api.agent.service import agent_retalk_stream, agent_talk
+from app.api.agent.service import agent_retalk_stream, agent_talk_stream
 from app.api.chat.schemas import ChatCreateRequest
 from app.db.models.user import User
 from app.db.session import get_session
@@ -22,7 +22,17 @@ async def talk(
     session: AsyncSession = Depends(get_session)
 ):
     """与 agent 对话。"""
-    return await agent_talk(session_id=session_id, user_id=user.id, req=req, session=session)
+    return StreamingResponse(
+        agent_talk_stream(session_id=session_id, user_id=user.id, req=req),
+        media_type="text/event-stream",
+        headers={
+            # SSE 必须关掉中间层缓冲，否则事件会攒在 nginx/网关里一次性吐出，
+            # 流式就白做了。X-Accel-Buffering 是给 nginx 的显式开关。
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/retalk/{session_id}")

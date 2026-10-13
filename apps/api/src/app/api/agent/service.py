@@ -104,7 +104,26 @@ async def agent_retalk_stream(
         logger.exception("agent_retalk_stream 失败 session_id=%s", session_id)
         yield sse("error", {"code": 500, "detail": str(exc)})
 
+        
+async def agent_talk_stream(session_id: str, user_id: int, req: ChatCreateRequest) -> AsyncIterator[str]:
+    try:
+        state: State = {
+            "mode": req.mode,
+            "session": {"id": session_id, "user_id": user_id},
+            "input": req.parts,
+            "model": req.model,
+        }
+        # 会话 ID 即 thread_id（仓库根 README 约定 #4）。
+        config = {"configurable": {"thread_id": session_id}}
+        sandbox = await start_sandbox(session_id)
 
-async def agent_talk(session_id: str, user_id: int, req: ChatCreateRequest, session: AsyncSession) -> str:
-    """与 agent 对话。"""
-    return "hello"
+        sandbox.commands.run(
+            "sh -c 'cd /workspace && nohup npm run dev > /tmp/next.log 2>&1 &'"
+        )
+        async for frame in agent_stream(state, config):
+            yield frame
+
+    except Exception as exc:
+        logger.exception("agent_talk_stream 失败 session_id=%s", session_id)
+        yield sse("error", {"code": 500, "detail": str(exc)})
+

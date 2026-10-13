@@ -10,6 +10,8 @@ from app.agents.tools._common import WORKSPACE
 from app.api.sandbox.client.sandbox import get_sandbox_for_id
 from app.db.models.session import Role
 from app.models.llm import get_model
+from langchain.messages import HumanMessage
+from langchain.agents.middleware import SummarizationMiddleware
 
 
 async def code_agent(state: State, config: RunnableConfig):
@@ -25,16 +27,30 @@ async def code_agent(state: State, config: RunnableConfig):
     model = get_model(state['model'])
     system_prompt = generate_system_prompt(cwd=WORKSPACE, mode=state['mode'], project_context='')
 
-    agent = create_agent(model=model, tools=tools, system_prompt=system_prompt)
+    agent = create_agent(
+        model=model, 
+        tools=tools, 
+        system_prompt=system_prompt,
+        middleware=[
+        SummarizationMiddleware(
+                model=model,
+                # Trigger when conversation history reaches 4000 tokens
+                trigger=("tokens", 10000),
+                # Keep the 20 most recent messages intact after summarizing older ones
+                keep=("messages", 20),
+            ),
+        ],
+    )
 
     input = state['input']
-    message = [item['content'] for item in input if item['type'] == 'text']
+    message = HumanMessage(content=input)
+
 
     # 透传父 config（不要自造只带 thread_id 的 config——那样会丢掉回调，子 agent 的
     # 流式事件就回不到外层）。create_agent 默认无 checkpointer，复用父 thread_id 无副作用。
     result = await agent.ainvoke({
-        "messages": [{"role": Role.user, "content": message[0]}]
-    }, config=config)
+        "messages": [message]
+    }, config=config, version="v2")
 
     print(f"[codeAgent] result: {result}")
-    return {"messages": [{"role": "assistant", "content": "[codeAgent] 占位：待接入沙箱工具"}]}
+    return {"currentRoundMessages": result["messages"]}

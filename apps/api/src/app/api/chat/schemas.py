@@ -10,40 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.models.session import MessageMode
-
-class AttachmentType(StrEnum):
-    image = "image"
-    file = "file"
-
-# 分类结果。
-#
-# 注意与节点名的错位：mode == "plan" 走的是 planAgent 节点，
-# mode == "agent" 走的是 codeAgent 节点。"agent" 这个词描述的是
-# "直接动手改代码"这一档，而不是"进入某个 agent"——所有节点都是 agent。
-# 值域必须与 graphs.py 里 add_conditional_edges 的映射表逐字一致。
-# Branch = Literal["plan", "agent"]
-
-class Part(BaseModel):
-    """一条消息里除文本外的附加内容。"""
-
-    type: AttachmentType = Field(
-        description="附件类型",
-        examples=["image", "file", "text"],
-    )
-    content: str = Field(
-        min_length=1,
-        description="附件地址，沙箱内读得到或 api 能拉取的 URL",
-        examples=["https://example.com/a.png"],
-    )
-# class PartText(BaseModel):
-#     type: str = "text"
-
-#     content: str = Field(
-#         min_length=1,
-#         description="文本内容",
-#         examples=["请写一个快排"],
-#     )
-
+from langchain.messages import ContentBlock
 
 
 class ChatCreateRequest(BaseModel):
@@ -59,7 +26,7 @@ class ChatCreateRequest(BaseModel):
         description="用哪个 agent，见 /agents",
         examples=["agent", "plan"],
     )
-    parts: list[Part] = Field(
+    parts: list[ContentBlock] = Field(
         default_factory=list,
         description="附加内容，按顺序跟在 message 后面",
         examples=[[{"type": "text", "content": "帮我写个快排"}]],
@@ -84,7 +51,7 @@ class MessageItem(BaseModel):
     status: str = Field(description="complete / interrupted", examples=["complete"])
     model: str = Field(examples=["deepseek-v4-flash"])
     mode: MessageMode = Field(examples=["agent"])
-    parts: list[Part] | None = Field(
+    parts: list[ContentBlock] | None = Field(
         default=None,
         description="消息内容片段",
         examples=[[{"type": "text", "content": "帮我写个快排"}]],
