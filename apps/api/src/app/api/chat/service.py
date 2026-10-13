@@ -16,7 +16,6 @@ from app.api.chat.schemas import (
     ChatCreateResponse,
     ChatDeleteResponse,
     ChatDetailResponse,
-    LangchainCheckpointItem,
     LangchainHistoryResponse,
     LangchainMessageItem,
     MessageItem,
@@ -209,24 +208,22 @@ def _message_item(m: object) -> LangchainMessageItem:
     )
 
 async def chat_langchain_history(
-    id: str, user_id: int, session: AsyncSession, limit: int = 20
+    id: str, user_id: int, session: AsyncSession
 ) -> LangchainHistoryResponse:
-    """取某个会话的 LangGraph checkpoint 历史。
+    """取某个会话的对话历史（user 与 ai 的消息，按时间正序）。
 
     和 `chat_message` 的分工：那个读 `messages` 表（业务侧落库的结果，一轮一条），
-    这个直接读 checkpointer 里的图状态。**两个源不是同一份数据**，同一轮对话在
-    这边粒度更细（一图执行可能有多个 checkpoint），也可能更多（模型跑完但落库
-    失败的轮次，库里没有、checkpointer 里有）。排查"前端显示的和实际跑的不一致"
-    时就靠这个接口对照。
+    这个直接读 checkpointer 里的图状态。**两个源不是同一份数据**：图状态里粒度更
+    细（含工具调用、中间推理），也可能更多（模型跑完但落库失败的轮次，库里没有、
+    checkpointer 里有）。排查"前端显示的和实际跑的不一致"时就靠这个接口对照。
+
+    **只取最新一个 state，不遍历 checkpoint 历史**：currentRoundMessages 走
+    add_messages 收敛，每个 checkpoint 存的都是"到那一步为止的全量"，所以最新的
+    那个 state 本身就带着完整对话。遍历历史只会拿到一堆互相重复的全量快照。
 
     id 是会话 id（= LangGraph thread_id）。先确认这个会话属于 user_id——
     不属于就当 404 而不是 403，和同模块其它接口一致，不泄露
     "这个 id 存在但不归你"：拿别人的 id 来探测时两种情况响应一致。
-
-    limit 默认 20、上限 200：checkpoint 攒得比消息快得多（一次图执行好几次），
-    不设上限时一个跑了上百轮的长会话会把整个线程拉出来，一次响应几百 KB。
-
-    **按从新到旧返回**（同 graph.get_state_history）：最新的那条就是当前状态。
     """
     # 只校验归属、不读 Session 对象：下面的数据全来自 checkpointer，不用 ORM 的行。
     # 用路由注入的 session（不是自开）：这里没有 generator，函数体在响应头发出前
@@ -252,26 +249,12 @@ async def chat_langchain_history(
     graph = await get_graph()
     config = {"configurable": {"thread_id": id}}
 
-    # aget_state_history 而非 get_state_history：后者是同步生成器，会在事件循环
-    # 所在线程里同步阻塞地查库，整条 loop 卡住。异步版逐条 await，不阻塞。
-    items: list[LangchainCheckpointItem] = []
-    async for snapshot in graph.aget_state_history(config, limit=limit):
-        # values 是 TypedDict 形态的图状态，理论上可能缺 currentRoundMessages
-        # （图还没跑过任何节点时的初始快照），.get 兜住。
-        raw_messages = (snapshot.values or {}).get("currentRoundMessages") or []
-        messages = [_message_item(m) for m in raw_messages]
-        items.append(
-            LangchainCheckpointItem(
-                # 只取 checkpoint_id，不透出整个 config：configurable 里还有
-                # checkpoint_ns、checkpoint_map 这些内部键，对前端没用。
-                checkpoint_id=(snapshot.config or {}).get("configurable", {}).get(
-                    "checkpoint_id"
-                ),
-                step=snapshot.metadata.get("step", 0),
-                messages=messages,
-                # next 是 tuple，pydantic 会转 list，这里显式转一下省得读代码时犹豫。
-                next=list(snapshot.next),
-            )
-        )
+    # aget_state 而非 ainvoke/astream：只读当前状态，不触发任何节点执行。
+    # 空线程（会话建了但没跑过图）返回的 snapshot.values 为空 dict。
+    snapshot = await graph.aget_state(config)
+    # values 是 TypedDict 形态的图状态，可能缺 currentRoundMessages（图还没跑过
+    # 任何节点），.get 兜住。
+    raw_messages = (snapshot.values or {}).get("currentRoundMessages") or []
+    items = [_message_item(m) for m in raw_messages]
 
     return LangchainHistoryResponse(data=items, total=len(items))

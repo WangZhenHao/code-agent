@@ -5,7 +5,7 @@ POST /chat + GET /chat，是为了后面加 /chat/stop、/chat/resume 这类
 操作时路径形态保持一致。
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.schemas import (
@@ -98,12 +98,12 @@ async def chat_delete(
 @router.get(
     "/message/langchain/{id}",
     response_model=LangchainHistoryResponse,
-    summary="获取会话的 LangGraph 历史",
+    summary="获取会话的对话历史（来自 LangGraph）",
     description=(
-        "直接读 checkpointer 里的图状态，返回该线程的 checkpoint 快照列表，"
-        "**按从新到旧**（最新的那条即当前状态）。\n\n"
+        "直接读 checkpointer 里的图状态，返回该会话的对话历史（user 与 ai 的消息），"
+        "**按时间正序**。\n\n"
         "与 `GET /chat/message/{id}` 的区别：那个读 messages 表（业务落库、一轮一条），"
-        "这个读图状态（一次图执行一个 checkpoint，粒度更细，且可能包含没落库的轮次）。"
+        "这个读图状态（含工具调用、中间推理等更细粒度，且可能包含没落库的轮次）。"
         "排查「前端显示的和实际跑的不一致」时拿两个接口对照。"
     ),
     responses={404: {"description": "会话不存在、已删除，或不属于当前用户"}},
@@ -111,14 +111,8 @@ async def chat_delete(
 async def langchain_history(
     id: str,
     # path 参数名必须与 {id} 逐字一致，写成别的会退化成查询参数 ?id=。
-    limit: int = Query(
-        default=20,
-        ge=1,
-        le=200,
-        description="最多返回多少个 checkpoint 快照（从新往旧取）",
-    ),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ):
-    """获取会话的 LangGraph checkpoint 历史。"""
-    return await chat_langchain_history(id, user.id, session, limit)
+    """获取会话的对话历史（来自 LangGraph 图状态）。"""
+    return await chat_langchain_history(id, user.id, session)
