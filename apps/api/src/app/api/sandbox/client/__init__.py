@@ -12,9 +12,12 @@ from app.api.sandbox.client.sandbox import (
     SANDBOX_NAMESPACE,
     WARMPOOL,
     create_sandbox_for_id,
+    delete_sandbox,
     get_sandbox_for_id,
+    resume_sandbox,
     sandbox_client,
     sandbox_url,
+    suspend_sandbox,
 )
 
 __all__ = [
@@ -22,7 +25,10 @@ __all__ = [
     "SANDBOX_NAMESPACE",
     "WARMPOOL",
     "create_sandbox_for_id",
+    "delete_sandbox",
     "get_sandbox_for_id",
+    "resume_sandbox",
     "sandbox_client",
     "sandbox_url",
+    "suspend_sandbox",
 ]

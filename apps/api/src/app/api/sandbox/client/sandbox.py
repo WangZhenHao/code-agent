@@ -7,9 +7,15 @@
 （连 router），这正是"单例变量"的代价——想改成懒加载得换回工厂函数。
 """
 
+import logging
 import re
 
 from k8s_agent_sandbox import SandboxClient
+from k8s_agent_sandbox.constants import (
+    SANDBOX_API_GROUP,
+    SANDBOX_API_VERSION,
+    SANDBOX_PLURAL_NAME,
+)
 from k8s_agent_sandbox.models import SandboxLocalTunnelConnectionConfig
 
 # Router 装在本项目的命名空间（见 deploy/api/agent-sandbox-router/），不是上游默认的
@@ -101,3 +107,89 @@ def get_sandbox_for_id(sandbox_id: str):
     if not claim_names:
         return None
     return sandbox_client.get_sandbox(claim_names[-1], namespace=SANDBOX_NAMESPACE)
+
+
+# Sandbox CR 的 spec.operatingMode 取值。Running/Suspended 是 CRD schema 里的全部枚举，
+# 默认 Running：改回 Running 时控制器按原 podTemplate 重建 Pod 并绑回同一块 PVC。
+OPERATING_MODE_RUNNING = "Running"
+OPERATING_MODE_SUSPENDED = "Suspended"
+
+logger = logging.getLogger(__name__)
+
+
+def _get_operating_mode(sandbox) -> str | None:
+    """读一次 Sandbox CR，返回当前的 spec.operatingMode；对象已不在返回 None。
+
+    不缓存：暂停/恢复正是这个字段在变，缓存等于把"刚 patch 完"读成旧值。
+    """
+    obj = sandbox_client.k8s_helper.get_sandbox(sandbox.sandbox_id, SANDBOX_NAMESPACE)
+    if not obj:
+        return None
+    return (obj.get("spec") or {}).get("operatingMode")
+
+
+def _patch_operating_mode(sandbox, mode: str) -> None:
+    """把 Sandbox CR 的 spec.operatingMode 设成 Running / Suspended（merge patch）。
+
+    用 sandbox_id 而非 claim_name 定位：warmpool 场景下 claim 是新建的、Sandbox 名
+    继承自池，两者不等（sandbox_url 里同样的理由）。
+    """
+    sandbox_client.k8s_helper.custom_objects_api.patch_namespaced_custom_object(
+        group=SANDBOX_API_GROUP,
+        version=SANDBOX_API_VERSION,
+        namespace=SANDBOX_NAMESPACE,
+        plural=SANDBOX_PLURAL_NAME,
+        name=sandbox.sandbox_id,
+        body={"spec": {"operatingMode": mode}},
+    )
+
+
+def suspend_sandbox(sandbox) -> None:
+    """暂停沙箱：删 Pod、保留 Sandbox CR / Service / PVC，下次回来数据还在。
+
+    与 delete_sandbox 的区别是「可逆」——后者删的是 SandboxClaim，claim 一没
+    Sandbox 和卷都跟着走，那是销毁。
+
+    先 close_connection 再 patch，顺序不能反：close_connection 会把 _pod_name 缓存
+    清掉（sandbox.py 里就是为 suspend/resume 留的），否则恢复后 port-forward 会指向
+    已经不存在的旧 Pod。它只关本地隧道，不动远端。
+    """
+    sandbox.close_connection()
+    _patch_operating_mode(sandbox, OPERATING_MODE_SUSPENDED)
+
+
+def resume_sandbox(sandbox, *, ready_timeout: int = 180) -> bool:
+    """把暂停中的沙箱唤回 Running，阻塞等 Pod 就绪。返回是否真的做了恢复。
+
+    幂等：已在 Running（或 CR 已不在）时直接返回 False，不发 patch、不等 ready。
+    等 Pod 就绪是必须的——patch 返回只代表 spec 被受理，调用方拿到句柄立刻
+    commands.run 会打在还没起来的 Pod 上。
+
+    注意返回 True 时句柄的 pod IP 是新的：Sandbox.get_pod_ip 每次都现查（不缓存），
+    所以同一个句柄对象恢复后仍可用，不必重新 get_sandbox_for_id。
+    """
+    if _get_operating_mode(sandbox) != OPERATING_MODE_SUSPENDED:
+        return False
+
+    logger.info("沙箱处于暂停态，恢复中 sandbox_id=%s", sandbox.sandbox_id)
+    _patch_operating_mode(sandbox, OPERATING_MODE_RUNNING)
+    sandbox_client.k8s_helper.wait_for_sandbox_ready(
+        sandbox.sandbox_id, SANDBOX_NAMESPACE, ready_timeout
+    )
+    return True
+
+
+def delete_sandbox(sandbox) -> None:
+    """销毁沙箱：删 SandboxClaim，连 PVC 一起释放，**不可逆**。
+
+    与 suspend_sandbox 是"要这份数据"的分水岭，不是两种关闭方式：
+    suspend 保留 CR / Service / PVC，下次 resume 能原样回来；delete 把 claim 删掉，
+    claim 一没 Sandbox 与卷都跟着走（shutdownPolicy 默认 Delete）。
+
+    误用代价是数据不可逆丢失，所以调用点应当明确是「确定不再需要」的场景
+    （用户删会话等），不要拿它替代暂停。
+
+    delete_sandbox 内部会 terminate 句柄并摘掉客户端里的追踪记录；
+    namespace 必须与建沙箱时一致（默认 default）。
+    """
+    sandbox_client.delete_sandbox(sandbox.claim_name, SANDBOX_NAMESPACE)

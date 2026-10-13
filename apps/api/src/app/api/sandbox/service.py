@@ -1,7 +1,16 @@
-"""沙箱生命周期服务：启动 / 关闭会话沙箱，并把预览状态同步进 sessions 表。
+"""沙箱生命周期服务：启动 / 暂停会话沙箱，并把预览状态同步进 sessions 表。
 
 `start_sandbox` 返回 SDK 的 Sandbox 句柄（不是"句柄摘要"）：调用方拿到就能直接
 `commands.run(...)`，不必再按 id 查一次。
+
+停止分两个函数，按「还要不要这份数据」选，不靠参数开关：
+
+- `stop_sandbox`（**暂停**，会话级默认）：把 Sandbox CR 的 `spec.operatingMode` 设成
+  Suspended，控制器删 Pod 但保留 CR / Service / PVC，下次 start 唤回 Running 时按原
+  podTemplate 重建 Pod 并绑回同一块卷，/workspace 里的代码原样还在（见 client/sandbox.py
+  的 suspend_sandbox / resume_sandbox）。预览超时回收走它。
+- `delete_sandbox`（**销毁**，不可逆）：删 SandboxClaim，连 PVC 一起释放。只给确定不再
+  需要数据的路径用（如用户删会话）。
 """
 
 import asyncio
@@ -17,11 +26,12 @@ from k8s_agent_sandbox.sandbox import Sandbox
 from sqlalchemy import select, update
 
 from app.api.sandbox.client import (
-    SANDBOX_NAMESPACE,
     create_sandbox_for_id,
+    delete_sandbox as delete_sandbox_handle,
     get_sandbox_for_id,
-    sandbox_client,
+    resume_sandbox,
     sandbox_url,
+    suspend_sandbox,
 )
 from app.db.models.session import PreviewStatus, Session, SessionStatus
 from app.db.session import SessionLocal
@@ -138,6 +148,15 @@ async def start_sandbox(id: str) -> Sandbox:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"沙箱启动失败：{exc}",
                 ) from exc
+        else:
+            # 复用分支：句柄找回来了不代表 Pod 在。上次停过的话 CR 还挂在 Suspended
+            # 上，Pod 是删掉的 —— 不唤回来，调用方拿到的是个没有容器的句柄，
+            # 后面 commands.run 必挂。resume_sandbox 内部先读一次 operatingMode，
+            # 已经在 Running 的直接返回，不做无谓的 patch 与等待。
+            #
+            # 这一步在 to_thread 里跑：wait_for_sandbox_ready 是同步 watch 循环，
+            # 最长阻塞 ready_timeout 秒，直接 await 会把整个事件循环卡住。
+            await asyncio.to_thread(resume_sandbox, sandbox)
 
     # preview_url 由 sandbox_id 拼出（见 client/sandbox.py 的 sandbox_url）。
     url = sandbox_url(sandbox)
@@ -146,21 +165,56 @@ async def start_sandbox(id: str) -> Sandbox:
 
 
 async def stop_sandbox(id: str) -> None:
-    """关闭会话沙箱，并把预览状态复位、地址清空。
+    """暂停会话沙箱：Pod 删掉、卷保留，下次进来数据还在。
 
-    幂等：已经关过或从没建过（句柄取不到）时，跳过删除，仅把 DB 状态刷成 idle。
+    暂停后 /workspace 的内容留在 PVC 上，下次 start_sandbox 唤回 Running 时 Pod
+    重建、绑回同一块卷，agent 改过的代码与装过的依赖都还在。回收的是 Pod（算力），
+    不是数据。
+
+    幂等：已经停过或从没建过（句柄取不到）时，跳过动作，仅把 DB 状态刷成 idle。
     """
     # await _require_session(id)
 
-    # 与 start 共用同一把 id 锁：stop 删 claim 时若有并发 start 正在建，会删错
-    # 对象或留下孤儿 claim，串行化后两者不交叉。
+    # 与 start 共用同一把 id 锁：暂停改的是 Sandbox CR，与并发的 start（可能要新建
+    # claim、可能要 resume 同一个 CR）交叉会互相踩——尤其 suspend 之后紧跟的 start
+    # 必须在 CR 还在时看到 Suspended，串行化后两者不交叉。
     async with _session_lock(id):
         sandbox = await _find_existing(id)
         if sandbox is not None:
-            # delete_sandbox 内部会 terminate 句柄并摘掉客户端里的追踪记录；
-            # namespace 必须与建沙箱时一致（默认 default）。
-            await asyncio.to_thread(
-                sandbox_client.delete_sandbox, sandbox.claim_name, SANDBOX_NAMESPACE
-            )
+            # suspend_sandbox 内部先 close_connection（关本地 port-forward、清
+            # _pod_name 缓存，为的是恢复后不会指向已消失的旧 Pod）再 patch
+            # operatingMode。它全程是同步阻塞的 K8s 调用，所以丢进线程里。
+            await asyncio.to_thread(suspend_sandbox, sandbox)
+
+    await _persist_preview(id, PreviewStatus.idle, None, None)
+
+
+async def delete_sandbox(id: str) -> None:
+    """销毁会话沙箱：删 SandboxClaim，连 PVC 一起释放（不可逆）。
+
+    与 stop_sandbox 的分工是这个模块仅有的区分点：
+
+    - `stop_sandbox`（暂停）：保留 Sandbox CR / Service / PVC，用户下次进来
+      `/workspace` 里的代码原样还在。**会话级的默认动作**，预览超时回收走它。
+    - `delete_sandbox`（销毁）：删掉 SandboxClaim，claim 一没 Sandbox 与 PVC 都
+      跟着走（shutdownPolicy 默认 Delete）。**只给"会话被真正删掉"这类确定不再需要
+      数据的路径用**，比如用户删会话、或将来按「最后活跃」清理长期不用的沙箱。
+      误用的代价是数据不可逆地丢失。
+
+    两者名字都带 sandbox 但作用域不同，调用方按「还要不要这份数据」来选，不要按
+    「名字看起来更像关闭」来选。
+
+    幂等：已经销毁或从没建过（句柄取不到）时，跳过删除，仅把 DB 状态刷成 idle。
+    """
+    # await _require_session(id)
+
+    # 与 start 共用同一把 id 锁：删 claim 时若有并发 start 正在建，会删错对象或
+    # 留下孤儿 claim，串行化后两者不交叉。
+    async with _session_lock(id):
+        sandbox = await _find_existing(id)
+        if sandbox is not None:
+            # 客户端那个同名函数内部会 terminate 句柄并摘掉追踪记录，namespace
+            # 固定在客户端侧（默认 default），这里只管把句柄交出去。
+            await asyncio.to_thread(delete_sandbox_handle, sandbox)
 
     await _persist_preview(id, PreviewStatus.idle, None, None)

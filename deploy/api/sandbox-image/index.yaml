@@ -11,6 +11,46 @@ metadata:
 spec:
   podTemplate:
     spec:
+      # 卷的属主：local-path 建出来的 PV 目录默认归 root，而容器里跑的是 uid 1000，
+      # 没有 fsGroup 的话 agent 写 /workspace 会 EACCES。声明 fsGroup 让 kubelet
+      # 在建卷后把属组掰到 1000 并放开组写权限。
+      securityContext:
+        fsGroup: 1000
+      # 首次播种：卷第一次挂上时是空的，而 dev server 需要 /workspace 里有
+      # package.json 和 node_modules，否则起不来。
+      #
+      # 关键在挂载点是【逐容器】声明的：同一个卷，initContainer 挂 /mnt/data，
+      # 主容器挂 /workspace。所以 initContainer 眼里的 /workspace 并没有被卷遮住，
+      # 仍是镜像里那份模板 + node_modules（母版），直接拷进卷即可 —— 不需要在
+      # 镜像里另开一个 /opt/seed 之类的"播种源"目录。
+      #
+      # 用「标记文件」而不是「目录非空」判首次：恢复沙箱时卷里有上次的代码，必须
+      # 原样保留 —— 若按目录非空判断还好，但若改成无脑 rsync 就会把 agent 的改动
+      # 覆盖回模板。标记文件让"只播种一次"这件事显式且可审计。
+      #
+      # 播种后属主可能不对（initContainer 与主容器同为 1000，正常情况一致），
+      # 但 cp -a 保留属主，跨 fsGroup 边界时仍可能落到 root，所以补一次 chown。
+      initContainers:
+        - name: seed-workspace
+          image: code-agent/sandbox-base:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              if [ -f /mnt/data/.seeded ]; then
+                echo "卷里已有内容，跳过播种"
+                exit 0
+              fi
+              echo "首次启动，把镜像里的 /workspace 播进卷"
+              cp -a /workspace/. /mnt/data/
+              chown -R 1000:0 /mnt/data
+              touch /mnt/data/.seeded
+          volumeMounts:
+            - name: workspace
+              # 故意不挂 /workspace：挂了就把镜像里的模板遮掉，没东西可拷。
+              mountPath: /mnt/data
       containers:
         - name: sandbox
           # 本地构建的镜像（deploy/api/sandbox-image/Dockerfile）。
@@ -24,6 +64,17 @@ spec:
             # SDK 侧用 SandboxLocalTunnelConnectionConfig(server_port=8888) 对齐，
             # 该值会作为 X-Sandbox-Port 头交给 router。
             - containerPort: 8888
+          # /workspace 既是 agent 的工作根（tools/_common.py 的 WORKSPACE、
+          # 镜像里的 SANDBOX_BASE_DIR），也是 Next dev server 的 cwd（npm run dev），
+          # 更是 Ingress 转发到 3000 端口那个应用的源码所在 —— 三者同一个目录，
+          # 所以卷必须挂在 /workspace 上，挂别处等于没持久化。
+          #
+          # 卷在这里盖住镜像里的母版，看到的是 initContainer 播进来的内容。
+          # 这就是"模板代码在 /workspace、持久化也持久化 /workspace"这个直觉模型的
+          # 落地方式：同一个路径，镜像提供初始内容，卷保存后续改动。
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
       restartPolicy: OnFailure
   # 控制器会给沙箱 Pod 自动生成一个 NetworkPolicy（Managed 模式）。它的默认 ingress
   # 只放行 **agent-sandbox-system** 命名空间的 router —— 而本项目把 router 装在了
@@ -37,6 +88,29 @@ spec:
   # 早期的 except 列了 192.168.0.0/16，正好把 kube-dns 一起挡住 —— 症状是沙箱内
   # `curl https://registry.npmjs.org` 报 "Could not resolve host"，npm install 全挂。
   # 这里去掉 192.168.0.0/16。若换集群、其 CIDR 落在 10/8 或 172.16/12，也要一并去掉。
+  # ---------- 持久化：/workspace 落在 PVC 上，暂停后数据还在 ----------
+  #
+  # 卷是「暂停可恢复」的前提。没有它，Sandbox 的 operatingMode: Suspended 只是把
+  # Pod 删掉 —— 容器可写层随之消失，agent 改过的代码、装过的依赖全没。
+  # 有了它，控制器删 Pod 时不动 PVC，改回 Running 时按原 podTemplate 重建 Pod
+  # 并绑回同一块卷（见 KEP-694）。
+  #
+  # metadata.name 必须与下面 podTemplate 里的 volumeMounts[].name 一致。
+  # 命名对齐 StatefulSet 语义：每个 Sandbox 实例各得一块独立 PVC，控制器生成
+  # 真实名字（约 <name>-<sandbox-name>），模板里这个 name 只是引用键。
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            # dev server + node_modules 的体量，留够余量。本集群默认 StorageClass
+            # 是 local-path（节点本地盘，ReclaimPolicy: Delete）：换节点调度就找不到
+            # 卷，单节点开发集群无碍，上真集群要换成会跟着 Pod 走的 CSI。
+            storage: 5Gi
+
   networkPolicy:
     ingress:
       - from:
