@@ -14,7 +14,7 @@ from app.api.chat.schemas import ChatCreateRequest
 # 时后者会盖掉前者，select(Session.id) 就在一个普通类上取属性，报
 # AttributeError。别名让两个名字互不干扰。
 from app.api.sandbox.service import start_sandbox
-from app.db.models.session import Messages, Role
+from app.db.models.session import MessageStatus, Messages, Role
 from app.db.models.session import Session as SessionModel
 from app.db.session import SessionLocal
 
@@ -27,7 +27,8 @@ def agent_flows():
 
 
 async def agent_retalk_stream(
-    session_id: str, user_id: int
+    session_id: str,
+    user_id: int
 ) -> AsyncIterator[str]:
     """与 agent 对话，SSE 流式返回。
 
@@ -80,6 +81,7 @@ async def agent_retalk_stream(
             "session": {"id": session_id, "user_id": user_id},
             "input": parts,
             "model": last_message.model,
+            "currentRoundMessages": []
         }
         # 会话 ID 即 thread_id（仓库根 README 约定 #4）。
         config = {"configurable": {"thread_id": session_id}}
@@ -95,8 +97,6 @@ async def agent_retalk_stream(
         async for frame in agent_stream(state, config):
             yield frame
 
-        
-
     except Exception as exc:
         # 前置校验阶段的异常（如 DB 查询失败）。generator 里抛异常会变成半截响应，
         # 客户端只能看到连接断掉，所以兜住转成 error 事件。跑图阶段的异常已被
@@ -104,14 +104,34 @@ async def agent_retalk_stream(
         logger.exception("agent_retalk_stream 失败 session_id=%s", session_id)
         yield sse("error", {"code": 500, "detail": str(exc)})
 
-        
-async def agent_talk_stream(session_id: str, user_id: int, req: ChatCreateRequest) -> AsyncIterator[str]:
+
+async def agent_talk_stream(
+        session_id: str,
+        user_id: int,
+        req: ChatCreateRequest,
+        session: AsyncSession
+) -> AsyncIterator[str]:
     try:
+
+        message = Messages(
+            session_id=session_id,
+            role=Role.user,
+            status=MessageStatus.complete,
+            model=req.model,
+            parts=req.parts,
+            mode=req.mode,
+        )
+        session.add(message)
+
+        # 一次提交两张表，然后把 DB 端生成的 created_at 取回来。
+        await session.commit()
+
         state: State = {
             "mode": req.mode,
             "session": {"id": session_id, "user_id": user_id},
             "input": req.parts,
             "model": req.model,
+            "currentRoundMessages": []
         }
         # 会话 ID 即 thread_id（仓库根 README 约定 #4）。
         config = {"configurable": {"thread_id": session_id}}
@@ -126,4 +146,3 @@ async def agent_talk_stream(session_id: str, user_id: int, req: ChatCreateReques
     except Exception as exc:
         logger.exception("agent_talk_stream 失败 session_id=%s", session_id)
         yield sse("error", {"code": 500, "detail": str(exc)})
-

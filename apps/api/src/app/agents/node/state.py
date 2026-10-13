@@ -35,6 +35,9 @@ class State(TypedDict):
     """
 
     currentRoundMessages: NotRequired[Annotated[list, add_messages]]
+
+    messages:  NotRequired[Annotated[list, add_messages]]
+
     # classify 判定出的走向，同时也是路由函数读的依据。
     mode: MessageMode
 

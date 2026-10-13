@@ -109,7 +109,7 @@ async def create_chat(
         role=Role.user,
         status=MessageStatus.complete,
         model=req.model,
-        parts=[p.model_dump() for p in req.parts],
+        parts=req.parts,
         mode=req.mode,
     )
     session.add(message)

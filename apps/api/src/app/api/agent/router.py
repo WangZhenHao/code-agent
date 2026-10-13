@@ -23,7 +23,7 @@ async def talk(
 ):
     """与 agent 对话。"""
     return StreamingResponse(
-        agent_talk_stream(session_id=session_id, user_id=user.id, req=req),
+        agent_talk_stream(session_id=session_id, user_id=user.id, req=req, session=session),
         media_type="text/event-stream",
         headers={
             # SSE 必须关掉中间层缓冲，否则事件会攒在 nginx/网关里一次性吐出，

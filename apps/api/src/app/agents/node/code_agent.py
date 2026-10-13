@@ -11,6 +11,7 @@ from app.api.sandbox.client.sandbox import get_sandbox_for_id
 from app.db.models.session import Role
 from app.models.llm import get_model
 from langchain.messages import HumanMessage
+from langchain_core.messages.utils import filter_messages
 from langchain.agents.middleware import SummarizationMiddleware
 
 
@@ -43,14 +44,28 @@ async def code_agent(state: State, config: RunnableConfig):
     )
 
     input = state['input']
-    message = HumanMessage(content=input)
+    messages = state.get('messages', [])
+    inputMessage = HumanMessage(content=input)
 
+    # 本轮发出去的全部消息（历史 + 本轮用户输入），进 agent 的同时留作后面提取基准。
+    input_messages = messages + [inputMessage]
 
     # 透传父 config（不要自造只带 thread_id 的 config——那样会丢掉回调，子 agent 的
     # 流式事件就回不到外层）。create_agent 默认无 checkpointer，复用父 thread_id 无副作用。
     result = await agent.ainvoke({
-        "messages": [message]
+        "messages": input_messages
     }, config=config, version="v2")
 
-    print(f"[codeAgent] result: {result}")
-    return {"currentRoundMessages": result["messages"]}
+    # result["messages"] 是「历史 + 本轮」的全量。用 filter_messages(exclude_ids=...) 剔除
+    # 输入侧的消息，剩下的就是本轮新增。按下标切不行：SummarizationMiddleware 触发摘要时
+    # 前面历史会被换成一条 summary，列表长度和顺序都变了，下标切会把本轮靠前的消息切丢。
+    currentRoundMessages = filter_messages(
+        result["messages"],
+        exclude_ids=[m.id for m in input_messages],
+    )
+
+    return {
+        "messages": result["messages"],
+        # currentRoundMessages 在 State 里挂了 add_messages reducer，这里是追加不是覆盖。
+        "currentRoundMessages": currentRoundMessages,
+    }
