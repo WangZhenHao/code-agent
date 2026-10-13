@@ -5,7 +5,7 @@
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -107,3 +107,49 @@ class ChatDeleteResponse(BaseModel):
     id: str = Field(examples=["e9394c054c9641e8981ca78b99b70dde"])
     # 会话状态码，见 app.db.models.session.SessionStatus：0=已删除，1=进行中
     status: int = Field(examples=[0])
+
+
+class LangchainMessageItem(BaseModel):
+    """LangGraph 状态里的一条消息。
+
+    与 MessageItem 不是一回事：那个读的是 messages 表（业务落库的，只有 role/
+    parts/status 这些列），这个读的是 checkpointer 里的图状态——同一轮对话，
+    粒度更细（每个 checkpoint 一份快照，含工具调用、中间推理），而且**可能比
+    messages 表多**：模型跑完但落库那步失败的轮次，库里没有、checkpointer 里有。
+
+    message 原样透出消息对象 model_dump() 的结果，不在这里挑字段：langchain 的
+    消息类型（HumanMessage / AIMessage / ToolMessage 等）字段集各不相同，按类型
+    写死 schema 只会漏字段、且跟着上游版本变，前端按 type 判分支更稳。
+    """
+
+    type: str = Field(description="消息类型，如 human / ai / tool", examples=["ai"])
+    message: dict[str, Any] = Field(description="消息对象 model_dump() 的结果，原样透出")
+
+
+class LangchainCheckpointItem(BaseModel):
+    """线程历史里的一个 checkpoint（一次图执行的快照）。"""
+
+    checkpoint_id: str | None = Field(
+        default=None,
+        description="checkpoint 标识，只透出 config.configurable.checkpoint_id 这一项",
+        examples=["1ef7b3d2-8a44-6b01-93aa-2c4f0e7d9b12"],
+    )
+    step: int = Field(description="该 checkpoint 在执行序列中的步号，越大越新", examples=[4])
+    # 本快照累积的全部消息。currentRoundMessages 走 add_messages 收敛，所以是
+    # 「到这一步为止」的全量，不是这一步的增量——前端要增量得自己跟上一个比。
+    messages: list[LangchainMessageItem]
+    # 该快照之后还要执行的节点。空列表即图已终止（走到 END）。
+    next: list[str] = Field(default_factory=list, description="下一个待执行的节点")
+
+
+class LangchainHistoryResponse(BaseModel):
+    """线程的 checkpoint 历史。
+
+    **按 checkpoint 从新到旧**返回，与 graph.get_state_history 的顺序一致——
+    最新的那条（当前状态）在最前，而不是按时间正序。
+
+    total 是本次返回的快照条数，不是消息条数。
+    """
+
+    data: list[LangchainCheckpointItem]
+    total: int = Field(description="checkpoint 快照条数", examples=[6])

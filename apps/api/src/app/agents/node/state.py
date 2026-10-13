@@ -10,7 +10,6 @@ from typing import Annotated, Literal, NotRequired, TypedDict
 
 from langgraph.graph.message import add_messages
 
-from app.api.chat.schemas import Part
 from app.db.models.session import MessageMode
 from langchain.messages import ContentBlock
 
