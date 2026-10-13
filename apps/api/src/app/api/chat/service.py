@@ -254,7 +254,7 @@ async def chat_langchain_history(
     snapshot = await graph.aget_state(config)
     # values 是 TypedDict 形态的图状态，可能缺 currentRoundMessages（图还没跑过
     # 任何节点），.get 兜住。
-    raw_messages = (snapshot.values or {}).get("currentRoundMessages") or []
+    raw_messages = (snapshot.values or {}).get("messages") or []
     items = [_message_item(m) for m in raw_messages]
 
     return LangchainHistoryResponse(data=items, total=len(items))
