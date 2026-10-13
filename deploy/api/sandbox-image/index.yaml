@@ -34,6 +34,12 @@ spec:
         - name: seed-workspace
           image: code-agent/sandbox-base:latest
           imagePullPolicy: IfNotPresent
+          # 镜像末尾是 USER 1000，而本脚本要干两件需要 root 的事：cp -a 保留时间戳
+          # （挂载点根目录归 root，非 root 会 "preserving times ... Operation not permitted"），
+          # 以及把播种内容 chown 回 1000:0。所以这里显式以 root 跑 initContainer。
+          # 主容器不声明 securityContext，仍以镜像默认的 1000 运行（见下方 sandbox）。
+          securityContext:
+            runAsUser: 0
           command:
             - sh
             - -c
