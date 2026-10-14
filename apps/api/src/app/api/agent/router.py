@@ -3,7 +3,11 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from app.api.agent.service import agent_retalk_stream, agent_talk_stream
+from app.api.agent.service import (
+    agent_abort,
+    agent_retalk_stream,
+    agent_talk_stream,
+)
 from app.api.chat.schemas import ChatCreateRequest
 from app.db.models.user import User
 from app.db.session import get_session
@@ -61,3 +65,23 @@ async def retalk(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/abort/{session_id}")
+async def abort(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """中止该会话正在跑的 agent 轮次。
+
+    **普通 JSON 响应，不是 SSE。** 和上面两个接口不同：那两个是流，这里只是一次
+    动作确认，前端拿到结果就该马上刷新按钮状态，不需要维持一条长连接。
+
+    路径参数名 `session_id` 与 `{session_id}` 逐字一致，理由同 retalk 的 docstring：
+    写成 `id` 的话 FastAPI 会当成查询参数 `?id=`，接口不报错但永远拿不到值。
+
+    **可以在注入的 session 上用**（不像 retalk 必须自己开）：本函数不是 generator，
+    依赖的生命周期正常。
+    """
+    return await agent_abort(session_id=session_id, user_id=user.id, session=session)

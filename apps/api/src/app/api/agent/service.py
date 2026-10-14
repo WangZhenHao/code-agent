@@ -3,11 +3,14 @@
 import logging
 from collections.abc import AsyncIterator
 
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.helper import agent_stream, sse
 from app.agents.node.state import State
+from app.agents.persistence import persist_round
+from app.agents.run_registry import signal_abort
 from app.api.chat.schemas import ChatCreateRequest
 # ORM 模型起别名 SessionModel：app.agents.node.state 里有个**同名**的 Session
 # （图状态的数据类，只有 id/user_id 两个注解，不是 ORM 模型）。两边一起 import
@@ -105,24 +108,37 @@ async def agent_retalk_stream(
         logger.exception("agent_retalk_stream 失败 session_id=%s", session_id)
         yield sse("error", {"code": 500, "detail": str(exc)})
 
-async def pristane_agent_talk(state: State, status: MessageStatus = MessageStatus.complete):
-    try:
-        async with SessionLocal() as session:
-            session_id = state['session']['id']
-            parsts = [message_to_dict(msg) for msg in state['currentRoundMessages']]
-            message = Messages(
-                session_id=session_id,
-                role=Role.user,
-                status=status,
-                model=state['model'],
-                parts=parsts,
-                mode=state['mode'],
-            )
-            session.add(message)
-            await session.commit()
-    except Exception as exc:
-        logger.exception("pristane_agent_talk 失败 session_id=%s", session_id)
-        raise exc
+async def agent_abort(
+    session_id: str,
+    user_id: int,
+    session: AsyncSession,
+) -> dict:
+    """中止某个会话正在跑的 agent 轮次。
+
+    **普通 async 函数，不是 generator** —— 和另外两个 agent 接口不同。那两个必须
+    返回 SSE 流，所以在 generator 里拿不到注入的 session（带 yield 的依赖在响应头
+    发出前就退出），只能自己开。这里只是一次同步返回的普通请求，注入的 session
+    是有效的，照常规用法写即可。
+
+    返回 {"aborted": bool}：
+      - true  = 本进程确实有一个在跑的 run 接住了信号，模型和工具会停下来。
+      - false = 没有在跑的 run（已经跑完了、或请求落到了别的副本）。
+
+    没有 run 返回 false 而不是报错：前端重复点「停止」、或点在 run 刚结束之后，
+    都不是错误，不该弹窗。
+    """
+    # 归属校验：拿别人的 id 来探测时和 chat/service.py 一样响应 404，不泄露
+    # 「这个 id 存在但不归你」。
+    exists = await session.scalar(
+        select(SessionModel.id)
+        .where(SessionModel.id == session_id)
+        .where(SessionModel.user_id == user_id)
+    )
+    if exists is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    return {"aborted": signal_abort(session_id)}
+
 
 async def agent_talk_stream(
         session_id: str,

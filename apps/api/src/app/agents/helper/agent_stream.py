@@ -13,7 +13,9 @@ from collections.abc import AsyncIterator
 
 from langchain_core.messages import AIMessageChunk, ToolMessage
 
+from app.agents.message_buffer import accumulate
 from app.agents.node.state import State
+from app.agents.run_registry import register, unregister
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +143,7 @@ async def _translate(chunk, node: str, pending: dict[int, dict]) -> AsyncIterato
         del pending[index]
 
 
+
 async def agent_stream(state: State, config: dict) -> AsyncIterator[str]:
     """跑图，把节点推的 custom 事件透传成 SSE 帧。
 
@@ -159,6 +162,10 @@ async def agent_stream(state: State, config: dict) -> AsyncIterator[str]:
     # 这条链绕回还没建好的 graphs，报 partially initialized module。放到运行时
     # 导入，环就断在这里（本模块其余部分不依赖 graphs）。
     from app.agents.graphs import get_graph
+
+    # 登记本次 run，abort 接口据此找到它。必须在第一个 yield 之前登记——start 帧
+    # 一发出去前端就可能点「停止」。
+    run = register(session_id)
 
     try:
         # start 帧在 get_graph() 之前发？不——放在之后。get_graph 首次会建连接池、
@@ -184,6 +191,10 @@ async def agent_stream(state: State, config: dict) -> AsyncIterator[str]:
             state, config=config, stream_mode="messages", subgraphs=True
         ):
             node = _node_name(namespace, metadata)
+            # 先记账再翻译：翻译里可能 yield（客户端断开就在这里抛 GeneratorExit），
+            # 排在 yield 之后的话最后一条 chunk 会漏记。accumulate 不做 IO，
+            # 放在热路径上开销只有一次 dict 查找。
+            accumulate(run.partial, chunk)
             async for frame in _translate(chunk, node, pending):
                 yield frame
 
@@ -202,8 +213,27 @@ async def agent_stream(state: State, config: dict) -> AsyncIterator[str]:
             )
         pending.clear()
 
-        yield sse("done", {"threadId": session_id})
+        # aborted 与 done 二选一，不是并列的两个收尾帧。
+        #
+        # 为什么要区分：run.partial 里记下的「模型已经流出去、但还没提交」的那半截
+        # 内容，不在落库结果里（code_agent 被取消时那段话从未成为消息对象，
+        # checkpoint 里也没有——stream_mode="messages" 是回调侧信道，和 checkpoint
+        # 无关）。所以前端手里那个气泡和 DB 里即将有的那行**对不上**，收到这一帧
+        # 就该把它丢掉、改用落库的结果重绘。
+        if run.aborted:
+            yield sse("aborted", {"threadId": session_id})
+        else:
+            yield sse("done", {"threadId": session_id})
 
     except Exception as exc:
         logger.exception("agent_stream 失败 session_id=%s", session_id)
         yield sse("error", {"code": 500, "detail": str(exc)})
+
+    finally:
+        # 现在才有的 finally。以前没有，所以客户端断连（StreamingResponse 取消
+        # 这个 ASGI task）时既不注销、也不落库——而 except Exception 兜不住
+        # CancelledError（Python 3.8 起它是 BaseException），静默漏掉。
+        #
+        # 传 run 而不只传 id：同会话的新 run 可能已经顶上来，只按 id 删会把新的
+        # 一起删掉，那个 run 从此不响应 abort（见 run_registry.unregister）。
+        unregister(session_id, run)

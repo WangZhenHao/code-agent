@@ -37,6 +37,15 @@ class State(TypedDict):
 
     messages:  NotRequired[Annotated[list, add_messages]]
 
+    # 本轮是否被 /agents/abort/{id} 中止。收尾方（finish）据此决定落库时写
+    # MessageStatus.interrupted 还是 complete。
+    #
+    # 必须在这里声明，不能"随手返回一个没声明的 key"：LangGraph 的通道由 schema
+    # 决定，节点返回未声明的字段会直接抛 InvalidUpdateError。没有 reducer 的字段
+    # 是 LastValue 通道，写即覆盖——和 currentRoundMessages 同款语义。
+    # 读取一律用 state.get("aborted")：第一轮进图时它不存在，同 mode 的坑。
+    aborted: NotRequired[bool]
+
     # classify 判定出的走向，同时也是路由函数读的依据。
     mode: MessageMode
 
