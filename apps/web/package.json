@@ -29,5 +29,8 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
-  "packageManager": "pnpm@11.20.0"
+  "packageManager": "pnpm@11.20.0",
+  "overrides": {
+    "zod": "^3.25.76"
+  }
 }
