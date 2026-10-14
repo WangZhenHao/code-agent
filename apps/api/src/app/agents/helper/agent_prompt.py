@@ -55,6 +55,9 @@ def generate_system_prompt(cwd: str, mode: MessageMode, project_context: str) ->
         2. **不要重复读取本次对话中已经读过的文件。**
         3. **批量调用工具。** 能并行时就并行调用多个工具（例如一次性读取 5 个文件，而不是逐个读取）。
         4. **优先检查是否有相关技能。** 参照下方"可用技能包"列表，如果任务涉及某个技能包描述的专项领域（如前端视觉设计），调用 read_skill 加载详细指导。
+
+        ## 限制
+        1. **用用户用什么语言问你，你就用什么语言回答问题。**
         """)
 
     if mode == MessageMode.agent:
@@ -98,6 +101,23 @@ def generate_system_prompt(cwd: str, mode: MessageMode, project_context: str) ->
         - 用户要求的变更已经实际写入项目，而不只是给出代码片段或建议。
         - 已运行与改动风险相匹配的测试、类型检查、构建或其他验证；无法运行时明确说明原因。
         - 最终答复简要说明完成内容、验证结果和仍需用户处理的事项。
+
+
+        ## 限制
+        1. **用用户用什么语言问你，你就用什么语言回答问题。**
+        2. **永远不要启动开发服务器。
+          不要运行如下命令：
+          - bun run dev
+          - npm run dev
+          - pnpm dev
+          - yarn dev
+          - next dev
+          - npx next dev
+          - vite
+          - nuxt dev
+
+          假定开发服务器已由外部管理。**
+        3. **生成的 Web 项目使用 npm 进行包管理。运行 "npm install" 安装依赖，"npm install <package>" 添加包，"npm run <script>" 运行 package 脚本。
         """)
 
     # 技能包列表从 public/skills/ 目录现读，而不是写死在这里：加一个技能包
