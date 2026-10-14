@@ -83,7 +83,6 @@ async def agent_retalk_stream(
             "session": {"id": session_id, "user_id": user_id},
             "input": parts,
             "model": last_message.model,
-            "currentRoundMessages": []
         }
         # 会话 ID 即 thread_id（仓库根 README 约定 #4）。
         config = {"configurable": {"thread_id": session_id}}
@@ -151,7 +150,6 @@ async def agent_talk_stream(
             "session": {"id": session_id, "user_id": user_id},
             "input": req.parts,
             "model": req.model,
-            "currentRoundMessages": []
         }
         # 会话 ID 即 thread_id（仓库根 README 约定 #4）。
         config = {"configurable": {"thread_id": session_id}}

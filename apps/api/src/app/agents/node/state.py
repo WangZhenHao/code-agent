@@ -25,11 +25,15 @@ class State(TypedDict):
     默认值由节点函数返回时给出。所以第一轮进入图之前 mode 是缺失的，
     读取方要用 state.get("mode") 而不是 state["mode"]。
 
-    currentRoundMessages 用 add_messages 收敛：节点返回 {"currentRoundMessages": [...]} 时是**追加**，
-    不是覆盖。其余字段是普通字段，返回即覆盖。
+    currentRoundMessages 是**普通字段**，返回即覆盖：它的语义是「仅本轮」，覆盖正是
+    想要的。因此它没有挂 add_messages —— 挂上反而会变成跨轮累积的通道，需要每个写入方
+    额外带一个 RemoveMessage(REMOVE_ALL_MESSAGES) 去手动复位（那正是 history 的坑）。
+
+    messages 不同：它要跨轮累积，所以挂了 add_messages，返回是追加。
     """
 
-    currentRoundMessages: NotRequired[Annotated[list, add_messages]]
+    # 仅本轮：普通字段，返回即覆盖。不要挂 add_messages。
+    currentRoundMessages: NotRequired[list]
 
     messages:  NotRequired[Annotated[list, add_messages]]
 
