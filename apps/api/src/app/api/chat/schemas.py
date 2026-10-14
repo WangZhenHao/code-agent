@@ -5,7 +5,7 @@
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -40,6 +40,8 @@ class ChatCreateResponse(BaseModel):
     # 会话状态码，见 app.db.models.session.SessionStatus：0=已删除，1=进行中
     status: int = Field(examples=[1])
     created_at: datetime
+    
+MessageDict: TypeAlias = dict[str, Any]
 
 
 class MessageItem(BaseModel):
@@ -51,7 +53,7 @@ class MessageItem(BaseModel):
     status: str = Field(description="complete / interrupted", examples=["complete"])
     model: str = Field(examples=["deepseek-v4-flash"])
     mode: MessageMode = Field(examples=["agent"])
-    parts: list[ContentBlock] | None = Field(
+    parts: list[ContentBlock] | list[MessageDict] | None = Field(
         default=None,
         description="消息内容片段",
         examples=[[{"type": "text", "text": "帮我写个快排"}]],

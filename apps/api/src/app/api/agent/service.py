@@ -17,6 +17,8 @@ from app.api.sandbox.service import start_sandbox
 from app.db.models.session import MessageStatus, Messages, Role
 from app.db.models.session import Session as SessionModel
 from app.db.session import SessionLocal
+from langchain_core.messages import message_to_dict
+
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +106,24 @@ async def agent_retalk_stream(
         logger.exception("agent_retalk_stream 失败 session_id=%s", session_id)
         yield sse("error", {"code": 500, "detail": str(exc)})
 
+async def pristane_agent_talk(state: State, status: MessageStatus = MessageStatus.complete):
+    try:
+        async with SessionLocal() as session:
+            session_id = state['session']['id']
+            parsts = [message_to_dict(msg) for msg in state['currentRoundMessages']]
+            message = Messages(
+                session_id=session_id,
+                role=Role.user,
+                status=status,
+                model=state['model'],
+                parts=parsts,
+                mode=state['mode'],
+            )
+            session.add(message)
+            await session.commit()
+    except Exception as exc:
+        logger.exception("pristane_agent_talk 失败 session_id=%s", session_id)
+        raise exc
 
 async def agent_talk_stream(
         session_id: str,

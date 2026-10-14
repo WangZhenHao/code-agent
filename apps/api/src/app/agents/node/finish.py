@@ -1,6 +1,7 @@
 """finish 节点：所有分支汇聚后的收尾。"""
 
 from app.agents.node.state import State
+from app.api.agent.service import pristane_agent_talk
 
 
 def finish(state: State) -> dict:
@@ -15,4 +16,7 @@ def finish(state: State) -> dict:
     发生在所有分支**汇聚之后**，且只发生一次。挂在 planAgent 和 codeAgent
     各自末尾的话，两边都得写一遍，且以后加第三条分支就会漏。
     """
+
+    pristane_agent_talk(state)  # 先落库，避免后续副作用失败导致消息丢失
+
     return {}
