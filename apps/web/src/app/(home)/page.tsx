@@ -1,50 +1,14 @@
 "use client"
 
 import * as React from "react"
-import {
-  ArrowUpIcon,
-  AudioLinesIcon,
-  BotIcon,
-  CheckIcon,
-  ChevronDownIcon,
-  MonitorIcon,
-  PlusIcon,
-  Settings2Icon,
-  SmartphoneIcon,
-  SparklesIcon,
-  WorkflowIcon,
-  XIcon,
-  ZapIcon,
-} from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupTextarea,
-} from "@/components/ui/input-group"
-import { Marquee } from "@/components/ui/marquee"
-import { cn } from "@/lib/utils"
-
-type ProductType = {
-  id: string
-  label: string
-  icon: React.ComponentType
-}
-
+import { Composer } from "./_components/composer"
+import { ExampleRow } from "./_components/example-row"
+import { SiteHeader } from "./_components/site-header"
 
 const MODES = [
   { id: "agent", label: "agent模式" },
-  { id: "plan", label: "plan模式" }
+  { id: "plan", label: "plan模式" },
 ]
 
 const PROMPT_EXAMPLES = [
@@ -89,8 +53,6 @@ export default function Home() {
             全栈、全流程、全托管式 AI 编程平台
           </p>
 
-          
-
           <Composer
             mode={mode}
             modeLabel={modeLabel}
@@ -125,149 +87,5 @@ export default function Home() {
         </section>
       </main>
     </div>
-  )
-}
-
-function ExampleRow({
-  examples,
-  onPick,
-  duration,
-  reverse,
-}: {
-  examples: string[]
-  onPick: (example: string) => void
-  duration: string
-  reverse?: boolean
-}) {
-  const items = examples.map((example) => (
-    <Badge
-      key={example}
-      asChild
-      variant="outline"
-      className="h-8 shrink-0 rounded-full border-border/80 bg-background/70 px-3 text-xs font-normal text-muted-foreground backdrop-blur-sm"
-    >
-      <button type="button" onClick={() => onPick(example)}>
-        {example}
-      </button>
-    </Badge>
-  ))
-
-  return (
-    <Marquee
-      repeat={4}
-      reverse={reverse}
-      pauseOnHover
-      className={cn(
-        "items-center p-0 [--gap:0.625rem] motion-reduce:overflow-x-auto",
-        "[mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)] motion-reduce:mask-none mb-2"
-      )}
-      style={{ "--duration": duration } as React.CSSProperties}
-    >
-      {items}
-    </Marquee>
-  )
-}
-
-function SiteHeader() {
-  return (
-    <header className="relative z-10 flex h-16 shrink-0 items-center justify-between gap-4 px-4 sm:px-6">
-      <div className="flex items-center gap-2">
-        <span className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-violet-600 text-primary-foreground">
-          <SparklesIcon className="size-4" />
-        </span>
-        <span className="text-base font-semibold">码灵编程</span>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Button size="lg" className="rounded-full px-4">
-          注册/登陆
-        </Button>
-      </div>
-    </header>
-  )
-}
-
-
-
-function Composer({
-  mode,
-  modeLabel,
-  onModeChange,
-  prompt,
-  onPromptChange,
-}: {
-  mode: string
-  modeLabel: string
-  onModeChange: (mode: string) => void
-  prompt: string
-  onPromptChange: (prompt: string) => void
-}) {
-
-  return (
-    <form
-      onSubmit={(event) => event.preventDefault()}
-      className="mt-7 max-w-300 text-left"
-    >
-      <InputGroup className="gap-0 rounded-2xl border-border/80 bg-card py-0 shadow-xs">
-        <InputGroupTextarea
-          rows={3}
-          value={prompt}
-          onChange={(event) => onPromptChange(event.target.value)}
-          placeholder="帮我做一个旅行攻略网站，实现我输入旅行地点和旅游时间，生成旅行攻略和行李建议"
-          className="min-h-24 px-4 py-4 leading-6 w-200"
-        />
-
-        <InputGroupAddon
-          align="block-end"
-          className="gap-1.5 px-4 pb-2 text-muted-foreground"
-        >
-          <InputGroupButton size="icon-sm" aria-label="添加附件">
-            <PlusIcon />
-          </InputGroupButton>
-          <InputGroupButton size="icon-sm" aria-label="参数设置">
-            <Settings2Icon />
-          </InputGroupButton>
-          <InputGroupButton size="sm" className="gap-1.5 px-2">
-            <ZapIcon />
-            技能
-            <span className="text-muted-foreground">12</span>
-          </InputGroupButton>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <InputGroupButton size="sm" className="gap-1 px-2">
-                {modeLabel}
-                <ChevronDownIcon />
-              </InputGroupButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-36">
-              <DropdownMenuGroup>
-                {MODES.map((item) => (
-                  <DropdownMenuItem
-                    key={item.id}
-                    onSelect={() => onModeChange(item.id)}
-                    className="justify-between"
-                  >
-                    {item.label}
-                    {mode === item.id ? <CheckIcon /> : null}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button
-            type="submit"
-            size="icon"
-            aria-label="发送"
-            disabled={prompt.trim().length === 0}
-            className="ml-auto rounded-full bg-foreground text-background hover:bg-foreground/80 disabled:opacity-40"
-          >
-            <ArrowUpIcon />
-          </Button>
-
-        </InputGroupAddon>
-      </InputGroup>
-    </form>
   )
 }
