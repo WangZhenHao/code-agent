@@ -9,8 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.helper import agent_stream, sse
 from app.agents.node.state import State
-from app.agents.persistence import persist_round
-from app.agents.run_registry import signal_abort
+from app.agents.helper.abort_agent import signal_abort
 from app.api.chat.schemas import ChatCreateRequest
 # ORM 模型起别名 SessionModel：app.agents.node.state 里有个**同名**的 Session
 # （图状态的数据类，只有 id/user_id 两个注解，不是 ORM 模型）。两边一起 import
@@ -20,7 +19,6 @@ from app.api.sandbox.service import start_sandbox
 from app.db.models.session import MessageStatus, Messages, Role
 from app.db.models.session import Session as SessionModel
 from app.db.session import SessionLocal
-from langchain_core.messages import message_to_dict
 
 
 logger = logging.getLogger(__name__)

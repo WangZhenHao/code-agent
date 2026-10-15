@@ -1,7 +1,7 @@
 """finish 节点：所有分支汇聚后的收尾。"""
 
 from app.agents.node.state import State
-from app.agents.persistence import persist_round
+from app.agents.message_persistence import persist_round
 from app.db.models.session import MessageStatus
 
 

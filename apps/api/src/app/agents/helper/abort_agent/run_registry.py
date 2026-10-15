@@ -57,6 +57,7 @@ def register(session_id: str) -> RunContext:
 
 
 def get(session_id: str) -> RunContext | None:
+    """获取指定 session 的 RunContext。"""
     return _runs.get(session_id)
 
 

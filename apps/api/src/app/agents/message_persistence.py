@@ -1,4 +1,4 @@
-"""一轮对话的落库。
+"""消息持久化模块：负责将对话消息落库。
 
 从 api/agent/service.py 搬过来的：那里本来是这个函数唯一的家，但 finish 节点要用它，
 而 finish 是被 node/__init__ 导入的、node 又被 helper/agent_stream 导入、后者又被
@@ -7,6 +7,8 @@ import 直接失败（和 state.py、message_buffer.py 同一个成因）。
 
 搬到 agents/ 下做成叶子模块：它只依赖 db 层，不依赖任何 agents/api 内部的模块，
 谁都能 import 它。**别把它再搬回 service.py**，否则那个环立刻复现。
+
+命名为 message_persistence.py 表明其职责：专注于消息的数据持久化操作。
 """
 
 import logging
