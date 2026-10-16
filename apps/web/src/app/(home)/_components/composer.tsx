@@ -1,5 +1,7 @@
 "use client"
 
+import * as React from "react"
+
 import {
   ArrowUpIcon,
   CheckIcon,
@@ -23,26 +25,41 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-import React from "react"
 
-const MODES = [
+export type Mode = "agent" | "plan"
+
+const MODES: Array<{ id: Mode; label: string }> = [
   { id: "agent", label: "agent模式" },
   { id: "plan", label: "plan模式" },
 ]
 
 export function Composer({
+  examples,
+  mode,
+  modeLabel,
+  onModeChange,
   prompt,
   onPromptChange,
+  onCreate,
+  submitting,
 }: {
+  examples: string[]
+  mode: Mode
+  modeLabel: string
+  onModeChange: (mode: Mode) => void
   prompt: string
   onPromptChange: (prompt: string) => void
+  onCreate: () => void
+  submitting: boolean
 }) {
-  const [mode, onModeChange] = React.useState("agent")
-  const modeLabel = MODES.find((m) => m.id === mode)?.label ?? "自动"
+  const placeholder = useAnimatedPlaceholder(examples, prompt.length > 0)
 
   return (
     <form
-      onSubmit={(event) => event.preventDefault()}
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (prompt.trim()) onCreate()
+      }}
       className="mt-7 max-w-300 text-left"
     >
       <InputGroup className="gap-0 rounded-2xl border-border/80 bg-card py-0 shadow-xs">
@@ -50,7 +67,8 @@ export function Composer({
           rows={3}
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}
-          placeholder="帮我做一个旅行攻略网站，实现我输入旅行地点和旅游时间，生成旅行攻略和行李建议"
+          placeholder={placeholder}
+          aria-label="描述你想创建的应用"
           className="min-h-24 w-200 px-4 py-4 leading-6"
         />
 
@@ -96,8 +114,8 @@ export function Composer({
           <Button
             type="submit"
             size="icon"
-            aria-label="发送"
-            disabled={prompt.trim().length === 0}
+            disabled={prompt.trim().length === 0 || submitting}
+            aria-label={submitting ? "正在创建" : "创建"}
             className="ml-auto rounded-full bg-foreground text-background hover:bg-foreground/80 disabled:opacity-40"
           >
             <ArrowUpIcon />
@@ -106,4 +124,56 @@ export function Composer({
       </InputGroup>
     </form>
   )
+}
+
+function useAnimatedPlaceholder(examples: string[], hasText: boolean) {
+  const [placeholder, setPlaceholder] = React.useState("")
+  const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(false)
+
+  React.useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const update = () => setPrefersReducedMotion(media.matches)
+    update()
+    media.addEventListener("change", update)
+    return () => media.removeEventListener("change", update)
+  }, [])
+
+  React.useEffect(() => {
+    if (prefersReducedMotion || hasText) return
+
+    let exampleIndex = 0
+    let characterIndex = 0
+    let deleting = false
+    let timer: number
+
+    const step = () => {
+      const example = examples[exampleIndex]
+      if (deleting) {
+        characterIndex = Math.max(0, characterIndex - 2)
+        setPlaceholder(example.slice(0, characterIndex))
+        if (characterIndex === 0) {
+          deleting = false
+          exampleIndex = (exampleIndex + 1) % examples.length
+          timer = window.setTimeout(step, 300)
+        } else {
+          timer = window.setTimeout(step, 28)
+        }
+        return
+      }
+
+      characterIndex = Math.min(example.length, characterIndex + 1)
+      setPlaceholder(example.slice(0, characterIndex))
+      if (characterIndex === example.length) {
+        deleting = true
+        timer = window.setTimeout(step, 1600)
+      } else {
+        timer = window.setTimeout(step, 55)
+      }
+    }
+
+    timer = window.setTimeout(step, 250)
+    return () => window.clearTimeout(timer)
+  }, [examples, hasText, prefersReducedMotion])
+
+  return prefersReducedMotion ? examples[0] : placeholder
 }

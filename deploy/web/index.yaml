@@ -24,8 +24,6 @@ spec:
             - name: http
               containerPort: 3000
           env:
-            - name: API_BASE_URL
-              value: http://code-agent-api:8000
             - name: NODE_ENV
               value: production
           resources:
@@ -62,6 +60,21 @@ spec:
     - host: code-agent.local
       http:
         paths:
+          # 浏览器直接请求 FastAPI，避免让 Next.js 代理鉴权接口。
+          - path: /user
+            pathType: Prefix
+            backend:
+              service:
+                name: code-agent-api
+                port:
+                  number: 8000
+          - path: /chat
+            pathType: Prefix
+            backend:
+              service:
+                name: code-agent-api
+                port:
+                  number: 8000
           - path: /
             pathType: Prefix
             backend:

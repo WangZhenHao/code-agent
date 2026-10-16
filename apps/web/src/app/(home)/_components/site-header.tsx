@@ -2,7 +2,17 @@ import { SparklesIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
-export function SiteHeader() {
+export function SiteHeader({
+  authenticated,
+  onLogin,
+  onLogout,
+  loggingOut,
+}: {
+  authenticated: boolean
+  onLogin: () => void
+  onLogout: () => void
+  loggingOut: boolean
+}) {
   return (
     <header className="relative z-10 flex h-16 shrink-0 items-center justify-between gap-4 px-4 sm:px-6">
       <div className="flex items-center gap-2">
@@ -13,9 +23,15 @@ export function SiteHeader() {
       </div>
 
       <div className="flex items-center gap-3">
-        <Button size="lg" className="rounded-full px-4">
-          注册/登陆
-        </Button>
+        {authenticated ? (
+          <Button size="lg" variant="outline" className="rounded-full px-4" onClick={onLogout} disabled={loggingOut}>
+            退出登录
+          </Button>
+        ) : (
+          <Button size="lg" className="rounded-full px-4" onClick={onLogin}>
+            注册/登录
+          </Button>
+        )}
       </div>
     </header>
   )

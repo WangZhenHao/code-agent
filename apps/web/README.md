@@ -2,6 +2,12 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+The browser calls FastAPI directly for login and chat creation. In development it defaults to `http://127.0.0.1:8000`; if the API runs elsewhere, set `NEXT_PUBLIC_API_BASE_URL` in `apps/web/.env.local` to its browser-reachable origin (for example, `http://127.0.0.1:8001`) and restart the web server. The API's `CODE_AGENT_CORS_ORIGINS` must include the web origin (for example, `http://localhost:3000`). Authenticated requests use `Authorization: Bearer <token>`.
+
+In production, an unset `NEXT_PUBLIC_API_BASE_URL` uses the current browser origin. `deploy/web/index.yaml` routes `/user` and `/chat` directly to the FastAPI Service. If deploying the web app without that Ingress, set `NEXT_PUBLIC_API_BASE_URL` to a browser-reachable HTTPS API origin **before building** Next.js, and allow the web origin in the API's CORS configuration.
+
+Authentication API types come from the FastAPI user router's OpenAPI schema. After changing its request or response models, run `pnpm generate:api-types` from `apps/web` and commit the updated `src/generated/` files. The intermediate JSON stays in the ignored `node_modules/.cache` directory. This command uses `uv` for the Python export and Orval for TypeScript generation; it does not need a running API server.
+
 First, run the development server:
 
 ```bash

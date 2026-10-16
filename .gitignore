@@ -37,3 +37,5 @@ workspace/
 
 # --- 构建产物 ---
 deploy/**/charts/*.tgz
+
+openspec/
