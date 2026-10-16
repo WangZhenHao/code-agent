@@ -23,6 +23,7 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
+import React from "react"
 
 const MODES = [
   { id: "agent", label: "agent模式" },
@@ -30,18 +31,15 @@ const MODES = [
 ]
 
 export function Composer({
-  mode,
-  modeLabel,
-  onModeChange,
   prompt,
   onPromptChange,
 }: {
-  mode: string
-  modeLabel: string
-  onModeChange: (mode: string) => void
   prompt: string
   onPromptChange: (prompt: string) => void
 }) {
+  const [mode, onModeChange] = React.useState("agent")
+  const modeLabel = MODES.find((m) => m.id === mode)?.label ?? "自动"
+
   return (
     <form
       onSubmit={(event) => event.preventDefault()}
