@@ -5,6 +5,13 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -67,6 +74,12 @@
 }
 
 :root {
+  --info: oklch(0.62 0.19 259.813);
+  --info-foreground: oklch(0.985 0 0);
+  --success: oklch(0.723 0.192 149.579);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.769 0.188 70.08);
+  --warning-foreground: oklch(0.205 0 0);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -102,6 +115,12 @@
 }
 
 .dark {
+  --info: oklch(0.707 0.165 254.624);
+  --info-foreground: oklch(0.205 0 0);
+  --success: oklch(0.792 0.209 151.711);
+  --success-foreground: oklch(0.205 0 0);
+  --warning: oklch(0.828 0.189 84.429);
+  --warning-foreground: oklch(0.205 0 0);
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

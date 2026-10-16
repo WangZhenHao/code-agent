@@ -1,5 +1,3 @@
-const Page = () => {
-    return ( "<div>create new project</div>" );
+export default function CreatePage() {
+  return <div className="flex flex-1 flex-col" />
 }
- 
-export default Page;
