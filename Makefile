@@ -5,7 +5,7 @@ UV   ?= uv
 PY   := apps/api
 
 .DEFAULT_GOAL := help
-.PHONY: help install dev dev-web dev-admin dev-api db-up db-migrate db-revision db-check lint build test fmt clean
+.PHONY: help install dev dev-web dev-admin dev-api gen-api db-up db-migrate db-revision db-check lint build test fmt clean
 
 help: ## 显示所有命令
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -26,6 +26,9 @@ dev-admin: ## 只起 React SPA 管理台
 
 dev-api: ## 只起 FastAPI（热重载）
 	cd $(PY) && $(UV) run code-agent-api
+
+gen-api: ## 从后端 OpenAPI 生成前端 API 类型与 hooks（需先起 dev-api）
+	cd apps/web && $(PNPM) gen:api
 
 db-up: ## 起本地 Postgres(5433) + Redis(6380)
 	cd $(PY) && docker-compose up -d

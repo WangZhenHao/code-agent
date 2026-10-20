@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Orval 生成产物，不参与 lint
+    "src/api/generated/**",
   ]),
 ]);
 
