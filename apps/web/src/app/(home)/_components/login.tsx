@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { InfoIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,9 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group"
 import { Separator } from "@/components/ui/separator"
+import { useUserLoginUserLoginPost } from "@/api/generated/user/user"
+import { useUserSendCodeUserSendCodePost } from "@/api/generated/user/user"
+import { useUserStore } from "@/store/user"
 import { cn } from "cn"
 import BrandMark from "@/components/custom/BrandMark"
 
@@ -22,18 +26,70 @@ const LOGIN_INSTRUCTIONS = [
   "登录即代表你已阅读并同意《用户协议》和《隐私政策》",
 ]
 
-export function Login({ className }: { className?: string }) {
+const RESEND_SECONDS = 60
+const PHONE_RE = /^1[3-9]\d{9}$/
+
+export function Login({
+  className,
+  onSuccess,
+}: {
+  className?: string
+  onSuccess?: () => void
+}) {
+  const router = useRouter()
+  const authLogin = useUserStore((state) => state.login)
   const [phone, setPhone] = React.useState("")
   const [code, setCode] = React.useState("")
   const [agreed, setAgreed] = React.useState(false)
+  const [countdown, setCountdown] = React.useState(0)
 
-  const canSubmit = agreed && /^1\d{10}$/.test(phone) && code.length >= 4
+  const sendCode = useUserSendCodeUserSendCodePost()
+  const login = useUserLoginUserLoginPost()
+
+  const phoneValid = PHONE_RE.test(phone)
+  const canSubmit = agreed && phoneValid && code.length >= 4 && !login.isPending
+  const canSendCode = phoneValid && countdown === 0 && !sendCode.isPending
+
+  React.useEffect(() => {
+    if (countdown <= 0) return
+    const timer = window.setTimeout(() => setCountdown((s) => s - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [countdown])
+
+  const handleSendCode = () => {
+    if (!canSendCode) return
+    sendCode.mutate(
+      { data: { phone } },
+      { onSuccess: () => setCountdown(RESEND_SECONDS) }
+    )
+  }
+
+  const handleSubmit = (event: React.SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!canSubmit) return
+    login.mutate(
+      { data: { phone, code } },
+      {
+        onSuccess: (res) => {
+          authLogin(res)
+          onSuccess?.()
+          router.replace("/create")
+        },
+      }
+    )
+  }
+
+  const errorMessage =
+    login.error?.message || sendCode.error?.message || null
 
   return (
-    <div className={cn("flex w-full flex-col gap-6", className)}>
-      <div className="flex flex-col items-center gap-4">
+    <form
+      className={cn("flex w-full flex-col gap-6", className)}
+      onSubmit={handleSubmit}
+    >
+      <div className="flex flex-col items-center gap-4 pt-4">
         <BrandMark />
-        <h2 className="text-2xl font-semibold tracking-tight">欢迎使用码灵</h2>
+        <h2 className="text-2xl font-semibold tracking-tight pt-2 pb-4">欢迎使用码灵</h2>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -64,8 +120,18 @@ export function Login({ className }: { className?: string }) {
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
           />
           <InputGroupAddon align="inline-end" className="pr-1">
-            <InputGroupButton variant="ghost" className="text-muted-foreground">
-              发送验证码
+            <InputGroupButton
+              type="button"
+              variant="ghost"
+              className="text-muted-foreground"
+              disabled={!canSendCode}
+              onClick={handleSendCode}
+            >
+              {countdown > 0
+                ? `${countdown}s 后重发`
+                : sendCode.isPending
+                  ? "发送中..."
+                  : "发送验证码"}
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
@@ -87,8 +153,10 @@ export function Login({ className }: { className?: string }) {
         </a>
       </label>
 
-      <Button size="lg" className="h-11 rounded-xl" disabled={!canSubmit}>
-        登录
+      {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
+
+      <Button type="submit" size="lg" className="h-11 rounded-xl" disabled={!canSubmit}>
+        {login.isPending ? "登录中..." : "登录"}
       </Button>
 
       <div className="flex flex-col gap-3 text-sm text-muted-foreground">
@@ -99,7 +167,7 @@ export function Login({ className }: { className?: string }) {
           </p>
         ))}
       </div>
-    </div>
+    </form>
   )
 }
 
@@ -124,7 +192,7 @@ export function LoginDialog({ ref }: { ref?: React.Ref<LoginDialogRef> }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="gap-0 rounded-3xl p-6 sm:max-w-105">
         <DialogTitle className="sr-only">登录码灵编程</DialogTitle>
-        <Login />
+        <Login onSuccess={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   )

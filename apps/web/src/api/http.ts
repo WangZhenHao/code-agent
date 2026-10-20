@@ -1,6 +1,9 @@
 import axios, { AxiosError } from "axios";
 import type { AxiosRequestConfig, AxiosResponse } from "axios";
 
+import { hasLoginFlag } from "@/lib/auth";
+import { useUserStore } from "@/store/user";
+
 /** 后端统一错误体（FastAPI 默认 `{"detail": ...}`） */
 export interface ApiErrorBody {
   detail?: unknown;
@@ -23,10 +26,8 @@ export const AXIOS_INSTANCE = axios.create({
 });
 
 AXIOS_INSTANCE.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const token = window.localStorage.getItem("token");
-    if (token) config.headers.set("Authorization", `Bearer ${token}`);
-  }
+  const token = useUserStore.getState().token;
+  if (token) config.headers.set("Authorization", `Bearer ${token}`);
   return config;
 });
 
@@ -38,6 +39,16 @@ AXIOS_INSTANCE.interceptors.response.use(
     const detail = body?.detail;
     const message =
       typeof detail === "string" ? detail : (error.message ?? "请求失败");
+
+    // 令牌失效：清理会话并回登录页（登录接口本身的 401 交给调用方展示错误）
+    if (status === 401 && typeof window !== "undefined") {
+      const isLoginRequest = error.config?.url?.includes("/user/login");
+      if (!isLoginRequest && hasLoginFlag()) {
+        useUserStore.getState().logout();
+        window.location.replace("/");
+      }
+    }
+
     return Promise.reject(new ApiError(status, message, body));
   },
 );

@@ -49,6 +49,8 @@ import {
 } from "lucide-react"
 import * as React from "react"
 
+import { useUserStore, useHydrated } from "@/store/user"
+
 type NavItem = {
   title: string
   icon: React.ComponentType
@@ -71,16 +73,17 @@ const NAV_GROUPS: NavGroup[] = [
   }
 ]
 
-const USER = {
-  name: "广宝哥",
-  email: "guangbao@example.com",
-  avatar: "/home/1.png",
-}
+const USER_AVATAR = "/home/1.png"
 
 export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [logoutOpen, setLogoutOpen] = React.useState(false)
+  const user = useUserStore((state) => state.user)
+  const hydrated = useHydrated()
+
+  const displayName = (hydrated && user ? user.name || user.phone : null) ?? "用户"
+  const avatarInitial = displayName.slice(0, 1)
 
   return (
     <Sidebar collapsible="icon">
@@ -149,12 +152,12 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" tooltip={USER.name} className="pr-8">
+                <SidebarMenuButton size="lg" tooltip={displayName} className="pr-8">
                   <Avatar className="size-8">
-                    <AvatarImage src={USER.avatar} alt={USER.name} />
-                    <AvatarFallback>{USER.name.slice(0, 1)}</AvatarFallback>
+                    <AvatarImage src={USER_AVATAR} alt={displayName} />
+                    <AvatarFallback>{avatarInitial}</AvatarFallback>
                   </Avatar>
-                  <span className="truncate text-sm font-medium group-data-[collapsible=icon]:hidden">{USER.name}</span>
+                  <span className="truncate text-sm font-medium group-data-[collapsible=icon]:hidden">{displayName}</span>
                   <ChevronsUpDownIcon />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
@@ -248,6 +251,9 @@ function LogoutDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const router = useRouter()
+  const logout = useUserStore((state) => state.logout)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
@@ -265,7 +271,8 @@ function LogoutDialog({
             variant="destructive"
             onClick={() => {
               onOpenChange(false)
-              // TODO: 接入实际的登出逻辑（清理会话后跳转登录页）
+              logout()
+              router.replace("/")
             }}
           >
             确认退出
