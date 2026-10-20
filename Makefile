@@ -24,7 +24,7 @@ dev-web: ## 只起 Next.js
 dev-admin: ## 只起 React SPA 管理台
 	cd apps/admin && $(PNPM) dev
 
-dev-api: ## 只起 FastAPI（热重载）
+server: ## 只起 FastAPI（热重载）
 	cd $(PY) && $(UV) run code-agent-api
 
 gen-api: ## 从后端 OpenAPI 生成前端 API 类型与 hooks（需先起 dev-api）
