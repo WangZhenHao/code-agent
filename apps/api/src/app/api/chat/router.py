@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.chat.schemas import (
     ChatCreateRequest,
     ChatCreateResponse,
-    ChatDeleteResponse,
     ChatDetailResponse,
     LangchainHistoryResponse,
     MessageListResponse,
@@ -21,7 +20,6 @@ from app.api.chat.service import (
     chat_langchain_history,
     chat_message,
     create_chat,
-    delete_chat,
 )
 from app.db.models.user import User
 from app.db.session import get_session
@@ -71,28 +69,6 @@ async def detail(
     session: AsyncSession = Depends(get_session)
 ):
     return await chat_detail(id, user.id, session)
-
-
-@router.post(
-    "/delete/{id}",
-    response_model=ChatDeleteResponse,
-    summary="删除会话",
-    description=(
-        "删除会话，**不可逆**：同时销毁会话沙箱（删 SandboxClaim，/workspace 的卷"
-        "一起释放）、清掉该会话的 LangGraph 线程状态，并把 sessions 行置为已删除。\n\n"
-        "与会话的其它动作不同，这条路径**不走暂停**——暂停保留卷和 CR，下次进来代码"
-        "还在；删除按语义就是用户确定不再要这份数据了。\n\n"
-        "幂等：重复删除同一个 id 一律 404，不会重复销毁。"
-    ),
-    responses={404: {"description": "会话不存在、已删除，或不属于当前用户"}},
-)
-async def chat_delete(
-    id: str,
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
-):
-    """删除会话。路径参数名要跟 `{id}` 逐字一致，否则会退化成查询参数 `?id=`。"""
-    return await delete_chat(id, user.id, session)
 
 
 @router.get(

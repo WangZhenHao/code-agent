@@ -11,7 +11,7 @@
  * 带 status 而不是空响应：前端拿到就能直接更新本地那条记录（标灰/移出列表），
  * 不必再拉一次列表或详情。值恒为 SessionStatus.delete（0）。
  */
-export interface ChatDeleteResponse {
+export interface SessionDeleteResponse {
   id: string;
   status: number;
 }

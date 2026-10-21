@@ -26,7 +26,6 @@ import type {
 import type {
   ChatCreateRequest,
   ChatCreateResponse,
-  ChatDeleteResponse,
   ChatDetailResponse,
   HTTPValidationError,
   LangchainHistoryResponse,
@@ -309,76 +308,6 @@ export function useDetailChatDetailIdGet<TData = Awaited<ReturnType<typeof detai
 
 
 /**
- * 删除会话，**不可逆**：同时销毁会话沙箱（删 SandboxClaim，/workspace 的卷一起释放）、清掉该会话的 LangGraph 线程状态，并把 sessions 行置为已删除。
- *
- * 与会话的其它动作不同，这条路径**不走暂停**——暂停保留卷和 CR，下次进来代码还在；删除按语义就是用户确定不再要这份数据了。
- *
- * 幂等：重复删除同一个 id 一律 404，不会重复销毁。
- * @summary 删除会话
- */
-export const chatDeleteChatDeleteIdPost = (
-    id: string,
- options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
-) => {
-
-
-      return customInstance<ChatDeleteResponse>(
-      {url: `/chat/delete/${id}`, method: 'POST', signal
-    },
-      options);
-    }
-
-
-
-
-export const getChatDeleteChatDeleteIdPostMutationKey = () => ['chatDeleteChatDeleteIdPost'] as const;
-
-export const getChatDeleteChatDeleteIdPostMutationOptions = <TError = ErrorType<void | HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatDeleteChatDeleteIdPost>>, TError,ChatDeleteChatDeleteIdPostMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof chatDeleteChatDeleteIdPost>>, TError,ChatDeleteChatDeleteIdPostMutationVariables, TContext> => {
-
-const mutationKey = getChatDeleteChatDeleteIdPostMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof chatDeleteChatDeleteIdPost>>, ChatDeleteChatDeleteIdPostMutationVariables> = (props) => {
-          const {id} = props ?? {};
-
-          return  chatDeleteChatDeleteIdPost(id,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ChatDeleteChatDeleteIdPostMutationResult = NonNullable<Awaited<ReturnType<typeof chatDeleteChatDeleteIdPost>>>
-
-    export type ChatDeleteChatDeleteIdPostMutationError = ErrorType<void | HTTPValidationError>
-    export type ChatDeleteChatDeleteIdPostMutationVariables = {id: string}
-
-    /**
- * @summary 删除会话
- */
-export const useChatDeleteChatDeleteIdPost = <TError = ErrorType<void | HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof chatDeleteChatDeleteIdPost>>, TError,ChatDeleteChatDeleteIdPostMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof chatDeleteChatDeleteIdPost>>,
-        TError,
-        ChatDeleteChatDeleteIdPostMutationVariables,
-        TContext
-      > => {
-      return useMutation(getChatDeleteChatDeleteIdPostMutationOptions(options), queryClient);
-    }
-    /**
  * 直接读 checkpointer 里的图状态，返回该会话的对话历史（user 与 ai 的消息），**按时间正序**。
  *
  * 与 `GET /chat/message/{id}` 的区别：那个读 messages 表（业务落库、一轮一条），这个读图状态（含工具调用、中间推理等更细粒度，且可能包含没落库的轮次）。排查「前端显示的和实际跑的不一致」时拿两个接口对照。

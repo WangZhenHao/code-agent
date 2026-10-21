@@ -48,6 +48,11 @@ class Role(StrEnum):
     assistant = "assistant"
     error = "error"
 
+class Platform(StrEnum):
+    """平台"""
+
+    web = "web"
+    mini_program = "mini_program"
 
 class MessageStatus(StrEnum):
     """消息状态。interrupted = 流到一半断了（进程重启、客户端断开、上游 5xx）。"""
@@ -115,6 +120,10 @@ class Session(Base, TimestampMixin):
     # 可空、不设 server_default：NULL 就是「当前没有在跑的沙箱」，是合法状态。
     preview_time: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
+    )
+
+    platform: Mapped[str] = mapped_column(
+        String(16), default=Platform.web, server_default=Platform.web.value
     )
 
     git_repo_name: Mapped[str | None] = mapped_column(String(256), default=None)

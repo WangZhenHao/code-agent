@@ -151,9 +151,9 @@ export function LoginAndProfile() {
 命令式场景（比如点击后跳转）用底层函数即可，签名和 hook 一致：
 
 ```ts
-import { chatDeleteChatDeleteIdPost } from "@/api/generated/chat/chat";
+import { sessionDeleteSessionDeleteIdPost } from "@/api/generated/session/session";
 
-await chatDeleteChatDeleteIdPost(id);
+await sessionDeleteSessionDeleteIdPost(id);
 ```
 
 ### 5. 错误处理

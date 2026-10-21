@@ -99,18 +99,6 @@ class ChatDetailResponse(BaseModel):
 
 
 
-class ChatDeleteResponse(BaseModel):
-    """删除会话的响应。
-
-    带 status 而不是空响应：前端拿到就能直接更新本地那条记录（标灰/移出列表），
-    不必再拉一次列表或详情。值恒为 SessionStatus.delete（0）。
-    """
-
-    id: str = Field(examples=["e9394c054c9641e8981ca78b99b70dde"])
-    # 会话状态码，见 app.db.models.session.SessionStatus：0=已删除，1=进行中
-    status: int = Field(examples=[0])
-
-
 class LangchainMessageItem(BaseModel):
     """LangGraph 状态里的一条消息。
 
