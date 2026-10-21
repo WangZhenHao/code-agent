@@ -1,3 +1,5 @@
+import { ProjectsClient } from "./_components/client";
+
 export default function ProjectsPage() {
-  return <div className="flex flex-1 flex-col" />
+  return <ProjectsClient />;
 }
