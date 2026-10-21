@@ -61,7 +61,7 @@ export function ProjectsClient() {
 
       <div className="px-6 pb-10">
         {visibleProjects.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-4 pt-1">
             {visibleProjects.map((project) => (
               <ProjectCard
                 key={project.id}
