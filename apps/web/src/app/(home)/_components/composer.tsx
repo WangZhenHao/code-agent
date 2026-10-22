@@ -15,6 +15,7 @@ import {
 import type { ChatCreateChatCreatePostMutationVariables } from "@/api/generated/chat/chat"
 import { useAgentChatStore } from "@/store/agent-chat"
 
+type TypeParmas = ChatCreateChatCreatePostMutationVariables["data"]
 export function Composer({
   loading = false,
   prompt,
@@ -24,9 +25,9 @@ export function Composer({
   loading?: boolean
   prompt: string
   onPromptChange: (prompt: string) => void
-  onSubmit?: (prompt: ChatCreateChatCreatePostMutationVariables["data"]) => void
+  onSubmit?: (prompt: TypeParmas) => void
 }) {
-  const params = useRef<ChatCreateChatCreatePostMutationVariables["data"]>({})
+  const params = useRef<TypeParmas>({})
 
   const onSubmitHandle = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
