@@ -118,9 +118,9 @@ async def create_chat(
     return ChatCreateResponse(
         id=chat.id,
         title=chat.title,
-        agent=req.mode,
         status=chat.status,
         created_at=chat.created_at,
+        description=chat.description,
     )
 
 

@@ -89,9 +89,9 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="gap-3">
         <div className="flex h-8 items-center gap-2 px-1">
-          <Link className="flex items-center" href="/create" aria-label="码灵编程首页">
+          <Link  className="flex items-center group-data-[collapsible=icon]:hidden" href="/create" aria-label="码灵编程首页">
             <BrandMark size={20} />
-            <span className="truncate pl-2 text-sm font-semibold group-data-[collapsible=icon]:hidden">
+            <span className="truncate pl-2 text-sm font-semibold">
               码灵编程
             </span>
           </Link>
@@ -142,22 +142,24 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   size="lg"
                   tooltip={displayName}
-                  className="pr-8"
+                  className="pr-2 flex"
                 >
                   <Avatar className="size-8">
                     <AvatarImage src={USER_AVATAR} alt={displayName} />
                     <AvatarFallback>{avatarInitial}</AvatarFallback>
                   </Avatar>
-                  <span className="truncate text-sm font-medium group-data-[collapsible=icon]:hidden">
-                    {displayName}
-                  </span>
-                  <ChevronsUpDownIcon />
+                  <div className="flex justify-between items-center flex-1">
+                    <span className="truncate text-sm font-medium group-data-[collapsible=icon]:hidden">
+                      {displayName}
+                    </span>
+                    <ChevronsUpDownIcon />
+                  </div>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <SidebarMenuAction aria-label="通知" className="top-2 right-2">
+              {/* <SidebarMenuAction aria-label="通知" className="top-2 right-2">
                 <BellIcon />
                 <span className="absolute top-1 right-1 size-1.5 rounded-full bg-destructive" />
-              </SidebarMenuAction>
+              </SidebarMenuAction> */}
               <DropdownMenuContent
                 side="top"
                 align="start"

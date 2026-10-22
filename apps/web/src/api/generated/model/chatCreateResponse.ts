@@ -8,7 +8,7 @@
 export interface ChatCreateResponse {
   id: string;
   title: string;
-  agent: string;
   status: number;
   created_at: string;
+  description?: string | null;
 }

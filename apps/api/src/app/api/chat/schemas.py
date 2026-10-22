@@ -36,10 +36,12 @@ class ChatCreateRequest(BaseModel):
 class ChatCreateResponse(BaseModel):
     id: str = Field(examples=["e9394c054c9641e8981ca78b99b70dde"])
     title: str = Field(examples=["帮我写个快排"])
-    agent: str = Field(examples=["general"])
     # 会话状态码，见 app.db.models.session.SessionStatus：0=已删除，1=进行中
     status: int = Field(examples=[1])
     created_at: datetime
+    # sessions.description 可空（建会话时还没填），这里必须跟着可空，
+    # 否则新建出来的会话（description 为 None）直接过不了序列化。
+    description: str | None = Field(default=None, examples=["这个一个网站"])
     
 MessageDict: TypeAlias = dict[str, Any]
 
