@@ -4,6 +4,7 @@ import {
   ArrowUpIcon,
   CheckIcon,
   ChevronDownIcon,
+  Loader2Icon,
   PlusIcon,
   Settings2Icon,
   ZapIcon,
@@ -15,6 +16,8 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -23,26 +26,44 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-import React from "react"
+import React, { useRef, useState } from "react"
+import type { ChatCreateChatCreatePostMutationVariables } from "@/api/generated/chat/chat"
+import { MessageMode } from "@/api/generated/model/messageMode"
+import { DEFAULT_MODEL, MODELS, MODES, groupModels } from "./maps"
 
-const MODES = [
-  { id: "agent", label: "agent模式" },
-  { id: "plan", label: "plan模式" },
-]
+
 
 export function Composer({
+  loading = false,
   prompt,
   onPromptChange,
+  onSubmit
 }: {
+  loading?: boolean
   prompt: string
   onPromptChange: (prompt: string) => void
+  onSubmit?: (prompt: ChatCreateChatCreatePostMutationVariables['data']) => void
 }) {
-  const [mode, onModeChange] = React.useState("agent")
-  const modeLabel = MODES.find((m) => m.id === mode)?.label ?? "自动"
+  const [mode, onModeChange] = useState<MessageMode>("agent")
+  const [model, onModelChange] = useState<string>(DEFAULT_MODEL)
+  const modeLabel = MODES.find((m) => m.id === mode)?.label
+  const modelLabel = MODELS.find((m) => m.id === model)?.label ?? model
+  const modelGroups = groupModels()
+  const params = useRef<ChatCreateChatCreatePostMutationVariables['data']>({})
+
+  const onSubmitHandle = (event: React.SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    params.current = {
+      mode: mode,
+      model: model,
+      parts: [{ type: 'text', text: prompt }]
+    }
+    onSubmit?.(params.current)
+  }
 
   return (
     <form
-      onSubmit={(event) => event.preventDefault()}
+      onSubmit={onSubmitHandle}
       className="mt-7 max-w-300 text-left"
     >
       <InputGroup className="gap-0 rounded-2xl border-border/80 bg-card py-0 shadow-xs">
@@ -61,14 +82,50 @@ export function Composer({
           <InputGroupButton size="icon-sm" aria-label="添加附件">
             <PlusIcon />
           </InputGroupButton>
-          <InputGroupButton size="icon-sm" aria-label="参数设置">
+          {/* <InputGroupButton size="icon-sm" aria-label="参数设置">
             <Settings2Icon />
           </InputGroupButton>
           <InputGroupButton size="sm" className="gap-1.5 px-2">
             <ZapIcon />
             技能
             <span className="text-muted-foreground">12</span>
-          </InputGroupButton>
+          </InputGroupButton> */}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <InputGroupButton size="sm" className="gap-1 px-2">
+                {modelLabel}
+                <ChevronDownIcon />
+              </InputGroupButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-60">
+              {modelGroups.map((group, index) => (
+                <React.Fragment key={group.vendor}>
+                  {index > 0 ? <DropdownMenuSeparator /> : null}
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    {group.vendor}
+                  </DropdownMenuLabel>
+                  <DropdownMenuGroup>
+                    {group.items.map((item) => (
+                      <DropdownMenuItem
+                        key={item.id}
+                        onSelect={() => onModelChange(item.id)}
+                        className="flex-col items-start gap-0.5"
+                      >
+                        <span className="flex w-full items-center justify-between">
+                          {item.label}
+                          {model === item.id ? <CheckIcon /> : null}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {item.description}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuGroup>
+                </React.Fragment>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -82,7 +139,7 @@ export function Composer({
                 {MODES.map((item) => (
                   <DropdownMenuItem
                     key={item.id}
-                    onSelect={() => onModeChange(item.id)}
+                    onSelect={() => onModeChange(item.id as MessageMode)}
                     className="justify-between"
                   >
                     {item.label}
@@ -97,10 +154,11 @@ export function Composer({
             type="submit"
             size="icon"
             aria-label="发送"
-            disabled={prompt.trim().length === 0}
+            disabled={prompt.trim().length === 0 || loading}
+            aria-busy={loading}
             className="ml-auto rounded-full bg-foreground text-background hover:bg-foreground/80 disabled:opacity-40"
           >
-            <ArrowUpIcon />
+            {loading ? <Loader2Icon className="animate-spin" /> : <ArrowUpIcon />}
           </Button>
         </InputGroupAddon>
       </InputGroup>

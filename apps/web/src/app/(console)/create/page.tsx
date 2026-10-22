@@ -1,3 +1,4 @@
+import Client from './_components/client'
 export default function CreatePage() {
-  return <div className="flex flex-1 flex-col" />
+  return <Client />
 }

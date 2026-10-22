@@ -26,7 +26,6 @@ const LOGIN_INSTRUCTIONS = [
   "登录即代表你已阅读并同意《用户协议》和《隐私政策》",
 ]
 
-const RESEND_SECONDS = 60
 const PHONE_RE = /^1[3-9]\d{9}$/
 
 export function Login({
@@ -60,7 +59,12 @@ export function Login({
     if (!canSendCode) return
     sendCode.mutate(
       { data: { phone } },
-      { onSuccess: () => setCountdown(RESEND_SECONDS) }
+      {
+        onSuccess: (res) => {
+          setCountdown(res.expires_in)
+          if (res.code) setCode(res.code)
+        },
+      }
     )
   }
 
@@ -152,6 +156,15 @@ export function Login({
           隐私政策
         </a>
       </label>
+
+      {sendCode.data?.code && (
+        <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+          开发环境验证码：
+          <span className="ml-1 font-mono text-base font-medium tracking-widest text-foreground">
+            {sendCode.data.code}
+          </span>
+        </p>
+      )}
 
       {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
 

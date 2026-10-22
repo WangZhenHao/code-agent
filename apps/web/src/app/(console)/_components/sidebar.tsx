@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -36,7 +36,7 @@ import {
   SidebarMenuItem,
   SidebarTrigger,
   useSidebar,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 import {
   BellIcon,
   ChevronsUpDownIcon,
@@ -46,68 +46,56 @@ import {
   Settings2Icon,
   Share2Icon,
   SparklesIcon,
-} from "lucide-react"
-import * as React from "react"
+} from "lucide-react";
+import * as React from "react";
 
-import { useUserStore, useHydrated } from "@/store/user"
+import { useUserStore, useHydrated } from "@/store/user";
+import BrandMark from "@/components/custom/BrandMark";
 
 type NavItem = {
-  title: string
-  icon: React.ComponentType
+  title: string;
+  icon: React.ComponentType;
   /** 未提供 href 的条目为占位项，暂不可点击 */
-  href?: string
-  hint?: "notice" | "new"
-}
+  href?: string;
+  hint?: "notice" | "new";
+};
 
 type NavGroup = {
-  label: string
-  items: NavItem[]
-}
+  label: string;
+  items: NavItem[];
+};
 
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "项目",
-    items: [
-      { title: "项目管理", icon: LayoutGridIcon, href: "/projects" },
-    ],
-  }
-]
+    items: [{ title: "项目管理", icon: LayoutGridIcon, href: "/projects" }],
+  },
+];
 
-const USER_AVATAR = "/home/1.png"
+const USER_AVATAR = "/home/1.png";
 
 export function AppSidebar() {
-  const pathname = usePathname()
-  const router = useRouter()
-  const [logoutOpen, setLogoutOpen] = React.useState(false)
-  const user = useUserStore((state) => state.user)
-  const hydrated = useHydrated()
+  const pathname = usePathname();
+  const router = useRouter();
+  const [logoutOpen, setLogoutOpen] = React.useState(false);
+  const user = useUserStore((state) => state.user);
+  const hydrated = useHydrated();
 
-  const displayName = (hydrated && user ? user.name || user.phone : null) ?? "用户"
-  const avatarInitial = displayName.slice(0, 1)
+  const displayName =
+    (hydrated && user ? user.name || user.phone : null) ?? "用户";
+  const avatarInitial = displayName.slice(0, 1);
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="gap-3">
         <div className="flex h-8 items-center gap-2 px-1">
-          <Button
-            asChild
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 group-data-[collapsible=icon]:hidden"
-          >
-            <Link href="/create" aria-label="码灵编程首页">
-              <SparklesIcon />
-            </Link>
-          </Button>
-          <span className="truncate text-sm font-semibold group-data-[collapsible=icon]:hidden">
-            码灵编程
-          </span>
-          <Badge
-            variant="secondary"
-            className="ml-0.5 h-4 rounded-sm px-1 text-[10px] font-normal"
-          >
-            NEW
-          </Badge>
+          <Link className="flex items-center" href="/create" aria-label="码灵编程首页">
+            <BrandMark size={20} />
+            <span className="truncate pl-2 text-sm font-semibold group-data-[collapsible=icon]:hidden">
+              码灵编程
+            </span>
+          </Link>
+
           <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:ml-0" />
         </div>
 
@@ -147,17 +135,22 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="gap-2">
-
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" tooltip={displayName} className="pr-8">
+                <SidebarMenuButton
+                  size="lg"
+                  tooltip={displayName}
+                  className="pr-8"
+                >
                   <Avatar className="size-8">
                     <AvatarImage src={USER_AVATAR} alt={displayName} />
                     <AvatarFallback>{avatarInitial}</AvatarFallback>
                   </Avatar>
-                  <span className="truncate text-sm font-medium group-data-[collapsible=icon]:hidden">{displayName}</span>
+                  <span className="truncate text-sm font-medium group-data-[collapsible=icon]:hidden">
+                    {displayName}
+                  </span>
                   <ChevronsUpDownIcon />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
@@ -172,7 +165,9 @@ export function AppSidebar() {
                 className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
               >
                 <DropdownMenuGroup>
-                  <DropdownMenuItem onSelect={() => router.push("/settings/profile")}>
+                  <DropdownMenuItem
+                    onSelect={() => router.push("/settings/profile")}
+                  >
                     <Share2Icon />
                     用户信息设置
                   </DropdownMenuItem>
@@ -205,18 +200,24 @@ export function AppSidebar() {
 
       <LogoutDialog open={logoutOpen} onOpenChange={setLogoutOpen} />
     </Sidebar>
-  )
+  );
 }
 
-function PlaceholderOrLink({ item, active }: { item: NavItem; active: boolean }) {
-  const { isMobile, setOpenMobile } = useSidebar()
+function PlaceholderOrLink({
+  item,
+  active,
+}: {
+  item: NavItem;
+  active: boolean;
+}) {
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const content = (
     <>
       <item.icon />
       <span>{item.title}</span>
     </>
-  )
+  );
 
   if (!item.href) {
     return (
@@ -225,7 +226,7 @@ function PlaceholderOrLink({ item, active }: { item: NavItem; active: boolean })
           {content}
         </SidebarMenuButton>
       </SidebarMenuItem>
-    )
+    );
   }
 
   return (
@@ -234,25 +235,25 @@ function PlaceholderOrLink({ item, active }: { item: NavItem; active: boolean })
         <Link
           href={item.href}
           onClick={() => {
-            if (isMobile) setOpenMobile(false)
+            if (isMobile) setOpenMobile(false);
           }}
         >
           {content}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
-  )
+  );
 }
 
 function LogoutDialog({
   open,
   onOpenChange,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const router = useRouter()
-  const logout = useUserStore((state) => state.logout)
+  const router = useRouter();
+  const logout = useUserStore((state) => state.logout);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -270,9 +271,9 @@ function LogoutDialog({
           <Button
             variant="destructive"
             onClick={() => {
-              onOpenChange(false)
-              logout()
-              router.replace("/")
+              onOpenChange(false);
+              logout();
+              router.replace("/");
             }}
           >
             确认退出
@@ -280,5 +281,5 @@ function LogoutDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
