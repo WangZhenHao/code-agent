@@ -1,4 +1,9 @@
-export const MODES = [
+export type ModeOption = {
+  id: "agent" | "plan"
+  label: string
+}
+
+export const MODES: ModeOption[] = [
   { id: "agent", label: "agent模式" },
   { id: "plan", label: "plan模式" },
 ]
@@ -84,6 +89,9 @@ export const MODELS: ModelOption[] = [
 
 /** 与后端 ChatCreateRequest.model 的默认值保持一致 */
 export const DEFAULT_MODEL = "deepseek-v4-flash"
+
+/** 新建对话时的默认模式 */
+export const DEFAULT_MODE = "agent" as const
 
 /** 按厂商分组，下拉框按这个结构渲染分组标题 */
 export function groupModels(models: ModelOption[] = MODELS) {
