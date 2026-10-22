@@ -40,6 +40,11 @@ class SessionStatus(IntEnum):
     delete = 0  # 已删除（软删）
     running = 1  # 进行中
 
+class PublicStatus(IntEnum):
+    """部署状态：会话是否已发布成可访问的站点。"""
+
+    hidden = 0  # 未部署
+    visible = 1  # 已部署
 
 class Role(StrEnum):
     """消息角色。"""
@@ -106,11 +111,16 @@ class Session(Base, TimestampMixin):
     status: Mapped[int] = mapped_column(
         Integer, default=SessionStatus.running, server_default=text(str(SessionStatus.running.value))
     )
-    # publish：是否已发布；views：浏览量
-    publish: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    # publish：是否已部署（PublicStatus）；views：浏览量
+    # server_default 要的是字符串：text() 只收 str，直接塞 IntEnum 会在 import 时报
+    # TypeError（类定义阶段就炸，整个进程起不来）。和上面 status 的写法保持一致。
+    publish: Mapped[int] = mapped_column(
+        Integer,
+        default=PublicStatus.hidden,
+        server_default=text(str(PublicStatus.hidden.value)),
+    )
     views: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
 
-    preview_port: Mapped[int | None] = mapped_column(Integer, default=None)
     # default 存枚举的 value 字符串（"idle"），与 String 列一致
     preview_status: Mapped[str] = mapped_column(
         String(16), default=PreviewStatus.idle, server_default=PreviewStatus.idle.value

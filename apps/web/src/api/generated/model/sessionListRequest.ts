@@ -5,6 +5,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Platform } from './platform';
+import type { PublicStatus } from './publicStatus';
+import type { SessionSort } from './sessionSort';
 
 export interface SessionListRequest {
   /**
@@ -22,4 +24,8 @@ export interface SessionListRequest {
   keyword?: string | null;
   /** 按平台过滤，不传则全平台 */
   platform?: Platform | null;
+  /** 按部署状态过滤：1=已部署，0=未部署，不传则两者都返回 */
+  publish?: PublicStatus | null;
+  /** 排序字段，均为倒序：`update_at`=按更新时间，`created_at`=按创建时间 */
+  sort?: SessionSort;
 }

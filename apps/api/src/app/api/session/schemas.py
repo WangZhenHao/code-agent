@@ -7,10 +7,22 @@
 """
 
 from datetime import datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.db.models.session import Platform
+from app.db.models.session import Platform, PublicStatus
+
+
+class SessionSort(StrEnum):
+    """列表排序字段。都是倒序（最近的在前）。
+
+    注意取值是 `update_at` 而不是列名 `updated_at`——沿用接口约定的拼写，
+    与数据库列名的对应关系在 service 层做一次映射。
+    """
+
+    update_at = "update_at"
+    created_at = "created_at"
 
 
 class SessionListRequest(BaseModel):
@@ -26,6 +38,16 @@ class SessionListRequest(BaseModel):
     )
     platform: Platform | None = Field(
         default=None, description="按平台过滤，不传则全平台", examples=["web"]
+    )
+    publish: PublicStatus | None = Field(
+        default=None,
+        description="按部署状态过滤：1=已部署，0=未部署，不传则两者都返回",
+        examples=[1],
+    )
+    sort: SessionSort = Field(
+        default=SessionSort.update_at,
+        description="排序字段，均为倒序：`update_at`=按更新时间，`created_at`=按创建时间",
+        examples=["update_at", "created_at"],
     )
 
 
@@ -44,7 +66,7 @@ class SessionItem(BaseModel):
     description: str | None = Field(default=None, description="会话描述")
 
     status: int = Field(examples=[1])
-    publish: int = Field(default=0, description="是否已发布：0/1")
+    publish: int = Field(default=0, description="部署状态：0=未部署，1=已部署")
     views: int = Field(default=0, description="浏览量")
 
     preview_status: str = Field(default="idle", examples=["idle"])
@@ -80,7 +102,9 @@ class SessionUpdateRequest(BaseModel):
         default=None, max_length=2048, description="封面图 URL，传 null 清空"
     )
     description: str | None = Field(default=None, description="会话描述，传 null 清空")
-    publish: int | None = Field(default=None, ge=0, le=1, description="是否发布：0/1")
+    publish: PublicStatus | None = Field(
+        default=None, description="部署状态：0=未部署，1=已部署"
+    )
     platform: Platform | None = Field(
         default=None, description="平台", examples=["web", "mini_program"]
     )

@@ -12,6 +12,7 @@ from app.agents.memory.checkpointer import get_checkpointer
 from app.api.sandbox.service import delete_sandbox
 from app.api.session.schemas import (
     SessionDeleteResponse,
+    SessionSort,
     SessionItem,
     SessionListRequest,
     SessionListResponse,
@@ -23,7 +24,7 @@ from app.db.models.session import Session, SessionStatus
 async def list_sessions(
     req: SessionListRequest, user_id: int, session: AsyncSession
 ) -> SessionListResponse:
-    """分页取当前用户的会话列表，按 updated_at 倒序（最近活跃的在前）。
+    """分页取当前用户的会话列表，倒序（默认按 updated_at，最近活跃的在前）。
 
     `status != delete` 而不是 `== running`：以后加终态时新状态会自动出现在列表里。
     这和 sessions 表上 `ix_sessions_user_id_updated_at` 的索引形态一致。
@@ -38,15 +39,22 @@ async def list_sessions(
         conditions.append(Session.title.ilike(f"%{req.keyword}%"))
     if req.platform is not None:
         conditions.append(Session.platform == req.platform)
+    # publish 是 0/1 的整数列，不是布尔：判断用 `is not None` 而不是真值，
+    # 否则 publish=0（筛未部署）会被当成「没传」直接跳过。
+    if req.publish is not None:
+        conditions.append(Session.publish == int(req.publish))
 
     total = await session.scalar(
         select(func.count()).select_from(Session).where(*conditions)
     )
 
+    order_column = (
+        Session.created_at if req.sort is SessionSort.created_at else Session.updated_at
+    )
     rows = await session.scalars(
         select(Session)
         .where(*conditions)
-        .order_by(Session.updated_at.desc())
+        .order_by(order_column.desc())
         .offset((req.page - 1) * req.page_size)
         .limit(req.page_size)
     )
@@ -100,6 +108,10 @@ async def update_session(
     changes = req.model_dump(exclude_unset=True)
     if changes.get("title") is None:
         changes.pop("title", None)
+    # publish 是 IntEnum，落到 Integer 列前转成 int：IntEnum 虽然是 int 子类，
+    # 但驱动层的类型适配不保证认它，显式转换省得在某版 psycopg 上踩坑。
+    if changes.get("publish") is not None:
+        changes["publish"] = int(changes["publish"])
 
     for field, value in changes.items():
         setattr(chat, field, value)

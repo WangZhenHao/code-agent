@@ -90,8 +90,6 @@ export function ProjectsHeader({
         </div>
       </div>
 
-      <p className="text-sm font-medium text-muted-foreground">项目</p>
-
       <div className="flex flex-wrap items-center gap-2">
         <Select
           value={params.type}
@@ -140,20 +138,6 @@ export function ProjectsHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuLabel>显示范围</DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={params.favoriteOnly ? "favorite" : "all"}
-                onValueChange={(value) =>
-                  update({ favoriteOnly: value === "favorite" })
-                }
-              >
-                <DropdownMenuRadioItem value="all">
-                  全部项目
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="favorite">
-                  仅收藏
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>排序方式</DropdownMenuLabel>
               <DropdownMenuRadioGroup

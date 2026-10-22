@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Platform } from './platform';
+import type { PublicStatus } from './publicStatus';
 
 /**
  * 编辑会话。**只改传了的字段**——没传的保持原值，不是整体覆盖。
@@ -19,8 +20,8 @@ export interface SessionUpdateRequest {
   title_image?: string | null;
   /** 会话描述，传 null 清空 */
   description?: string | null;
-  /** 是否发布：0/1 */
-  publish?: number | null;
+  /** 部署状态：0=未部署，1=已部署 */
+  publish?: PublicStatus | null;
   /** 平台 */
   platform?: Platform | null;
 }

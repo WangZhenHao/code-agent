@@ -19,7 +19,7 @@ export interface SessionItem {
   /** 会话描述 */
   description?: string | null;
   status: number;
-  /** 是否已发布：0/1 */
+  /** 部署状态：0=未部署，1=已部署 */
   publish?: number;
   /** 浏览量 */
   views?: number;

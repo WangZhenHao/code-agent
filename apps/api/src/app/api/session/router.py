@@ -28,9 +28,11 @@ router = APIRouter(prefix="/session", tags=["session"])
     response_model=SessionListResponse,
     summary="会话列表",
     description=(
-        "当前登录用户的会话，**不含已删除**，按 `updated_at` 倒序"
-        "（最近活跃的在前）。\n\n"
-        "可选过滤：`keyword` 按标题模糊匹配，`platform` 按平台过滤。"
+        "当前登录用户的会话，**不含已删除**，倒序（最近的在最前）。\n\n"
+        "`sort` 决定按哪个时间排：`update_at`（默认，更新时间）"
+        "或 `created_at`（创建时间）。\n\n"
+        "可选过滤：`keyword` 按标题模糊匹配，`platform` 按平台过滤，"
+        "`publish` 按部署状态过滤（1=已部署，0=未部署）。"
     ),
 )
 async def session_list(
