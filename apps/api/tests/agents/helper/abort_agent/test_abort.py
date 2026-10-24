@@ -11,7 +11,7 @@
      中止时返回 (None, True)、正常时返回 (result, False)，且两种情况都不留下
      未收集的 task。
 
-跑法：uv run python -m unittest tests.agents.test_abort
+跑法：uv run python -m unittest tests.agents.helper.abort_agent.test_abort
 """
 
 from __future__ import annotations

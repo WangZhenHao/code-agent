@@ -4,7 +4,7 @@
 放行了一条写命令，模型就会在用户审阅计划之前把工作区改掉，plan 模式整个白做。
 所以用例按「必然要拒的写法」列，而不是按白名单逐条点名。
 
-跑法：uv run python -m unittest tests.agents.test_guard
+跑法：uv run python -m unittest tests.agents.tools.test_guard
 """
 
 from __future__ import annotations

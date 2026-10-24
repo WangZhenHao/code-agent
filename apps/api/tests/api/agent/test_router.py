@@ -8,7 +8,7 @@
 用最小 app（只 include 要测的 router）+ 依赖覆盖，不 import app.main：那边一
 加载就会去连 checkpointer/Redis，离线环境起不来。
 
-跑法：uv run python -m unittest tests.api.test_agent_router
+跑法：uv run python -m unittest tests.api.agent.test_router
 """
 
 from __future__ import annotations

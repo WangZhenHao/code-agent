@@ -10,7 +10,7 @@
 为什么存储层值得单独测：验证码的失效方式全是静默的——同一个码能连用两次、
 失败次数不清零、超限不作废，前端看到的都只是"验证码错误"，没人会往这里查。
 
-跑法：uv run python -m unittest tests.api.test_code_store
+跑法：uv run python -m unittest tests.api.user.code.test_code_store
 """
 
 from __future__ import annotations

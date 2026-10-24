@@ -6,7 +6,7 @@ partial unique index，而用户输入天然存在 `138 0013 8000`、`+86-138-..
 
 所以这里断言的重点不是"能通过"，而是**所有写法都必须收敛到同一个裸号**。
 
-跑法：uv run python -m unittest tests.api.test_phone
+跑法：uv run python -m unittest tests.api.user.code.test_phone
 """
 
 from __future__ import annotations

@@ -14,7 +14,7 @@
 外部依赖（DB session / start_sandbox / ThreadSession）都用假对象替换，断言落在
 "调了什么、带什么参数、什么顺序"上。
 
-跑法：uv run python -m unittest tests.api.test_agent_service
+跑法：uv run python -m unittest tests.api.agent.test_service
 """
 
 from __future__ import annotations

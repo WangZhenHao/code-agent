@@ -7,7 +7,7 @@
 
 `agent_command` 在这里用假函数替换——它自己的用例在 test_agent_service.py。
 
-跑法：uv run python -m unittest tests.api.test_chat_create
+跑法：uv run python -m unittest tests.api.chat.test_create
 """
 
 from __future__ import annotations
