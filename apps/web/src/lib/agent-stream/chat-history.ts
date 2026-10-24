@@ -1,5 +1,5 @@
 /**
- * `GET /chat/message/{id}` 的 `parts` → 展示用文本。
+ * `GET /chat/message/{id}` 的 `parts` → LangChain 消息。
  *
  * 两轮消息的 parts 形状不一样（见 api/chat/schemas.py 的 `MessageItem`）：
  * - user 消息：请求体里的 ContentBlock，如 `{ type: "text", text }`；
@@ -7,75 +7,53 @@
  *   `{ type: "ai", data: { content, tool_calls, id, … } }`，一轮里有多条
  *   （模型回复 + 工具调用 + 最终答复）。
  *
- * 这里只抽「能显示的文字」，工具调用交给调用方从 `toolCalls` 里取。
+ * 转换目标是 `BaseMessage`，和 SSE 的 `stream.messages` 同形，这样两边
+ * 共用同一个渲染组件，也共享 `message.text` / `tool_calls` / `id` 的语义。
  */
 
-export interface HistoryMessage {
-  /** 稳定 key：assistant 用 LangChain 消息 id，user 用行 id */
-  key: string;
-  /** LangChain 消息 id；user 行没有，用来和 SSE 消息去重 */
-  langchainId?: string;
-  role: "user" | "assistant";
-  text: string;
-  toolCalls: string[];
-}
+import {
+  HumanMessage,
+  mapStoredMessageToChatMessage,
+  type BaseMessage,
+  type MessageContent,
+  type StoredMessage,
+} from "@langchain/core/messages";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-/** `content` 可能是字符串，也可能是 content block 数组。 */
-function textOfContent(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .flatMap((block) =>
-      isRecord(block) && block.type === "text" && typeof block.text === "string"
-        ? [block.text]
-        : [],
-    )
-    .join("");
-}
-
-/** 把一条 MessageItem（的 parts）展开成可渲染的多条。 */
+/** 把一条 MessageItem（的 parts）展开成可渲染的消息。 */
 export function toHistoryMessages(item: {
   id: string;
   role: string;
   parts?: unknown;
-}): HistoryMessage[] {
+}): BaseMessage[] {
   const parts = Array.isArray(item.parts) ? item.parts : [];
   if (item.role === "user") {
-    const text = parts
-      .flatMap((part) =>
-        isRecord(part) && part.type === "text" && typeof part.text === "string"
-          ? [part.text]
-          : [],
-      )
-      .join("\n");
-    return text ? [{ key: item.id, role: "user", text, toolCalls: [] }] : [];
+    // parts 本身就是 ContentBlock[]，直接当 content 用；连带 id 一起给出去，
+    // 和 assistant 行一样有稳定的消息 id。
+    const message = new HumanMessage({
+      id: item.id,
+      content: parts as MessageContent,
+    });
+    return message.text ? [message] : [];
   }
 
-  const result: HistoryMessage[] = [];
-  parts.forEach((part, index) => {
-    if (!isRecord(part) || !isRecord(part.data)) return;
-    const data = part.data;
+  const result: BaseMessage[] = [];
+  for (const part of parts) {
+    if (!isRecord(part) || !isRecord(part.data)) continue;
     // 只渲染模型产出的消息；工具结果（type=tool）不单独成气泡。
-    if (part.type !== "ai") return;
-    const langchainId = typeof data.id === "string" ? data.id : undefined;
-    const toolCalls = Array.isArray(data.tool_calls)
-      ? data.tool_calls.flatMap((call) =>
-          isRecord(call) && typeof call.name === "string" ? [call.name] : [],
-        )
-      : [];
-    const text = textOfContent(data.content);
-    if (!text && toolCalls.length === 0) return;
-    result.push({
-      key: langchainId ?? `${item.id}-${index}`,
-      langchainId,
-      role: "assistant",
-      text,
-      toolCalls,
-    });
-  });
+    if (part.type !== "ai") continue;
+    try {
+      // data 原样喂给构造函数：content / tool_calls / id 都在里面，
+      // 由 langchain 自己的反序列化负责，不在这里手挑字段。
+      result.push(
+        mapStoredMessageToChatMessage(part as unknown as StoredMessage),
+      );
+    } catch {
+      // 未知 type 或字段缺失时跳过这一条，不拖垮整轮历史。
+    }
+  }
   return result;
 }

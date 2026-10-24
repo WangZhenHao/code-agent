@@ -36,7 +36,7 @@ const Client = () => {
           </p>
 
           <Composer
-            className="w-200"
+            className="w-200 mt-7"
             loading={isPending}
             prompt={prompt}
             onPromptChange={setPrompt}

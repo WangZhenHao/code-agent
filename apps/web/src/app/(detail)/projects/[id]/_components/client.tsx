@@ -1,6 +1,7 @@
 "use client"
 
 import { useParams } from "next/navigation"
+import './page.css'
 
 import Left from "./left"
 import Right from "./right"

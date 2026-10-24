@@ -44,7 +44,7 @@ export function Composer({
   }
 
   return (
-    <form onSubmit={onSubmitHandle} className={`mt-7 text-left ${className}`}>
+    <form onSubmit={onSubmitHandle} className={`text-left ${className}`}>
       <InputGroup className="gap-0 rounded-2xl border-border/80 bg-card py-0 shadow-xs">
         <InputGroupTextarea
           rows={3}

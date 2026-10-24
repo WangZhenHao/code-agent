@@ -29,7 +29,7 @@ export function Client() {
           </p>
 
           <Composer
-            className="w-200"
+            className="w-200 mt-7"
             prompt={prompt}
             onPromptChange={setPrompt}
           />
