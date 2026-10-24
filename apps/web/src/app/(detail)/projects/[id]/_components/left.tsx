@@ -15,9 +15,8 @@ import {
   getMessageChatMessageIdGetQueryKey,
   useMessageChatMessageIdGet,
 } from "@/api/generated/chat/chat"
-import { createAgentTransport } from "@/lib/agent-stream"
-import { toHistoryMessages } from "@/lib/chat-history"
-import { useAgentChatStore } from "@/store/agent-chat"
+import { createAgentTransport } from "@/lib/agent-stream/agent-stream"
+import { toHistoryMessages } from "@/lib/agent-stream/chat-history"
 
 /**
  * @langchain/react 1.2 的 StreamProvider 声明返回 ReactNode，而 @types/react
@@ -128,20 +127,13 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
 
   const handleSubmit = (prompt: TypeParmas) => {
     if (stream.isLoading) return
-    // Composer 已经把 parts 组装好了，这里取出文本作为 HumanMessage 的内容；
-    // mode/model 交给 onRequest 拼回 ChatCreateRequest。
-    const text = (prompt.parts ?? [])
-      .flatMap((part) => ("text" in part ? [part.text] : []))
-      .join("\n")
-      .trim()
-    if (!text) return
 
-    const { mode, model } = useAgentChatStore.getState()
+    // Composer 给的已经接近 ChatCreateRequest 的形状（mode/model/parts）。
+    // 展开成普通对象再传：SDK 的 submit 入参是带索引签名的记录，
+    // 直接传 interface 过不了类型；onRequest 会把它当作 params.input，
+    // 由 toCommandBody 取 parts/mode/model 交给后端的 `req`。
     setPromptValue("")
-    void stream.submit(
-      { messages: [{ type: "human", content: text }] },
-      { config: { configurable: { mode, model } } },
-    )
+    void stream.submit({ ...prompt })
   }
 
   return (

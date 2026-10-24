@@ -58,6 +58,7 @@ async def thread_command(
     同名路径参数，会把它当成**查询参数** `?id=`——接口不报错，但 session_id
     永远拿不到值，请求会 404（少参数则是 422）。
     """
+    print(req)
     return await agent_command(
         session_id=session_id, user_id=user.id, req=req, session=session
     )
@@ -83,20 +84,6 @@ async def thread_stream(
         headers=_SSE_HEADERS,
     )
 
-
-# @langchain/react 的 HttpAgentServerAdapter 默认路径是 `/stream/events`，
-# 参考项目在客户端把它覆盖成 `/stream`。这里两个都提供，省得前端配。
-@router.post("/{session_id}/stream/events", include_in_schema=False)
-async def thread_stream_events(
-    session_id: str,
-    user: User = Depends(get_current_user),
-    params: SubscribeParams = Body(default_factory=SubscribeParams),
-):
-    return StreamingResponse(
-        agent_stream_events(session_id=session_id, user_id=user.id, params=params),
-        media_type="text/event-stream",
-        headers=_SSE_HEADERS,
-    )
 
 
 @router.post("/{session_id}/abort", response_model=AbortResponse)
