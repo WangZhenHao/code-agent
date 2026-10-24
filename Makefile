@@ -51,8 +51,8 @@ lint: ## 前后端 lint
 fmt: ## 格式化 Python（前端未装 formatter，暂不处理）
 	cd $(PY) && $(UV) run ruff format . && $(UV) run ruff check --fix .
 
-test: ## 跑测试
-	cd $(PY) && $(UV) run pytest
+test: ## 跑测试（unittest；测试不依赖 pytest）
+	cd $(PY) && $(UV) run python -m unittest discover -s tests
 
 build: ## 构建全部
 	cd apps/web && $(PNPM) build

@@ -7,17 +7,16 @@
      没在跑的 run 要返回 False 而不是抛异常。
   2. message_buffer —— 流式片段的合并（按 id 相加，不是覆盖）与收尾（chunk 转
      AIMessage 后能 message_to_dict/messages_from_dict 往返）。
-  3. _run_agent —— 赛跑本身。用假 agent 模拟「跑得慢」和「瞬间返回」，验证
+  3. run_agent_with_abort —— 赛跑本身。用假 agent 模拟「跑得慢」和「瞬间返回」，验证
      中止时返回 (None, True)、正常时返回 (result, False)，且两种情况都不留下
      未收集的 task。
 
-跑法：uv run pytest tests/ -q
+跑法：uv run python -m unittest tests.agents.test_abort
 """
 
 from __future__ import annotations
 
 import asyncio
-import importlib
 import unittest
 
 from langchain_core.messages import (
@@ -29,13 +28,12 @@ from langchain_core.messages import (
     messages_from_dict,
 )
 
-from app.agents import run_registry
-from app.agents.message_buffer import accumulate, finalize_partial
-
-# node/__init__ 把 code_agent 这个**函数**重新导出，`from app.agents.node.code_agent
-# import ...` 拿到的是那个函数而不是模块（模块名的坑，见 node/__init__ 的 docstring）。
-# 走 importlib 拿真正的模块对象。
-_code_agent = importlib.import_module("app.agents.node.code_agent")
+from app.agents.helper.abort_agent import (
+    abort_update,
+    run_agent_with_abort,
+    run_registry,
+)
+from app.agents.helper.abort_agent.message_buffer import accumulate, finalize_partial
 
 
 class RunRegistryTestCase(unittest.TestCase):
@@ -169,7 +167,7 @@ class _FastAgent:
 
 
 class RunAgentRaceTestCase(unittest.IsolatedAsyncioTestCase):
-    """_run_agent：只取消内层 agent，不取消本节点。
+    """run_agent_with_abort：只取消内层 agent，不取消本节点。
 
     这是整个中止方案的支点——节点不被取消，return 才执行得了，LangGraph 才会
     沿 codeAgent → finish 走下一步把库落了。
@@ -186,7 +184,7 @@ class RunAgentRaceTestCase(unittest.IsolatedAsyncioTestCase):
         agent = _SlowAgent()
         ctx = run_registry.register("s1")
         task = asyncio.create_task(
-            _code_agent._run_agent(agent, {"messages": []}, self._config("s1"))
+            run_agent_with_abort(agent, {"messages": []}, self._config("s1"))
         )
 
         # 让赛跑先起跑，再按中止。
@@ -205,7 +203,7 @@ class RunAgentRaceTestCase(unittest.IsolatedAsyncioTestCase):
         run_registry.register("s1")
 
         result, aborted = await asyncio.wait_for(
-            _code_agent._run_agent(agent, {"messages": []}, self._config("s1")), timeout=5
+            run_agent_with_abort(agent, {"messages": []}, self._config("s1")), timeout=5
         )
 
         self.assertFalse(aborted)
@@ -219,7 +217,7 @@ class RunAgentRaceTestCase(unittest.IsolatedAsyncioTestCase):
         ctx = run_registry.register("s1")
 
         result, aborted = await asyncio.wait_for(
-            _code_agent._run_agent(agent, {"messages": []}, self._config("s1")), timeout=5
+            run_agent_with_abort(agent, {"messages": []}, self._config("s1")), timeout=5
         )
         ctx.abort.set()
 
@@ -231,15 +229,35 @@ class RunAgentRaceTestCase(unittest.IsolatedAsyncioTestCase):
         # 必须照常跑完，不能因为「找不到 run」就失败。
         agent = _FastAgent()
         result, aborted = await asyncio.wait_for(
-            _code_agent._run_agent(agent, {"messages": []}, self._config("unregistered")), timeout=5
+            run_agent_with_abort(agent, {"messages": []}, self._config("unregistered")), timeout=5
         )
 
         self.assertFalse(aborted)
         self.assertEqual(result["messages"][0].content, "done")
 
+    async def test_node_cancellation_cleans_up_inner_agent(self):
+        # 客户端断连：StreamingResponse 取消的是**本节点所在的整个 task**，
+        # 不是中止接口那种「按信号收手」。两者必须分开——这条路径没有 finish、
+        # 不落库，但内层 agent 绝不能没人持有却还在跑模型。
+        agent = _SlowAgent()
+        run_registry.register("s1")
+
+        task = asyncio.create_task(
+            run_agent_with_abort(agent, {"messages": []}, self._config("s1"))
+        )
+        await asyncio.sleep(0)  # 让它跑到 asyncio.wait 上
+        task.cancel()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await asyncio.wait_for(task, timeout=5)
+
+        # 给被取消的内层一点时间完成收尾
+        await asyncio.sleep(0)
+        self.assertTrue(agent.cancelled, "内层 agent 必须被取消，不能留下悬空的模型调用")
+
 
 class AbortUpdateTestCase(unittest.TestCase):
-    """_abort_update：已提交的（中间件记账）与半截的（流式缓冲）合并成落库内容。
+    """abort_update：已提交的（中间件记账）与半截的（流式缓冲）合并成落库内容。
 
     直接调它而不跑整张图：这里的正确性全在合并规则上，跑真图只会把
     「中间件记了什么」这个不确定变量混进来。
@@ -254,7 +272,7 @@ class AbortUpdateTestCase(unittest.TestCase):
 
         def current_round_messages(self, final_messages):
             # abort 分支没有 result["messages"] 可用，必须传空列表；传了别的东西
-            # 说明 _abort_update 又被改回正常路径的写法了，这里直接炸出来。
+            # 说明 abort_update 又被改回正常路径的写法了，这里直接炸出来。
             assert final_messages == [], "abort 分支必须传空列表"
             return [
                 AIMessage(content="已提交的一步", id="done-1"),
@@ -273,7 +291,7 @@ class AbortUpdateTestCase(unittest.TestCase):
         # 同 id 在两边都有：以已提交的为准（partial 里那条只是流式解析出的中间态）
         accumulate(run.partial, AIMessageChunk(content="partial 版本", id="done-1"))
 
-        out = _code_agent._abort_update(self._state(), self._FakeSummarization())
+        out = abort_update(self._state(), self._FakeSummarization())
 
         self.assertTrue(out["aborted"])
         self.assertEqual([m.id for m in out["currentRoundMessages"] if m.id], ["done-1", "half-1"])
@@ -284,7 +302,7 @@ class AbortUpdateTestCase(unittest.TestCase):
         accumulate(run.partial, AIMessageChunk(content="半", id="half-1"))
         accumulate(run.partial, AIMessageChunk(content="截", id="half-1"))
 
-        out = _code_agent._abort_update(self._state(), self._FakeSummarization())
+        out = abort_update(self._state(), self._FakeSummarization())
 
         half = [m for m in out["currentRoundMessages"] if m.id == "half-1"]
         self.assertEqual(len(half), 1)
@@ -295,37 +313,16 @@ class AbortUpdateTestCase(unittest.TestCase):
         # 绝不能带——那会把父图的全部历史砍成这一轮（压缩过的摘要消息压根不在
         # currentRoundMessages 里，它被中间件按 lc_source 过滤掉了）。
         run_registry.register("s1")
-        out = _code_agent._abort_update(self._state(), self._FakeSummarization())
+        out = abort_update(self._state(), self._FakeSummarization())
 
         self.assertFalse(any(isinstance(m, RemoveMessage) for m in out["messages"]))
 
     def test_works_without_registered_run(self):
         # 没登记（离线跑图）时不能炸：拿已提交的那部分就行。
-        out = _code_agent._abort_update(self._state("nobody"), self._FakeSummarization())
+        out = abort_update(self._state("nobody"), self._FakeSummarization())
 
         self.assertTrue(out["aborted"])
         self.assertEqual([m.id for m in out["currentRoundMessages"] if m.id], ["done-1"])
-
-
-    async def test_node_cancellation_cleans_up_inner_agent(self):
-        # 客户端断连：StreamingResponse 取消的是**本节点所在的整个 task**，
-        # 不是中止接口那种「按信号收手」。两者必须分开——这条路径没有 finish、
-        # 不落库，但内层 agent 绝不能没人持有却还在跑模型。
-        agent = _SlowAgent()
-        run_registry.register("s1")
-
-        task = asyncio.create_task(
-            _code_agent._run_agent(agent, {"messages": []}, self._config("s1"))
-        )
-        await asyncio.sleep(0)  # 让它跑到 asyncio.wait 上
-        task.cancel()
-
-        with self.assertRaises(asyncio.CancelledError):
-            await asyncio.wait_for(task, timeout=5)
-
-        # 给被取消的内层一点时间完成收尾
-        await asyncio.sleep(0)
-        self.assertTrue(agent.cancelled, "内层 agent 必须被取消，不能留下悬空的模型调用")
 
 
 if __name__ == "__main__":

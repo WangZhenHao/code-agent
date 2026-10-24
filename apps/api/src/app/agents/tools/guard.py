@@ -201,6 +201,10 @@ GUARDED_FLAGS: frozenset[str] = frozenset(
 # 管道 `|` 和逻辑连接 `&&` / `||` **不在这里**，它们是分段用的，各自单独处理。
 _DENY_CHARS = frozenset("&;(){}><`$")
 
+# 分段连接符。扫描元字符时要跳过它们：`&&` 里的 `&` 不是"后台执行"，
+# 它由 _split_segments 处理；而 `a&b` 这种粘在一起的写法仍会命中 `&`。
+_SEGMENT_SEPARATORS = frozenset({"|", "&&", "||"})
+
 # 赋值前缀。`FOO=1 ls` 里 `ls` 才是要校验的命令，跳过这些词往后找。
 # 注意 `export FOO=1` 被 shlex 拆成两个词，所以这里既有"含 = 的词"这一条，
 # 也有 `export` 这个关键字本身；否则 `export` 会被当成命令名直接拒掉。
@@ -230,7 +234,13 @@ def check_readonly_command(command: str) -> str | None:
 
     # 先扫元字符。放在分段之前：元字符会改变分段结果，必须先确认它不存在，
     # 分段才有意义。
+    #
+    # `&&` / `||` 作为**独立 token** 是分段连接符，不是元字符——它们要靠
+    # _split_segments 处理。整条命令里只要出现 `&` 就拒的话，白名单自己
+    # 声明的"可以用 && 串联"就永远不成立（`ls && pwd` 会被当成后台执行拒掉）。
     for token in tokens:
+        if token in _SEGMENT_SEPARATORS:
+            continue
         for ch in token:
             if ch in _DENY_CHARS:
                 return _reject_char(ch)
@@ -267,7 +277,7 @@ def _split_segments(tokens: list[str]) -> list[list[str]]:
     """
     segments: list[list[str]] = [[]]
     for token in tokens:
-        if token in ("|", "&&", "||"):
+        if token in _SEGMENT_SEPARATORS:
             segments.append([])
             continue
         segments[-1].append(token)
@@ -289,10 +299,16 @@ def _first_command_name(segment: list[str]) -> str | None:
 def _is_assignment(token: str) -> bool:
     """是不是 `FOO=bar` 这种赋值词。
 
-    逐个字符找 `=` 而不是 `split("=")`：`a=b=c` 和 `a[0]=1` 都要认出来，
-    而以 `=` 开头（`=x`）或整段就是 `=` 的不算合法赋值词，交给白名单拒掉。
+    必须先确认 token 里**有** `=`：只按 `split("=", 1)[0]` 取词头的话，任何
+    裸词（`ls`、`rm`、`bash`）的"词头"都是它自己、且全是合法字符，于是每个
+    命令名都会被当成赋值跳过——整段变成"只有赋值、没有命令"而直接放行。
+    这条曾经真的把 `rm` / `bash` / `xargs` 全部放过去了。
+
+    以 `=` 开头（`=x`）或整段就是 `=` 的不算合法赋值词，交给白名单拒掉。
     """
-    head = token.split("=", 1)[0]
+    head, sep, _ = token.partition("=")
+    if not sep:
+        return False
     return bool(head) and all(
         ch.isalnum() or ch == "_" or ch == "[" or ch == "]" for ch in head
     )

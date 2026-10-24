@@ -24,18 +24,16 @@ logger = logging.getLogger(__name__)
 async def persist_round(state, status: MessageStatus = MessageStatus.complete):
     """把本轮对话落进 messages 表。
 
-    status 由 finish 节点给：正常跑完是 complete，被 /agents/abort/{id} 中止的是
-    interrupted。
+    status 由 finish 节点给：正常跑完是 complete，被 abort 中止的是 interrupted。
 
     这是 assistant 轮次的**唯一落库路径**，而且它是 recent 才真正跑起来的——finish
     以前是同步节点、调用本函数却没 await，coroutine 建完就丢，所以 messages 表里
     长期只有 user 那一行。改动见 node/finish.py。
 
-    **role 仍是 Role.user，这是沿用现状、不是笔误。** 落进来的 parts 其实是 assistant
-    那一轮的输出（currentRoundMessages），但 agent_retalk_stream 的守卫要求「最后一条
-    消息的 role 必须是 user」才允许继续对话（见 api/agent/service.py 的 retalk 分支）。
-    改成 assistant 会让所有中止过的会话永久 409 —— 也就是说这里已经被历史行为锁死了。
-    要修正得连 retalk 的守卫一起改，属于另一件事。
+    落库 role 是 Role.assistant（见下方构造处），与续跑守卫配套：续跑分支
+    （api/agent/service.py 的 _continue_state）要求**最后一条是 user** 才允许续跑，
+    所以正常跑完的会话（最后一条 assistant）续跑会 409，只有被中断的轮次能续——
+    这正是想要的语义。改这里的 role 会直接影响那个守卫。
     """
     # session_id 在 try **之前**取。原来它在 try 里绑定，于是除了 SessionLocal()
     # 本身失败之外的任何异常（比如 currentRoundMessages 缺 key），except 里引用

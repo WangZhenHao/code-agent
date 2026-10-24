@@ -8,7 +8,7 @@
      所以 `files.read("/workspace/a.py")` 会落到 `<base>/workspace/a.py` —— 多一层。
      工具里的 to_sandbox_path 就是为了消掉这个前缀。
 
-跑法：uv run pytest tests/ -q
+跑法：uv run python -m unittest tests.agents.test_tools
 
 技能包（read_skill / skill_loader）的测试走 SkillToolTestCase：它把 SKILLS_DIR
 指到临时目录，所以既不依赖 public/skills/ 的现有内容，也不需要沙箱。

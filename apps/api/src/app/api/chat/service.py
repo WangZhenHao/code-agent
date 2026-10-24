@@ -4,7 +4,6 @@
 仍是进程内字典占位，进程重启即丢。落地时换成真实查询，函数签名保持不变。
 """
 
-import logging
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -19,7 +18,7 @@ from app.api.chat.schemas import (
     MessageItem,
     MessageListResponse,
 )
-from app.db.models.session import MessageStatus, Messages, Role, Session, SessionStatus
+from app.db.models.session import Messages, Session, SessionStatus
 
 
 async def chat_detail(
@@ -80,14 +79,17 @@ async def chat_message(
 async def create_chat(
     req: ChatCreateRequest, user_id: int, session: AsyncSession
 ) -> ChatCreateResponse:
-    """新建会话，落库并返回。
+    """新建会话并**立刻跑起第一轮**。
 
-    尚未接入 LangGraph：现在只登记会话，不真的跑模型。
+    用户消息的落库和 run 的启动都交给 `agent_command`——和之后在同一会话里继续
+    发消息走的是同一条路径，省得「新建」和「继续」两处各写一遍落库 + 起沙箱。
+
+    两段事务是分开的：会话行先 commit（拿到 chat.id），`agent_command` 再在同一个
+    session 上落消息、起沙箱、起 run。如果起 run 失败，会话已经存在但没有任何
+    回复——前端刷新会看到一个空会话，再发一条消息即可继续，比整段回滚更可恢复。
     """
     # add() 没有返回值，必须先把对象存进变量再登记，否则拿不到这个实例。
     # 不传 id：主键的 default=new_id 会生成 12 位 cuid2，显式传 id 会绕过它。
-    # 会话和它的第一条消息是一次业务操作，放一个事务里：一起成功或一起回滚，
-    # 不会出现「会话建了、消息插入失败」留下的空会话。
     chat = Session(
         title="",
         status=SessionStatus.running,
@@ -97,23 +99,17 @@ async def create_chat(
     # flush 而非 commit：id 的 default=new_id 是 Python 端默认值，flush 后就填好了，
     # 下一句拿 chat.id 建 message 不用等真正提交。
     await session.flush()
-
-    # 用户这一轮的消息落 messages 表。没有 content/mode 列：
-    # 内容存 parts（JSONB），role/status/model 是独立列。
-    # parts 是 JSON 列，Pydantic 对象要先 model_dump() 成 dict 才写得进去。
-    message = Messages(
-        session_id=chat.id,
-        role=Role.user,
-        status=MessageStatus.complete,
-        model=req.model,
-        parts=req.parts,
-        mode=req.mode,
-    )
-    session.add(message)
-
-    # 一次提交两张表，然后把 DB 端生成的 created_at 取回来。
     await session.commit()
     await session.refresh(chat)
+
+    # 延迟 import：agent.service 会拉进 agents/threading（langgraph），而本模块
+    # 在 app.api.chat 下、被 agent.service 反过来 import schemas——顶层互相引
+    # 会绕成环。放函数里规避。
+    from app.api.agent.service import agent_command
+
+    await agent_command(
+        session_id=chat.id, user_id=user_id, req=req, session=session
+    )
 
     return ChatCreateResponse(
         id=chat.id,

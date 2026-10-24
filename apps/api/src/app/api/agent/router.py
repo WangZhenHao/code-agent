@@ -25,9 +25,6 @@ from app.db.models.user import User
 from app.db.session import get_session
 from app.security import get_current_user
 
-# threads_router = APIRouter(prefix="/threads", tags=["threads"])
-
-# 旧路径的挂载点。/agents 下现在只剩 abort；talking / retalk 已删除。
 router = APIRouter(prefix="/agents", tags=["agent"])
 
 # SSE 必须关掉中间层缓冲，否则事件会攒在 nginx/网关里一次性吐出，流式就白做了。

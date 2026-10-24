@@ -8,11 +8,20 @@ graphs 又导入 nodes 的函数）。State 作为最底层的类型定义，谁
 
 from typing import Annotated, NotRequired, TypedDict
 
+from langchain.messages import ContentBlock
 from langgraph.graph.message import add_messages
 
 from app.db.models.session import MessageMode
-from langchain.messages import ContentBlock
-class Session: 
+
+
+class Session(TypedDict):
+    """图状态里的会话标识。
+
+    运行时就是一个普通 dict（LangGraph 只按字段名传递，不校验注解），所以声明成
+    TypedDict 而不是带注解的普通类——后者会让 `state["session"]["id"]` 通不过
+    类型检查，调用方被迫 cast。
+    """
+
     id: str
     user_id: int
 

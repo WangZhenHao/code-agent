@@ -13,7 +13,7 @@
 import json
 import logging
 from collections.abc import AsyncIterator
-from typing import Any, cast
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -51,44 +51,13 @@ async def _require_owned_session(session: AsyncSession, session_id: str, user_id
         raise HTTPException(status_code=404, detail="会话不存在")
 
 
-async def _retalk_state(
-    session: AsyncSession, session_id: str, user_id: int
-) -> State:
-    """续跑分支：以最后一条 user 消息的 mode/parts/model 作为本轮输入。
-
-    只有「上一轮被中断或没跑完（最后一条是 user 消息）」才允许续跑。最后一条
-    是 assistant 说明那轮已经完整结束，再续等于凭空多跑一轮，返回 409。
-    """
-    last_message = await session.scalar(
-        select(Messages)
-        .where(Messages.session_id == session_id)
-        .order_by(Messages.created_at.desc())
-        .limit(1)
-    )
-    if last_message is None:
-        raise HTTPException(status_code=404, detail="会话没有消息，无法继续对话")
-    if last_message.role != Role.user:
-        raise HTTPException(status_code=409, detail="当前会话没有中断的消息，无法继续对话")
-
-    # 先取成普通值：session 关闭后 ORM 属性就不再保证可读（expire_on_commit
-    # 是 False，已加载的属性本来也在，这里只是把生命周期写明白）。
-    # cast：State 里的 session 声明成 `Session` 类，而运行时就是一个普通 dict
-    # （LangGraph 只按字段名传递，不校验注解）。写法沿用旧实现，不改结构。
-    return cast(State, {
-        "mode": last_message.mode,
-        "session": {"id": session_id, "user_id": user_id},
-        "input": last_message.parts or [],
-        "model": last_message.model,
-    })
-
-
 async def _new_message_state(
     session: AsyncSession,
     session_id: str,
     user_id: int,
     req: ChatCreateRequest,
 ) -> State:
-    """新消息分支：先落一条 user 消息，再以请求体作为本轮输入。"""
+    """落一条 user 消息，并以请求体作为本轮输入。"""
     session.add(
         Messages(
             session_id=session_id,
@@ -101,12 +70,36 @@ async def _new_message_state(
     )
     await session.commit()
 
-    return cast(State, {
+    # 先取成普通值：session 关闭后 ORM 属性就不再保证可读（expire_on_commit
+    # 是 False，已加载的属性本来也在，这里只是把生命周期写明白）。
+    return {
         "mode": req.mode,
         "session": {"id": session_id, "user_id": user_id},
         "input": req.parts,
         "model": req.model,
-    })
+    }
+
+
+async def start_agent_run(state: State) -> str:
+    """起沙箱、拉起预览服务、后台跑图，返回 run_id。
+
+    独立成函数是因为有两个入口都走到这里：
+
+    - `agent_command`（`POST /agents/{id}/commands`）——已有会话里继续发消息；
+    - `create_chat`（`POST /chat/create`）——新建会话时顺手把第一轮跑起来，
+      这样前端不必再补一次 commands。
+
+    state 的组装留给调用方：那边各自知道 mode/parts/model 从哪来，这里只需要
+    「会话 id」这一个字段。
+    """
+    session_id = state["session"]["id"]
+
+    # start_sandbox 幂等（已有则复用），且直接返回句柄——别再调
+    # create_sandbox_for_id，那个不去重，每调一次建一个。
+    sandbox = await start_sandbox(session_id)
+    sandbox.commands.run(_PREVIEW_COMMAND)
+
+    return await ThreadSession(session_id).start_run(state)
 
 
 async def agent_command(
@@ -115,27 +108,18 @@ async def agent_command(
     req: ChatCreateRequest,
     session: AsyncSession,
 ) -> dict[str, Any]:
-    """处理一条 thread 命令：校验 → 落库 → 起沙箱 → 后台起 run → 返回 run_id。
+    """在已有会话里发一轮对话：校验 → 落库 → 起沙箱 → 后台起 run → 返回 run_id。
 
-    入参是 `ChatCreateRequest`（和旧的 /talking、/retalk 共用），用 `parts`
-    是否为空区分两个分支：
-
-    - `parts == []`（默认值）→ 相当于旧 /retalk，续跑最后一条 user 消息；
-    - `parts` 非空         → 相当于旧 /talking，新落一条 user 消息再跑。
+    `parts` 必填。空 parts 没有可跑的内容——「续跑上一轮」不再是一个动作，
+    而是等同重新发一条消息。
     """
     await _require_owned_session(session, session_id, user_id)
 
-    if req.parts:
-        state = await _new_message_state(session, session_id, user_id, req)
-    else:
-        state = await _retalk_state(session, session_id, user_id)
+    if not req.parts:
+        raise HTTPException(status_code=422, detail="parts 不能为空")
 
-    # start_sandbox 幂等（已有则复用），且直接返回句柄——别再调
-    # create_sandbox_for_id，那个不去重，每调一次建一个。
-    sandbox = await start_sandbox(session_id)
-    sandbox.commands.run(_PREVIEW_COMMAND)
-
-    run_id = await ThreadSession(session_id).start_run(state)
+    state = await _new_message_state(session, session_id, user_id, req)
+    run_id = await start_agent_run(state)
     return {"type": "success", "id": None, "result": {"run_id": run_id}}
 
 
