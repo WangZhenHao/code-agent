@@ -10,10 +10,14 @@
     "gen:api": "orval"
   },
   "dependencies": {
+    "@langchain/core": "^1.3.0",
+    "@langchain/langgraph-sdk": "^1.12.7",
+    "@langchain/react": "^1.2.7",
     "@tanstack/react-query": "^5.104.4",
     "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.3.2",
+    "langchain": "^1.5.19",
     "lucide-react": "^1.47.0",
     "next": "16.3.5",
     "radix-ui": "^1.6.7",

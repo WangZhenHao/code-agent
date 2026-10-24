@@ -8,6 +8,10 @@
 | 取消 | `AsyncGraphRunStream.abort()` | `signal_abort()` + Redis control 频道 |
 | run 句柄 | 进程内 | 进程内（asyncio 对象没法进 Redis） |
 
+回放缓冲**按轮次自包含**：新 run 开始时清空，run 结束时缩到几十秒的宽限期。
+完整历史由 `GET /chat/message/{id}` 提供，这里只服务「本轮增量 + 中途重连」，
+不承担长期缓存。
+
 **取消为什么走 signal_abort 而不是 abort() 流**：`run_agent_with_abort`
 （app/agents/helper/abort_agent/abort_handler.py）已经在节点内部赛跑了
 `run.abort`，让模型和工具停下来、节点照常 return。直接 abort 外层流会让
@@ -227,6 +231,16 @@ class ThreadSession:
         announced: set[str] = set()
         finished: set[str] = set()
         terminal: str | None = None
+        # 本 run 最后发出的序号。结束时用它判断「流里最新的事件还是不是我的」，
+        # 避免把同线程新 run 的缓冲一起收缩（见 event_bus.close_stream）。
+        last_seq: int | None = None
+
+        async def publish(event: dict[str, Any]) -> None:
+            nonlocal last_seq
+            published = await event_bus.publish_event(thread_id, event)
+            seq = published.get("seq")
+            if isinstance(seq, int):
+                last_seq = seq
 
         try:
             graph = await get_graph()
@@ -246,13 +260,12 @@ class ThreadSession:
                 {"aborted": False},
             )
 
-            await event_bus.publish_event(
-                thread_id,
+            await publish(
                 {
                     "type": "event",
                     "method": "lifecycle",
                     "params": {"namespace": [], "data": {"event": "running"}},
-                },
+                }
             )
 
             with warnings.catch_warnings():
@@ -292,11 +305,10 @@ class ThreadSession:
                             raw_event, announced=announced, finished=finished
                         ),
                     ]:
-                        await event_bus.publish_event(thread_id, event)
+                        await publish(event)
         except Exception as exc:
             logger.exception("thread run 失败 thread_id=%s run_id=%s", thread_id, run_id)
-            await event_bus.publish_event(
-                thread_id,
+            await publish(
                 {
                     "type": "event",
                     "method": "lifecycle",
@@ -304,22 +316,24 @@ class ThreadSession:
                         "namespace": [],
                         "data": {"event": "failed", "error": str(exc)},
                     },
-                },
+                }
             )
             terminal = "failed"
         finally:
             # 图自己没发终止 lifecycle（比如被 abort 提前抬走）时补一个，
             # 否则客户端永远等不到收尾帧。
             if terminal is None:
-                await event_bus.publish_event(
-                    thread_id,
+                await publish(
                     {
                         "type": "event",
                         "method": "lifecycle",
                         "params": {"namespace": [], "data": {"event": "completed"}},
-                    },
+                    }
                 )
             await event_bus.clear_run(thread_id, run_id)
+            # 历史由 /chat/message 提供，事件缓冲只服务「本次 run + 重连」：
+            # 结束后缩到宽限期，不让 Redis 攒着整轮对话的逐步输出。
+            await event_bus.close_stream(thread_id, last_seq)
             # 传 ctx 而不只传 id：同线程新 run 可能已经顶上来，只按 id 删会把
             # 新的那个一起删掉（见 run_registry.unregister）。
             unregister(thread_id, run_ctx)
@@ -345,18 +359,43 @@ class ThreadSession:
 
         since = params.get("since")
         last_seq: int = since if isinstance(since, int) else -1
+        # 回放里有没有根级终态。有 = 这一轮已经结束，客户端不需要再挂着等增量。
+        saw_terminal = False
         try:
-            for event in await event_bus.replay_events(
-                thread_id, since if isinstance(since, int) else None
-            ):
-                if not matches_subscription(event, params):
-                    continue
-                seq = event.get("seq")
-                if isinstance(seq, int):
-                    if seq <= last_seq:
+            running = await event_bus.has_run(thread_id)
+            # 什么时候回放：
+            # - 带了 since：客户端重连，补上断线期间漏掉的事件；
+            # - run 正在跑：中途加入的客户端要把这一轮已经发出的事件补齐。
+            #
+            # 都不满足就**完全不回放**。首次进入 / 刷新的页面历史来自
+            # /chat/message，缓冲里留着的是上一轮的逐步输出（可能还没过宽限期），
+            # 回放它只会和历史叠出一份重复内容。
+            if isinstance(since, int) or running:
+                for event in await event_bus.replay_events(
+                    thread_id, since if isinstance(since, int) else None
+                ):
+                    if not matches_subscription(event, params):
                         continue
-                    last_seq = seq
-                yield encode_sse(event)
+                    seq = event.get("seq")
+                    if isinstance(seq, int):
+                        if seq <= last_seq:
+                            continue
+                        last_seq = seq
+                    if any(
+                        is_root_lifecycle(event, name)
+                        for name in ("completed", "failed", "interrupted")
+                    ):
+                        saw_terminal = True
+                    yield encode_sse(event)
+
+            # 没有 run 在跑、回放里也已经是终态：这只是一次「看历史」的连接，
+            # 增量永远不会再来。直接结束，别挂在心跳里等——SDK 侧会按正常断开
+            # 处理（重连几次后放弃），不会把它当成错误。
+            #
+            # 反过来，run 正在跑（has_run 为真）时必须继续等增量；回放里没有
+            # 终态说明这一轮还没结束，也要继续。
+            if saw_terminal and not await event_bus.has_run(thread_id):
+                return
 
             while True:
                 try:

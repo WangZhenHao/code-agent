@@ -69,13 +69,6 @@ class Settings(BaseSettings):
     # 而不是无限挂住整个请求。
     checkpoint_pool_timeout: float = 30.0
 
-    # ---------- Thread 事件缓冲 ----------
-    # /threads/{id}/stream 的回放缓冲放在 Redis（见 agents/threading/event_bus.py）。
-    # 这个 TTL 同时作用于事件 Stream 和 seq 计数：线程长期没人访问后，回放
-    # 窗口自然过期，避免 Redis 无限增长。客户端在那之后再重连会拿不到历史，
-    # 需要靠 /chat/message 拉取落库的消息重新渲染。
-    thread_event_ttl_seconds: int = 24 * 60 * 60
-
     # ---------- 沙箱预览回收 ----------
     # 同样是有默认值的调优项，不是必填项。
     #

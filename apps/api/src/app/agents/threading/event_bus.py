@@ -32,11 +32,19 @@ from app.agents.threading.protocol import (
     sanitize_event,
 )
 from app.redis import get_redis
-from app.settings import settings
 
 # 回放缓冲上限。参考项目的 buffer 是 list 且无界增长；这里按「条数」截，
 # 再叠一个 TTL，防止没人访问的线程把 Redis 撑爆。
 _EVENTS_MAXLEN = 2000
+
+# 兜底 TTL：正常结束的 run 会主动缩到 _STREAM_GRACE_SECONDS，这个上限只在
+# run 没走到 finally（pod 被强杀等）时生效。abort 标记也复用它——它的寿命
+# 跟「一轮 run 可能持续多久」同一量级，没必要单独配。
+_EVENT_TTL_SECONDS = 24 * 60 * 60
+
+# run 结束后回放缓冲的宽限期。留几十秒是为了让「run 刚结束、客户端还在重连」
+# 的连接仍能拿到终态帧；之后键自然过期，Redis 不积累历史事件。
+_STREAM_GRACE_SECONDS = 60
 
 # run 标记的 TTL 比事件短：run 正常结束会主动 DEL，这个 TTL 只是防止进程
 # 被 kill 后留下一把「永远有 run 在跑」的假标记。取 2 分钟——足够覆盖一次
@@ -80,8 +88,6 @@ async def publish_event(thread_id: str, event: dict[str, Any]) -> dict[str, Any]
     之后逐条喂进来——这里只负责编号与分发，不关心事件内容。
     """
     redis = get_redis()
-    ttl = settings.thread_event_ttl_seconds
-
     seq = await redis.incr(_key(thread_id, "seq"))
     event = sanitize_event(normalize_event({**event, "type": "event", "seq": seq}))
 
@@ -94,8 +100,8 @@ async def publish_event(thread_id: str, event: dict[str, Any]) -> dict[str, Any]
         maxlen=_EVENTS_MAXLEN,
         approximate=True,
     )
-    pipe.expire(_key(thread_id, "events"), ttl)
-    pipe.expire(_key(thread_id, "seq"), ttl)
+    pipe.expire(_key(thread_id, "events"), _EVENT_TTL_SECONDS)
+    pipe.expire(_key(thread_id, "seq"), _EVENT_TTL_SECONDS)
     pipe.publish(event_channel(thread_id), raw)
     await pipe.execute()
 
@@ -113,6 +119,41 @@ async def replay_events(thread_id: str, since: int | None) -> list[dict[str, Any
         if event is not None:
             events.append(event)
     return events
+
+
+async def close_stream(thread_id: str, last_seq: int | None) -> bool:
+    """run 结束后把回放缓冲的 TTL 缩到宽限期，之后自然过期。
+
+    **不用 DEL**：finally 里刚补发的终态帧还没被客户端读到，留几十秒让「差一点
+    才连上」的连接仍能回放。历史不依赖这里——它落在 messages 表，由
+    /chat/message 提供，所以缓冲不该按 _EVENT_TTL_SECONDS 长期保留。
+
+    seq 一起缩：它只是事件编号的计数器，缓冲过期后再 +1 没有意义。
+
+    `last_seq` 是本次 run 最后发出的序号。若流里已经有更大的序号，说明同线程的
+    新 run 已经接上来在写了（旧 run 被 abort 顶掉后还要跑一会儿才结束），这时
+    不能缩短缓冲——否则会把新 run 的回放窗口一起砍掉。返回是否真的收缩了。
+
+    即便误判，代价也有限：publish_event 每次写事件都会把 TTL 重新设回
+    _EVENT_TTL_SECONDS，正在跑的 run 会自己把窗口续回来。
+    """
+    redis = get_redis()
+    events_key = _key(thread_id, "events")
+
+    latest = await redis.xrevrange(events_key, count=1)
+    if latest:
+        try:
+            latest_seq = int(_decode(latest[0][0]).split("-")[0])
+        except (IndexError, ValueError):
+            latest_seq = -1
+        if last_seq is None or latest_seq > last_seq:
+            return False
+
+    pipe = redis.pipeline()
+    pipe.expire(events_key, _STREAM_GRACE_SECONDS)
+    pipe.expire(_key(thread_id, "seq"), _STREAM_GRACE_SECONDS)
+    await pipe.execute()
+    return True
 
 
 def sse_from_raw(raw: bytes | str) -> str:
@@ -145,8 +186,7 @@ async def has_run(thread_id: str) -> bool:
 async def request_abort(thread_id: str) -> None:
     """广播取消：写标记（给「run 还没起来」的窗口用）+ PUBLISH 给持 run 的副本。"""
     redis = get_redis()
-    ttl = settings.thread_event_ttl_seconds
-    await redis.set(_key(thread_id, "abort"), "1", ex=ttl)
+    await redis.set(_key(thread_id, "abort"), "1", ex=_EVENT_TTL_SECONDS)
     await redis.publish(control_channel(thread_id), json.dumps({"event": "abort"}))
 
 
