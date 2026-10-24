@@ -15,17 +15,19 @@ import {
 import type { ChatCreateChatCreatePostMutationVariables } from "@/api/generated/chat/chat"
 import { useAgentChatStore } from "@/store/agent-chat"
 
-type TypeParmas = ChatCreateChatCreatePostMutationVariables["data"]
+export type TypeParmas = ChatCreateChatCreatePostMutationVariables["data"]
 export function Composer({
   loading = false,
   prompt,
   onPromptChange,
   onSubmit,
+  className = '',
 }: {
   loading?: boolean
   prompt: string
   onPromptChange: (prompt: string) => void
-  onSubmit?: (prompt: TypeParmas) => void
+  onSubmit?: (prompt: TypeParmas) => void,
+  className?: string
 }) {
   const params = useRef<TypeParmas>({})
 
@@ -42,14 +44,14 @@ export function Composer({
   }
 
   return (
-    <form onSubmit={onSubmitHandle} className="mt-7 max-w-300 text-left">
+    <form onSubmit={onSubmitHandle} className={`mt-7 text-left ${className}`}>
       <InputGroup className="gap-0 rounded-2xl border-border/80 bg-card py-0 shadow-xs">
         <InputGroupTextarea
           rows={3}
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}
           placeholder="帮我做一个旅行攻略网站，实现我输入旅行地点和旅游时间，生成旅行攻略和行李建议"
-          className="min-h-24 w-200 px-4 py-4 leading-6"
+          className="min-h-24 w-full px-4 py-4 leading-6"
         />
 
         <InputGroupAddon
