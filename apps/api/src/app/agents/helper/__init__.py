@@ -1,11 +1,8 @@
-"""编排辅助函数集合。
+"""编排辅助模块集合。
 
-目前只有 agent_stream（跑图并把事件透传成 SSE）。
+跑图与事件流已迁到 app/agents/threading/（Agent Streaming Protocol）；这里
+保留中止相关（abort_agent）、中间件（middleware）、技能与提示词装配。
 
-导入方式：
-    from app.agents.helper import agent_stream, sse
+导入方式：写完整子模块路径，例如
+    from app.agents.helper.abort_agent import signal_abort
 """
-
-from app.agents.helper.agent_stream import agent_stream, sse
-
-__all__ = ["agent_stream", "sse"]

@@ -7,6 +7,7 @@ main.py 只 include 这一个 router。
 from fastapi import APIRouter
 
 from app.api.agent.router import router as agent_router
+# from app.api.agent.router import threads_router
 from app.api.chat.router import router as chat_router
 from app.api.session.router import router as session_router
 from app.api.user.router import router as user_router
@@ -14,5 +15,6 @@ from app.api.user.router import router as user_router
 api_router = APIRouter()
 api_router.include_router(chat_router)
 api_router.include_router(agent_router)
+# api_router.include_router(threads_router)
 api_router.include_router(user_router)
 api_router.include_router(session_router)
