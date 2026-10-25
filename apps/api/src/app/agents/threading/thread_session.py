@@ -37,6 +37,7 @@ from app.agents.node.state import State
 from app.agents.threading import event_bus
 from app.agents.threading.protocol import (
     encode_sse,
+    fragment_tool_call_delta,
     is_root_lifecycle,
     is_text_block_finish,
     matches_subscription,
@@ -231,6 +232,8 @@ class ThreadSession:
         await event_bus.mark_run(thread_id, run_id)
         announced: set[str] = set()
         finished: set[str] = set()
+        # 每个工具块上次发出的内容（见 strip_tool_call_args），按 run 持有。
+        seen_tool_deltas: dict[str, str] = {}
         terminal: str | None = None
         # 本 run 最后发出的序号。结束时用它判断「流里最新的事件还是不是我的」，
         # 避免把同线程新 run 的缓冲一起收缩（见 event_bus.close_stream）。
@@ -311,7 +314,11 @@ class ThreadSession:
                         # 否则中止落库拿不到完整正文。
                         if is_text_block_finish(event):
                             continue
-                        await publish(event)
+                        # tool_call_chunk 的增量是「累积的全量 args」，改成只发
+                        # 新增片段（SDK 对 tool-call-delta 是拼接），避免 O(n²)。
+                        fragment = fragment_tool_call_delta(event, seen_tool_deltas)
+                        if fragment is not None:
+                            await publish(fragment)
         except Exception as exc:
             logger.exception("thread run 失败 thread_id=%s run_id=%s", thread_id, run_id)
             await publish(

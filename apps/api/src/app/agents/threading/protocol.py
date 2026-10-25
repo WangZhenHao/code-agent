@@ -304,6 +304,63 @@ def is_text_block_finish(event: dict[str, Any]) -> bool:
     return is_record(content) and content.get("type") == "text"
 
 
+def fragment_tool_call_delta(
+    event: dict[str, Any], seen: dict[str, str] | None = None
+) -> dict[str, Any] | None:
+    """把累积型的 tool_call_chunk 增量改成只发新增的那一段。
+
+    langchain_core 的 v3 兼容桥（`_compat_bridge.chunks_to_events`）对
+    `tool_call_chunk` 类型的 block-delta 发的是**已累积的整块**：写一个 10KB
+    的文件会变成 55 帧，每帧都从头再发一遍，累计 250KB 以上，Redis 回放缓冲
+    也按同样大小存。
+
+    这里把 `block-delta`（JS SDK 对它整体覆盖，所以必须全量）改写成
+    `tool-call-delta`：SDK 对后者是**拼接**（`args: current.args + delta.args`），
+    正好只需要新增部分。参数内容照样实时可见，只是不再重复。
+
+    按「消息 id + 块 index」记住上次发出的全量 args 当基线：
+    - 与上次相同 → 返回 None，调用方跳过；
+    - 是上次的前缀延伸 → 只发多出来的后缀；
+    - 不是前缀（理论上不该发生）→ 退回原样的全量 block-delta，SDK 会整体覆盖，
+      状态仍然正确。
+    """
+    if event.get("method") != "messages":
+        return event
+    params = event.get("params")
+    if not is_record(params):
+        return event
+    data = params.get("data")
+    # v3 下 messages 的 data 可能是 (payload, metadata) 元组，发布前还没 unwrap。
+    is_tuple = isinstance(data, tuple)
+    payload = (data[0] if data else None) if is_tuple else data
+    if not is_record(payload) or payload.get("event") != "content-block-delta":
+        return event
+    delta = payload.get("delta")
+    if not is_record(delta) or delta.get("type") != "block-delta":
+        return event
+    fields = delta.get("fields")
+    if not is_record(fields) or fields.get("type") != "tool_call_chunk":
+        return event
+    if seen is None:
+        return event
+
+    args = fields.get("args") or ""
+    # 块身份优先用 fields.id（每个工具调用唯一的 call_xxx）：同一条消息里连续
+    # 多个工具调用时，payload 的 id 是 None、index 还都是同一个，只按它们分会
+    # 把后一个调用当成「同一个块的续片」整段跳过。
+    block_key = f"{fields.get('id') or payload.get('id') or ''}#{payload.get('index')}"
+    previous = seen.get(block_key, "")
+    if args == previous:
+        return None
+    seen[block_key] = args
+    if not args.startswith(previous):
+        return event
+
+    fragment = {**payload, "delta": {"type": "tool-call-delta", "args": args[len(previous):]}}
+    fragment_data = (fragment, *data[1:]) if is_tuple else fragment
+    return {**event, "params": {**params, "data": fragment_data}}
+
+
 def encode_sse(event: dict[str, Any]) -> str:
     """一条 ProtocolEvent 编成一个 SSE 帧。
 
