@@ -1,7 +1,7 @@
 "use client"
 
 import { ArrowUpIcon, Loader2Icon, PlusIcon } from "lucide-react"
-import React, { useRef } from "react"
+import React from "react"
 
 import { ModelSelect } from "@/app/(home)/_components/model-select"
 import { ModeSelect } from "@/app/(home)/_components/mode-select"
@@ -29,18 +29,30 @@ export function Composer({
   onSubmit?: (prompt: TypeParmas) => void,
   className?: string
 }) {
-  const params = useRef<TypeParmas>({})
-
-  const onSubmitHandle = (event: React.SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const submit = () => {
+    if (prompt.trim().length === 0 || loading) return
     // 提交时才读，避免 mode/model 变化触发整个表单重渲染
     const { mode, model } = useAgentChatStore.getState()
-    params.current = {
+    onSubmit?.({
       mode,
       model,
       parts: [{ type: "text", text: prompt }],
+    })
+  }
+
+  const onSubmitHandle = (event: React.SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    submit()
+  }
+
+  const onKeyDownHandle = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // 输入法组合中（如中文拼音候选）回车只用于选词，不提交
+    if (event.nativeEvent.isComposing) return
+    // 回车提交，Shift/Cmd+Enter 保留换行
+    if (event.key === 'Enter' && !event.shiftKey && !event.metaKey) {
+      event.preventDefault()
+      submit()
     }
-    onSubmit?.(params.current)
   }
 
   return (
@@ -52,6 +64,7 @@ export function Composer({
           onChange={(event) => onPromptChange(event.target.value)}
           placeholder="帮我做一个旅行攻略网站，实现我输入旅行地点和旅游时间，生成旅行攻略和行李建议"
           className="min-h-24 w-full px-4 py-4 leading-6"
+          onKeyDown={onKeyDownHandle}
         />
 
         <InputGroupAddon

@@ -281,6 +281,29 @@ def is_root_lifecycle(event: dict[str, Any], name: str) -> bool:
     return data.get("event") == name
 
 
+def is_text_block_finish(event: dict[str, Any]) -> bool:
+    """text 块的 content-block-finish：全文已由 delta 逐段发过，重复且体积大，不转发。
+
+    tool_call 块必须保留——JS SDK 的 Assembler 用它的完整 content 拿可解析的
+    工具参数，只靠 delta 的 tool_call_chunk 拼不出来。
+    """
+    if event.get("method") != "messages":
+        return False
+    params = event.get("params")
+    if not is_record(params):
+        return False
+    data = params.get("data")
+    # v3 下 messages 的 data 可能是 (payload, metadata) 元组，发布前还没 unwrap。
+    if isinstance(data, tuple):
+        data = data[0] if data else None
+    if not is_record(data):
+        return False
+    if data.get("event") != "content-block-finish":
+        return False
+    content = data.get("content")
+    return is_record(content) and content.get("type") == "text"
+
+
 def encode_sse(event: dict[str, Any]) -> str:
     """一条 ProtocolEvent 编成一个 SSE 帧。
 

@@ -38,6 +38,7 @@ from app.agents.threading import event_bus
 from app.agents.threading.protocol import (
     encode_sse,
     is_root_lifecycle,
+    is_text_block_finish,
     matches_subscription,
     synthesize_tools_events,
 )
@@ -305,6 +306,11 @@ class ThreadSession:
                             raw_event, announced=announced, finished=finished
                         ),
                     ]:
+                        # text 块的 finish 只是把 delta 已发过的全文再发一遍，
+                        # 不转发；但它得先经过上面的 _accumulate_message_delta，
+                        # 否则中止落库拿不到完整正文。
+                        if is_text_block_finish(event):
+                            continue
                         await publish(event)
         except Exception as exc:
             logger.exception("thread run 失败 thread_id=%s run_id=%s", thread_id, run_id)
