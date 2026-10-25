@@ -31,6 +31,9 @@ from typing import Any
 
 from langchain_core._api import LangChainBetaWarning
 from langchain_core.messages import AIMessageChunk
+from langchain.agents.middleware.internal_call_transformer import (
+    InternalCallTransformer,
+)
 
 from app.agents.helper.abort_agent import register, signal_abort, unregister
 from app.agents.node.state import State
@@ -38,6 +41,7 @@ from app.agents.threading import event_bus
 from app.agents.threading.protocol import (
     encode_sse,
     fragment_tool_call_delta,
+    is_message_snapshot,
     is_root_lifecycle,
     is_text_block_finish,
     matches_subscription,
@@ -284,6 +288,12 @@ class ThreadSession:
                     state,
                     {"configurable": {"thread_id": thread_id}},
                     version="v3",
+                    # 摘要中间件发起的模型调用（生成摘要本身）带 `lc_internal_call`
+                    # 标记。langchain 在子图自己编译的流上注册了这个 transformer，
+                    # 但这里是父图的流，拿不到子图的 mux——要显式传，它会被克隆到
+                    # 每个子图 scope，把这些内部调用的 token 从事件日志里剔掉。
+                    # 不传的话，摘要模型逐 token 吐的正文会当成普通 AI 消息发给前端。
+                    transformers=(InternalCallTransformer,),
                 )
                 async for raw_event in run:
                     # 中止时落库要用 partial（见 _accumulate_message_delta）。
@@ -313,6 +323,10 @@ class ThreadSession:
                         # 不转发；但它得先经过上面的 _accumulate_message_delta，
                         # 否则中止落库拿不到完整正文。
                         if is_text_block_finish(event):
+                            continue
+                        # 整条消息快照（摘要中间件塞的 summary HumanMessage /
+                        # RemoveMessage）不是增量，转发只会把压缩后的摘要漏给前端。
+                        if is_message_snapshot(event):
                             continue
                         # tool_call_chunk 的增量是「累积的全量 args」，改成只发
                         # 新增片段（SDK 对 tool-call-delta 是拼接），避免 O(n²)。

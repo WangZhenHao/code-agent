@@ -6,7 +6,7 @@
 
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.schemas import (
@@ -47,9 +47,9 @@ async def chat_detail(
     return ChatDetailResponse.model_validate(chat)
 
 async def chat_message(
-    id: str, user_id: int, session: AsyncSession
+    id: str, user_id: int, session: AsyncSession, limit: int = 50
 ) -> MessageListResponse:
-    """取某个会话的消息列表，按时间正序。
+    """取某个会话的消息列表，按时间正序，最多 limit 条（取的是最新的）。
 
     id 是会话 id（= LangGraph thread_id）。先确认这个会话属于 user_id——
     不属于就当 404 而不是 403：不泄露「这个 id 存在但不归你」，
@@ -68,13 +68,24 @@ async def chat_message(
             detail="会话不存在",
         )
 
-    rows = await session.scalars(
-        select(Messages)
-        .where(Messages.session_id == id)
-        .order_by(Messages.created_at.asc())
+    # 倒序取 limit 条再翻正：要的是「最新的一段」，直接升序 + limit 会拿到最旧的。
+    # 同一毫秒内 created_at 可能相同（server_default 是事务时间），用 id 兜底保证
+    # 翻回之后的顺序稳定。
+    rows = list(
+        await session.scalars(
+            select(Messages)
+            .where(Messages.session_id == id)
+            .order_by(Messages.created_at.desc())
+            .limit(limit)
+        )
     )
+    rows.reverse()
     items = [MessageItem.model_validate(m) for m in rows]
-    return MessageListResponse(data=items, total=len(items))
+    # total 仍是会话里的消息总数，不受 limit 影响，前端靠它判断还有没有更早的。
+    total = await session.scalar(
+        select(func.count()).select_from(Messages).where(Messages.session_id == id)
+    )
+    return MessageListResponse(data=items, total=total or 0)
 
 async def create_chat(
     req: ChatCreateRequest, user_id: int, session: AsyncSession

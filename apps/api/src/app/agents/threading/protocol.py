@@ -265,6 +265,37 @@ def synthesize_tools_events(
     return synthesized
 
 
+def is_message_snapshot(event: dict[str, Any]) -> bool:
+    """messages 通道上的「整条消息快照」（不带 `event` 字段），不转发。
+
+    v3 的 astream_events 除了 message-start / content-block-* 增量，还会把
+    `messages` 状态里的每条消息各推一份完整快照出来——包括摘要中间件塞进去的
+    `HumanMessage("Here is a summary of the conversation to date: ...")` 和
+    `RemoveMessage(REMOVE_ALL_MESSAGES)`。它们不是增量，JS SDK 的 MessageAssembler
+    也不消费，转发出去只会把模型压缩后的摘要正文漏进前端。
+
+    判定依据是形状：增量事件一定带 `event` 字段；快照要么已经是 `model_dump()`
+    的 dict（字段是 content / type / id 这些），要么是还没被 `sanitize_for_json`
+    处理过的 `BaseMessage` 对象——两种都要拦，否则漏的就是后者：过滤时它不是
+    dict，发出去前才被 dump 成 dict。
+    """
+    if event.get("method") != "messages":
+        return False
+    params = event.get("params")
+    if not is_record(params):
+        return False
+    data = params.get("data")
+    # v3 下 messages 的 data 可能是 (payload, metadata) 元组，发布前还没 unwrap；
+    # 不同版本打包成 list 的也有（JSON 往返后 tuple 就是 list），两种都解。
+    if isinstance(data, (tuple, list)):
+        data = data[0] if data else None
+    if isinstance(data, BaseMessage):
+        return True
+    if not is_record(data):
+        return False
+    return "event" not in data
+
+
 def is_root_lifecycle(event: dict[str, Any], name: str) -> bool:
     """判断是否是根命名空间上的某类 lifecycle 事件（running/completed/...）。"""
     if event.get("method") != "lifecycle":

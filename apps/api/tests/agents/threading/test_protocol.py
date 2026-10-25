@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.agents.threading.protocol import fragment_tool_call_delta
+from app.agents.threading.protocol import fragment_tool_call_delta, is_message_snapshot
 
 _NAMESPACE = ["codeAgent:test"]
 
@@ -163,6 +163,75 @@ class FragmentToolCallDeltaTest(unittest.TestCase):
             "seq": 72,
         }
         self.assertIs(fragment_tool_call_delta(event, {}), event)
+
+
+class MessageSnapshotTest(unittest.TestCase):
+    """摘要中间件塞进 `messages` 状态的消息会以整条快照的形式被推出来，必须丢掉。"""
+
+    def test_summarization_human_message_dropped(self) -> None:
+        payload = {
+            "content": "Here is a summary of the conversation to date:\n\n## SESSION INTENT",
+            "additional_kwargs": {"lc_source": "summarization"},
+            "response_metadata": {},
+            "type": "human",
+            "name": None,
+            "id": "9d840443-f1a8-4edb-83e0-3f3da83fbd92",
+        }
+        self.assertTrue(is_message_snapshot(_messages_event(payload)))
+        self.assertTrue(is_message_snapshot(_messages_event(payload, as_tuple=True)))
+
+    def test_remove_message_dropped(self) -> None:
+        payload = {
+            "content": "",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "remove",
+            "name": None,
+            "id": "__remove_all__",
+        }
+        self.assertTrue(is_message_snapshot(_messages_event(payload)))
+
+    def test_list_payload_supported(self) -> None:
+        payload = {
+            "content": "Here is a summary of the conversation to date:",
+            "additional_kwargs": {"lc_source": "summarization"},
+            "response_metadata": {},
+            "type": "human",
+            "name": None,
+            "id": "1f155d42",
+        }
+        event = _messages_event([payload, {}])
+        self.assertTrue(is_message_snapshot(event))
+
+    def test_base_message_object_dropped(self) -> None:
+        """过滤发生在 sanitize 之前，data 还是 BaseMessage 对象而不是 dict。"""
+        from langchain_core.messages import HumanMessage, RemoveMessage
+
+        summary = HumanMessage(
+            content="Here is a summary of the conversation to date:",
+            additional_kwargs={"lc_source": "summarization"},
+        )
+        self.assertTrue(is_message_snapshot(_messages_event(summary)))
+        self.assertTrue(is_message_snapshot(_messages_event((summary, {}))))
+        self.assertTrue(is_message_snapshot(_messages_event(RemoveMessage(id="__remove_all__"))))
+
+    def test_delta_events_kept(self) -> None:
+        payload = {
+            "event": "content-block-delta",
+            "index": 0,
+            "delta": {"type": "text-delta", "text": "好的"},
+        }
+        self.assertFalse(is_message_snapshot(_messages_event(payload)))
+        self.assertFalse(is_message_snapshot(_messages_event(payload, as_tuple=True)))
+
+    def test_non_messages_untouched(self) -> None:
+        event = {
+            "type": "event",
+            "method": "tools",
+            "params": {"namespace": [], "data": {"event": "tool-started"}},
+            "seq": 72,
+        }
+        self.assertFalse(is_message_snapshot(event))
 
 
 if __name__ == "__main__":

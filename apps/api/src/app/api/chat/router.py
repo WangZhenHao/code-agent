@@ -5,7 +5,7 @@ POST /chat + GET /chat，是为了后面加 /chat/stop、/chat/resume 这类
 操作时路径形态保持一致。
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.schemas import (
@@ -50,11 +50,15 @@ async def chat_create(
 )
 async def message(
     id: str,
+    limit: int = Query(50, ge=1, le=200, description="返回最新多少条消息，上限 200"),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ):
-    """获取会话消息，按时间正序。"""
-    return await chat_message(id, user.id, session)
+    """获取会话消息，按时间正序；默认取最新 50 条。
+
+    先按时间倒序取 limit 条再翻回正序，所以截掉的是**更早**的消息。
+    """
+    return await chat_message(id, user.id, session, limit)
 
 
 @router.get(
