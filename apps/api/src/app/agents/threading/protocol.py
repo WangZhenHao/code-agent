@@ -22,8 +22,8 @@ from langgraph.types import Command, Send
 # v3 流里「原样透传」的方法名。不在此列且不带 `custom:` 前缀的，会被
 # normalize_event 包成 custom 事件（兼容 LangGraph JS 的 remote channel 写法）。
 PROTOCOL_METHODS = {
-    "values",
-    "checkpoints",
+    # "values",
+    # "checkpoints",
     "updates",
     "messages",
     "tools",
