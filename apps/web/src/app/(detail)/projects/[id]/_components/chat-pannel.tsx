@@ -11,6 +11,7 @@ import { useMessageChatMessageIdGet } from "@/api/generated/chat/chat";
 import { useChatMessage } from "./hook/use-chat-message";
 import { useScrollToBottom } from "./hook/use-scroll-to-bottom";
 import { AIMessage } from "./message";
+import LeftHeader from "./left-header";
 
 /**
  * 必须在 StreamProvider 内部：useStreamContext 从 context 读，
@@ -57,12 +58,14 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
   return (
     <div
       style={{ width: "440px" }}
-      className="border-r pl-3 pr-2 flex flex-col h-full"
+      className="border-r pl-3 pr-2 flex flex-col flex-1 min-h-0"
     >
+              
+      <LeftHeader />
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto space-y-3 py-4 scroll-bar"
+        className="flex-1 overflow-y-auto scroll-bar" 
       >
         <div ref={contentRef} className="pr-0,5 pl-1.5">
           {isEmpty && !isHistoryLoading ? (

@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import type { ComponentType, ReactNode } from "react";
 
+import { useParams } from "next/navigation";
+
 import { StreamProvider as StreamProviderBase } from "@langchain/react";
 
 import { createAgentTransport } from "@/lib/agent-stream/agent-stream";
@@ -21,7 +23,10 @@ const StreamProvider = StreamProviderBase as unknown as ComponentType<{
   children: ReactNode;
 }>;
 
-const Left = ({ sessionId }: { sessionId: string }) => {
+const Left = () => {
+  // 路由 /projects/[id] 的 id 就是后端的 session_id，也是 LangGraph 的 thread id
+  const { id: sessionId } = useParams<{ id: string }>();
+
   // 会话变了就重建 adapter，并靠 key 让 StreamProvider 整棵子树重挂，
   // 否则上一个会话的流状态会留在 context 里。
   const transport = useMemo(() => createAgentTransport(sessionId), [sessionId]);
@@ -35,7 +40,9 @@ const Left = ({ sessionId }: { sessionId: string }) => {
       transport={transport}
       optimistic={false}
     >
-      <ChatPanel sessionId={sessionId} />
+      <div className="flex h-full flex-col">
+        <ChatPanel sessionId={sessionId} />
+      </div>
     </StreamProvider>
   );
 };
