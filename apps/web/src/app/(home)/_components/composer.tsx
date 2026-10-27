@@ -6,6 +6,7 @@ import React from "react"
 import { ModelSelect } from "@/app/(home)/_components/model-select"
 import { ModeSelect } from "@/app/(home)/_components/mode-select"
 import { Button } from "@/components/ui/button"
+import { TypingAnimation } from "@/components/ui/typing-animation"
 import {
   InputGroup,
   InputGroupAddon,
@@ -14,8 +15,10 @@ import {
 } from "@/components/ui/input-group"
 import type { ChatCreateChatCreatePostMutationVariables } from "@/api/generated/chat/chat"
 import { useAgentChatStore } from "@/store/agent-chat"
+import { PROMPT_EXAMPLES } from "./section-row"
 
 export type TypeParmas = ChatCreateChatCreatePostMutationVariables["data"]
+
 export function Composer({
   loading = false,
   prompt,
@@ -29,6 +32,10 @@ export function Composer({
   onSubmit?: (prompt: TypeParmas) => void,
   className?: string
 }) {
+  // 输入框空着、且没在编辑时，才用打字动画顶替占位符
+  const [focused, setFocused] = React.useState(false)
+  const showTypingPlaceholder = prompt.length === 0 && !focused
+
   const submit = () => {
     if (prompt.trim().length === 0 || loading) return
     // 提交时才读，避免 mode/model 变化触发整个表单重渲染
@@ -62,10 +69,26 @@ export function Composer({
           rows={3}
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}
-          placeholder="帮我做一个旅行攻略网站，实现我输入旅行地点和旅游时间，生成旅行攻略和行李建议"
-          className="min-h-24 w-full px-4 py-4 leading-6"
+          // 失焦时藏起来，让下面的打字动画顶替；聚焦后作为静态提示显示
+          placeholder="请输入您想要的内容"
+          aria-label="请输入您想要的内容"
+          className="min-h-24 w-full px-4 py-4 leading-6 placeholder:text-transparent focus:placeholder:text-muted-foreground"
           onKeyDown={onKeyDownHandle}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
         />
+
+        {showTypingPlaceholder && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 px-4 py-4 text-base leading-6 text-muted-foreground select-none">
+            <TypingAnimation
+              startOnView={false}
+              duration={100}
+              loop
+              className="text-sm leading-6 tracking-normal"
+              words={PROMPT_EXAMPLES}
+            />
+          </div>
+        )}
 
         <InputGroupAddon
           align="block-end"

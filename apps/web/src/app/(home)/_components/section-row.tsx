@@ -1,6 +1,6 @@
 import { ExampleRow } from "./example-row"
 
-const PROMPT_EXAMPLES = [
+export const PROMPT_EXAMPLES = [
   "生成一个个人博客网站，支持文章分类和全文搜索",
   "做一个简洁记账工具，支持收支分类和月度图表",
   "搭一个 AI 聊天页面，支持会话保存和清空记录",
