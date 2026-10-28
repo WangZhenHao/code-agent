@@ -65,17 +65,6 @@ apps/api/
     └── models/            # LLM 客户端（注意：与 db/models 不是一回事）
 ```
 
-规划中（尚未实现）：
-
-```
-src/app/
-├── api/routes/        # chat(SSE) / sessions / sandbox
-├── graph/             # LangGraph：state / builder / nodes / checkpoint
-├── tools/             # Agent 可调用的能力：fs / shell / git
-├── sandbox/           # 沙箱抽象：base / docker / kubernetes
-└── events/            # 流式事件模型（与 packages/protocol 同源）
-```
-
 
 ## 数据库
 
