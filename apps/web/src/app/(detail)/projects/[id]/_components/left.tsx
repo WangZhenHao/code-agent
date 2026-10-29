@@ -9,7 +9,7 @@ import { StreamProvider as StreamProviderBase } from "@langchain/react";
 
 import { createAgentTransport } from "@/lib/agent-stream/agent-stream";
 
-import ChatPanel from "./chat-pannel";
+import ChatPanel from "./left/chat-pannel";
 
 /**
  * @langchain/react 1.2 的 StreamProvider 声明返回 ReactNode，而 @types/react

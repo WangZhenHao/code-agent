@@ -8,8 +8,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Composer, TypeParmas } from "@/app/(home)/_components/composer";
 import { useMessageChatMessageIdGet } from "@/api/generated/chat/chat";
 
-import { useChatMessage } from "./hook/use-chat-message";
-import { useScrollToBottom } from "./hook/use-scroll-to-bottom";
+import { useChatMessage } from "../hook/use-chat-message";
+import { useScrollToBottom } from "../hook/use-scroll-to-bottom";
 import { AIMessage } from "./message";
 import LeftHeader from "./left-header";
 
