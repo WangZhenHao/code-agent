@@ -25,16 +25,18 @@ export function Composer({
   onPromptChange,
   onSubmit,
   className = '',
+  isAutoswitchPrompt = false
 }: {
   loading?: boolean
   prompt: string
   onPromptChange: (prompt: string) => void
   onSubmit?: (prompt: TypeParmas) => void,
   className?: string
+  isAutoswitchPrompt?: boolean
 }) {
   // 输入框空着、且没在编辑时，才用打字动画顶替占位符
   const [focused, setFocused] = React.useState(false)
-  const showTypingPlaceholder = prompt.length === 0 && !focused
+  const showTypingPlaceholder = prompt.length === 0 && !focused && isAutoswitchPrompt
 
   const submit = () => {
     if (prompt.trim().length === 0 || loading) return
@@ -72,7 +74,7 @@ export function Composer({
           // 失焦时藏起来，让下面的打字动画顶替；聚焦后作为静态提示显示
           placeholder="请输入您想要的内容"
           aria-label="请输入您想要的内容"
-          className="min-h-24 w-full px-4 py-4 leading-6 placeholder:text-transparent focus:placeholder:text-muted-foreground"
+          className={`min-h-24 w-full px-4 py-4 leading-6 focus:placeholder:text-muted-foreground ${showTypingPlaceholder ? 'placeholder:text-transparent' : ''}`}
           onKeyDown={onKeyDownHandle}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}

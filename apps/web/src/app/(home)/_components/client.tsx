@@ -32,6 +32,7 @@ export function Client() {
             className="w-200 mt-7"
             prompt={prompt}
             onPromptChange={setPrompt}
+            isAutoswitchPrompt
           />
         </section>
 
