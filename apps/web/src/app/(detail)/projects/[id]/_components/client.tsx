@@ -1,6 +1,6 @@
 "use client"
 
-import './page.css'
+import './client.css'
 
 import { useParams } from "next/navigation"
 
