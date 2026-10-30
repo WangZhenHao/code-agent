@@ -7,8 +7,9 @@
  *   - `useWs().sendWs(method, params)` 发请求
  *   - `useWsEvent(method, handler)` 订阅后端推送，handler 里自己 setState
  *
- * 数据不放进 context value：推送频率由后端决定（心跳 25s 一条，业务推送可能更密），
- * 塞进 value 会让每次推送都重渲染所有消费者。context 只承载稳定的 `sendWs`。
+ * context value 里只有稳定的 `client`（useMemo 出来的，身份不变），
+ * 数据不往里放：推送频率由后端决定（心跳 25s 一条，业务推送可能更密），
+ * 塞进 value 会让每次推送都重渲染所有消费者。
  */
 
 import { createContext, useContext, useEffect, useMemo, useRef } from "react";
@@ -17,13 +18,7 @@ import type { ReactNode } from "react";
 import { createWsClient } from "@/lib/ws/client";
 import type { WsClient } from "@/lib/ws/client";
 
-interface WsContextValue {
-  sendWs: (method: string, params: Record<string, unknown>) => void;
-}
-
-const WsContext = createContext<WsContextValue | null>(null);
-/** 订阅用的 client 单独放一个 context：不对外暴露，避免组件直接操作连接 */
-const WsClientContext = createContext<WsClient | null>(null);
+const WsContext = createContext<WsClient | null>(null);
 
 export function WsProvider({
   devboxId,
@@ -39,22 +34,24 @@ export function WsProvider({
     return () => client.close();
   }, [client]);
 
-  const value = useMemo<WsContextValue>(
-    () => ({ sendWs: (method, params) => client.sendWs(method, params) }),
-    [client],
-  );
-
-  return (
-    <WsClientContext.Provider value={client}>
-      <WsContext.Provider value={value}>{children}</WsContext.Provider>
-    </WsClientContext.Provider>
-  );
+  return <WsContext.Provider value={client}>{children}</WsContext.Provider>;
 }
 
-export function useWs(): WsContextValue {
-  const ctx = useContext(WsContext);
-  if (!ctx) throw new Error("useWs 必须在 <WsProvider> 内使用");
-  return ctx;
+function useWsClient(): WsClient {
+  const client = useContext(WsContext);
+  if (!client) throw new Error("useWs 必须在 <WsProvider> 内使用");
+  return client;
+}
+
+export function useWs() {
+  const client = useWsClient();
+  return useMemo(
+    () => ({
+      sendWs: (method: string, params: Record<string, unknown>) =>
+        client.sendWs(method, params),
+    }),
+    [client],
+  );
 }
 
 /**
@@ -65,10 +62,8 @@ export function useWsEvent(
   method: string,
   handler: (params: Record<string, unknown>) => void,
 ) {
-  const client = useContext(WsClientContext);
+  const client = useWsClient();
   const handlerRef = useRef(handler);
-
-  if (!client) throw new Error("useWsEvent 必须在 <WsProvider> 内使用");
 
   // ref 的写必须在 effect 里：render 期间写 ref 会被 react-hooks/refs 判错。
   // 这个 effect 在下方订阅 effect 之前声明，每次 render 都先把最新 handler 落进 ref。
