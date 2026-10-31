@@ -62,7 +62,7 @@ apps/api/
     │   ├── base.py        # Base（含约束命名约定）+ TimestampMixin
     │   ├── session.py     # async engine / SessionLocal / get_session 依赖
     │   └── models/        # 表模型；__init__.py 必须 import 全部模型供 autogenerate 发现
-    └── models/            # LLM 客户端（注意：与 db/models 不是一回事）
+    └── llm/               # LLM 客户端（注意：与 db/models 不是一回事）
 ```
 
 

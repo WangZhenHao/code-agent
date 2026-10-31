@@ -13,7 +13,7 @@
 
 ## 命名陷阱
 
-`src/app/db/models/` 是数据库表模型；`src/app/models/` 是 **LLM 客户端**。两处不同物，改之前看清楚路径。
+`src/app/db/models/` 是数据库表模型；`src/app/llm/` 是 **LLM 客户端**。两处不同物，改之前看清楚路径。
 
 ## 必须遵守
 

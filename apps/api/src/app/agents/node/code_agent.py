@@ -10,7 +10,7 @@ from langchain_core.runnables import RunnableConfig
 from app.agents.tools import create_tools
 from app.agents.tools._common import WORKSPACE
 from app.api.sandbox.client.sandbox import get_sandbox_for_id
-from app.models.llm import get_model
+from app.llm import get_model
 from langchain.messages import HumanMessage, RemoveMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 

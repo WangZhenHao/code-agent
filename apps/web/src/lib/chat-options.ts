@@ -12,7 +12,7 @@ export const MODES: ModeOption[] = [
  * 可选模型列表。
  *
  * 名字是直接传给后端 `ChatCreateRequest.model` 的字符串，后端再交给统一网关
- * 按 OpenAI 协议路由（见 apps/api/src/app/models/llm.py）。所以这里不需要区分
+ * 按 OpenAI 协议路由（见 apps/api/src/app/llm/client.py）。所以这里不需要区分
  * 是哪家厂商——新增模型等于网关侧先支持，再在这里加一行。
  */
 export type ModelOption = {
