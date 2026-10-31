@@ -28,13 +28,15 @@ const Right = () => {
   });
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-background">
+    <div className="flex min-w-0 flex-1 flex-col pr-2 pb-2">
       <Header />
-      <PreviewOptions
-        url={previewUrl}
-        onRefresh={() => sendWs("preview.status", {})}
-      />
-      <Preview status={previewStatus} url={previewUrl} />
+      <div className="border rounded-xl flex flex-1 flex-col overflow-hidden">
+        <PreviewOptions
+          url={previewUrl}
+          onRefresh={() => sendWs("preview.status", {})}
+        />
+        <Preview status={previewStatus} url={previewUrl} />
+      </div>
     </div>
   );
 };

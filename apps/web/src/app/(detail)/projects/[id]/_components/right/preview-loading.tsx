@@ -37,7 +37,7 @@ const PreviewLoading = ({ ready }: { ready: boolean }) => {
       {/* 点阵背景 */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-size-[16px_16px mask-[radial-gradient(ellipse_at_center,black_35%,transparent_78%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-size-[16px_16px] mask-[radial-gradient(ellipse_at_center,black_35%,transparent_78%)]"
       />
       <div className="relative flex size-full items-center justify-center px-6">
         <Empty className="border-0">

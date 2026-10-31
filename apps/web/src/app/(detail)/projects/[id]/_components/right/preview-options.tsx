@@ -36,7 +36,7 @@ const PreviewOptions = ({
   onRefresh?: () => void;
 }) => {
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 px-2">
+    <div className="flex h-10 shrink-0 items-center gap-1 px-2 bg-white border-b">
       <Button variant="ghost" size="icon-sm" aria-label="后退">
         <ArrowLeft />
       </Button>

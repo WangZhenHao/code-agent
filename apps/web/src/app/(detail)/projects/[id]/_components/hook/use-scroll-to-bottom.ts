@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 // 距离底部多少像素以内算「贴着底部」。留点余量：流式内容在两次滚动之间会
 // 先长高几像素，判定太严会让自动跟随提前断掉。
-const STICK_THRESHOLD = 32;
+const STICK_THRESHOLD = 100;
 
 /**
  * 聊天列表的滚动控制。
@@ -47,6 +47,7 @@ export const useScrollToBottom = () => {
     if (!content || !el) return;
 
     const observer = new ResizeObserver(() => {
+      console.log("resize",stickToBottomRef.current);
       if (!stickToBottomRef.current) return;
       el.scrollTop = el.scrollHeight;
     });

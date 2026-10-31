@@ -58,7 +58,7 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
   return (
     <div
       style={{ width: "440px" }}
-      className="border-r pl-3 pr-2 flex flex-col flex-1 min-h-0"
+      className="pl-3 pr-2 flex flex-col flex-1 min-h-0"
     >
               
       <LeftHeader />
@@ -67,7 +67,7 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto scroll-bar" 
       >
-        <div ref={contentRef} className="pr-0,5 pl-1.5">
+        <div ref={contentRef} className="pr-0,5 pl-1.5 pb-4">
           {isEmpty && !isHistoryLoading ? (
             <div className="text-sm text-muted-foreground">
               发一条消息开始对话

@@ -41,6 +41,7 @@ const Client = () => {
             prompt={prompt}
             onPromptChange={setPrompt}
             onSubmit={handleSumbit}
+            isAutoswitchPrompt
           />
 
           {error && (

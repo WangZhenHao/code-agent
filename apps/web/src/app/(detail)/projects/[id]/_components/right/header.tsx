@@ -27,7 +27,7 @@ const Header = () => {
   const [tab, setTab] = useState("preview");
 
   return (
-    <div className="flex h-11 shrink-0 items-center justify-between gap-2 px-2">
+    <div className="flex h-11 shrink-0 items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-1">
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList variant="line">
