@@ -71,7 +71,7 @@ from app.api.ws.core.auth import (
     origin_allowed,
 )
 from app.api.ws.core.connection import Connection, ConnectionContext
-from app.api.ws.service import resolve_devbox
+from app.api.sandbox.preview import resolve_devbox
 
 logger = logging.getLogger(__name__)
 

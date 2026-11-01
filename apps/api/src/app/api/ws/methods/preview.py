@@ -48,10 +48,10 @@ class PreviewStatusResult(BaseModel):
 async def preview_status(
     ctx: ConnectionContext, params: PreviewStatusParams
 ) -> PreviewStatusResult:
-    # 延迟 import：service 会 import auth，auth 会 import security/db；
+    # 延迟 import：sandbox.preview 会拉进沙箱 SDK / DB / hub 一整串；
     # 放在模块顶层也能跑，但延迟到调用点能保证「注册表只依赖 registry」这条链
     # 不被 DB 依赖污染——测试 dispatcher 时不用碰数据库驱动。
-    from app.api.ws.service import preview_params, resolve_devbox
+    from app.api.sandbox.preview import preview_params, resolve_devbox
 
     # 重查一次库（而不是用握手时的结果）：连接期间会话可能被删，快照要"现在"的真值。
     row = await resolve_devbox(ctx.devbox_id, ctx.user.id)

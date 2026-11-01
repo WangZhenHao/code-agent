@@ -167,6 +167,7 @@ class StartAgentRunTestCase(unittest.IsolatedAsyncioTestCase):
         FakeThreadSession.instances.clear()
         self._stack = patched(
             start_sandbox=mock.AsyncMock(return_value=self.sandbox),
+            start_preview=mock.Mock(),
             ThreadSession=FakeThreadSession,
         )
         self.addCleanup(stop_all, self._stack)
@@ -178,12 +179,18 @@ class StartAgentRunTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_starts_sandbox_and_preview_before_run(self):
         await service.start_agent_run(_state())
         service.start_sandbox.assert_awaited_once_with("s1")
-        # 预览服务每次 run 都重跑：命令幂等，沙箱被回收重建后预览仍然可用。
-        self.assertEqual(self.sandbox.commands_run, [service._PREVIEW_COMMAND])
+        # 预览在后台起（不 await、不阻塞本轮），交给 sandbox/preview.py 探测就绪。
+        service.start_preview.assert_called_once_with("s1", self.sandbox)
 
         run = FakeThreadSession.instances[-1]
         self.assertEqual(run.thread_id, "s1")
         self.assertEqual(run.started[0]["session"]["id"], "s1")
+
+    async def test_preview_not_started_when_sandbox_fails(self):
+        service.start_sandbox = mock.AsyncMock(side_effect=RuntimeError("no sandbox"))
+        with self.assertRaises(RuntimeError):
+            await service.start_agent_run(_state())
+        service.start_preview.assert_not_called()
 
     async def test_sandbox_failure_prevents_run(self):
         # 沙箱起不来时不能登记 run：那会跑出一轮"工具全失败"的对话并落库。

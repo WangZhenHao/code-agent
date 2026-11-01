@@ -19,8 +19,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from app.api.sandbox import preview as sandbox_preview_module
 from app.api.ws import router as ws_router_module
-from app.api.ws import service as ws_service_module
 from app.api.ws.core import hub
 from app.api.ws.core.auth import WsAuthError
 from app.api.ws.router import router as ws_router
@@ -56,7 +56,7 @@ class _Patched:
             module_name, attr = key.rsplit(".", 1)
             module = {
                 "router": ws_router_module,
-                "service": ws_service_module,
+                "preview": sandbox_preview_module,
             }[module_name]
             p = mock.patch.object(module, attr, value)
             p.start()
@@ -72,8 +72,8 @@ class AuthenticatedRoundTripTestCase(unittest.TestCase):
             {
                 "router.authenticate_ws": mock.AsyncMock(return_value=FAKE_USER),
                 "router.resolve_devbox": mock.AsyncMock(return_value=object()),
-                "service.resolve_devbox": mock.AsyncMock(return_value=object()),
-                "service.preview_params": mock.Mock(return_value=dict(SNAPSHOT)),
+                "preview.resolve_devbox": mock.AsyncMock(return_value=object()),
+                "preview.preview_params": mock.Mock(return_value=dict(SNAPSHOT)),
             },
         )
         self.addCleanup(hub._subscribers.clear)
@@ -98,7 +98,7 @@ class AuthenticatedRoundTripTestCase(unittest.TestCase):
             ws.receive_json()
 
         self.assertEqual(
-            ws_service_module.resolve_devbox.await_args.args, ("s1", FAKE_USER.id)
+            ws_router_module.resolve_devbox.await_args.args, ("s1", FAKE_USER.id)
         )
 
     def test_unknown_method(self):
@@ -170,7 +170,7 @@ class AuthFailureTestCase(unittest.TestCase):
             {
                 "router.authenticate_ws": mock.AsyncMock(return_value=FAKE_USER),
                 "router.resolve_devbox": mock.AsyncMock(return_value=object()),
-                "service.resolve_devbox": mock.AsyncMock(
+                "preview.resolve_devbox": mock.AsyncMock(
                     side_effect=WsAuthError(4404, "devbox 不存在")
                 ),
             },

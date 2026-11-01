@@ -231,7 +231,7 @@ hub.publish_devbox_event(
 
 ```python
 from app.api.ws.core import hub as ws_hub
-from app.api.ws.service import preview_params
+from app.api.sandbox.preview import preview_params
 
 try:
     ws_hub.publish_devbox_event(

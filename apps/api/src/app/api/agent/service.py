@@ -23,6 +23,7 @@ from app.agents.node.state import State
 from app.agents.threading.thread_session import ThreadSession
 from app.api.agent.schemas import SubscribeParams
 from app.api.chat.schemas import ChatCreateRequest
+from app.api.sandbox.preview import start_preview
 from app.api.sandbox.service import start_sandbox
 from app.db.models.session import Messages, MessageStatus, Role
 
@@ -34,10 +35,6 @@ from app.db.models.session import Session as SessionModel
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
-
-# 沙箱里常驻的 Next.js 开发服务器。每次起 run 都跑一遍：命令是幂等的
-# （nohup 重启），保证沙箱被回收重建后预览仍然可用。
-_PREVIEW_COMMAND = "sh -c 'cd /workspace && nohup npm run dev > /tmp/next.log 2>&1 &'"
 
 
 async def _require_owned_session(session: AsyncSession, session_id: str, user_id: int) -> None:
@@ -97,7 +94,8 @@ async def start_agent_run(state: State) -> str:
     # start_sandbox 幂等（已有则复用），且直接返回句柄——别再调
     # create_sandbox_for_id，那个不去重，每调一次建一个。
     sandbox = await start_sandbox(session_id)
-    sandbox.commands.run(_PREVIEW_COMMAND)
+    # 预览在后台确保可用（探测 3000 端口，就绪后写库并推给前端），不等它。
+    start_preview(session_id, sandbox)
 
     return await ThreadSession(session_id).start_run(state)
 

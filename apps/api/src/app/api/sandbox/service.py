@@ -17,7 +17,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import HTTPException, status
 from k8s_agent_sandbox import SandboxError
@@ -30,7 +30,6 @@ from app.api.sandbox.client import (
     delete_sandbox as delete_sandbox_handle,
     get_sandbox_for_id,
     resume_sandbox,
-    sandbox_url,
     suspend_sandbox,
 )
 from app.db.models.session import PreviewStatus, Session, SessionStatus
@@ -96,7 +95,7 @@ async def _find_existing(id: str):
         return None
 
 
-async def _persist_preview(
+async def persist_preview(
     id: str,
     preview_status: PreviewStatus,
     preview_url: str | None,
@@ -107,9 +106,8 @@ async def _persist_preview(
     用 UPDATE 而非先 SELECT 再改，省一次往返。preview_time 传 None 即清空
     （停止沙箱时），传具体时刻即记录本次启动时间。
 
-    preview_time 语义 = "最近一次 start 调用的时刻"：会话已在跑时 start 会复用
-    沙箱，但同样刷新该值（与 preview_status 一并刷成 running）。若将来想要
-    "沙箱真正启动的时刻、复用时不改"，得改成只在新建分支写。
+    状态机由 `api/sandbox/preview.py` 驱动：start 只负责让沙箱可用，
+    building → running/failed 的转换在那边完成。
     """
     async with SessionLocal() as session:
         await session.execute(
@@ -125,11 +123,10 @@ async def _persist_preview(
 
 
 async def start_sandbox(id: str) -> Sandbox:
-    """启动（或复用）会话沙箱，返回其句柄，并把预览状态与地址写回 sessions 表。
+    """启动（或复用）会话沙箱，返回其句柄。幂等：已经启动过就直接复用，不重复建。
 
-    幂等：已经启动过就直接复用，不重复建；无论复用还是新建，都会把 DB 里的预览
-    状态刷成 running、地址刷成当前句柄算出来的 URL（句柄重建后 URL 可能变）。
-    调用方拿到返回值即可直接 commands.run(...)，无需再查。
+    只保证沙箱可用，不碰预览状态——dev server 起没起来由
+    `api/sandbox/preview.py` 探测后写库（building → running/failed）。
     """
     # await _require_session(id)
 
@@ -158,9 +155,6 @@ async def start_sandbox(id: str) -> Sandbox:
             # 最长阻塞 ready_timeout 秒，直接 await 会把整个事件循环卡住。
             await asyncio.to_thread(resume_sandbox, sandbox)
 
-    # preview_url 由 sandbox_id 拼出（见 client/sandbox.py 的 sandbox_url）。
-    url = sandbox_url(sandbox)
-    await _persist_preview(id, PreviewStatus.running, url, datetime.now(timezone.utc))
     return sandbox
 
 
@@ -186,7 +180,7 @@ async def stop_sandbox(id: str) -> None:
             # operatingMode。它全程是同步阻塞的 K8s 调用，所以丢进线程里。
             await asyncio.to_thread(suspend_sandbox, sandbox)
 
-    await _persist_preview(id, PreviewStatus.idle, None, None)
+    await persist_preview(id, PreviewStatus.idle, None, None)
 
 
 async def delete_sandbox(id: str) -> None:
@@ -217,4 +211,4 @@ async def delete_sandbox(id: str) -> None:
             # 固定在客户端侧（默认 default），这里只管把句柄交出去。
             await asyncio.to_thread(delete_sandbox_handle, sandbox)
 
-    await _persist_preview(id, PreviewStatus.idle, None, None)
+    await persist_preview(id, PreviewStatus.idle, None, None)
