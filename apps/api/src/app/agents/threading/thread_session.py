@@ -27,6 +27,7 @@ import logging
 import uuid
 import warnings
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from typing import Any
 
 from langchain_core._api import LangChainBetaWarning
@@ -60,10 +61,25 @@ _HEARTBEAT_SECONDS = 15
 # docstring。
 _runs: dict[str, asyncio.Task[None]] = {}
 
-# thread_id -> 本进程的取消频道订阅 task。run 结束后不主动取消：订阅很轻
-# （一个 Redis 连接、空闲时无流量），留着让「abort 先到、run 后到」的窗口
-# 仍然有效；进程退出时随连接池一起释放。
+# Pub/Sub 读取的轮询粒度（秒）。`get_message(timeout=...)` 是真实的有界读，
+# 不是「先 sleep 再轮询」——没消息就空转一次，有消息立即返回。
+_POLL_SECONDS = 5
+
+# 空闲多久发一次探测 PING（秒），以及等 PONG 的宽限。半开连接上读不会报错，
+# 只能靠「发了 PING 却没回来」来判定；两段相加约 30 秒能感知到，客户端那边
+# 表现为「SSE 断开→自动重连→带 since 从 Redis Stream 补齐」，不会静默卡死。
+_PROBE_SECONDS = 20
+_PROBE_TIMEOUT = 10
+
+# thread_id -> 本进程的取消频道订阅 task。生命周期跟着 run：run 结束时取消，
+# 不再给每个访问过的线程常驻一条 Redis 连接。「abort 先到、run 后到」那个
+# 窗口由 event_bus 的 abort 标记兜底（_run 开头的 consume_abort_request），
+# 不依赖订阅常驻。
 _control_tasks: dict[str, asyncio.Task[None]] = {}
+
+# 正在释放的 Pub/Sub 连接。清理跑在独立 task 里（见 _release_and_shield），
+# 这里持强引用，否则任务可能在跑完前被 GC，连接永远不回池。
+_cleanup_tasks: set[asyncio.Task[None]] = set()
 
 
 def _ensure_control_subscription(thread_id: str) -> asyncio.Task[None]:
@@ -76,27 +92,130 @@ def _ensure_control_subscription(thread_id: str) -> asyncio.Task[None]:
 
 
 async def _control_listener(thread_id: str) -> None:
-    """常驻订阅 work 频道，收到 abort 就按本进程内的 run 中止信号。
+    """订阅 work 频道，收到 abort 就按本进程内的 run 中止信号。
 
     abort 由任意副本发出（`/threads/{id}/abort` 或新 run 顶掉旧 run），
     持 run 的副本收到后才真正生效。
+
+    生命周期跟着 run：run 结束由 `_on_run_done` 取消，不常驻。
     """
     redis = get_redis()
     pubsub = redis.pubsub()
     await pubsub.subscribe(event_bus.control_channel(thread_id))
     try:
-        async for message in pubsub.listen():
-            if message.get("type") != "message":
-                continue
+        async for message in _poll_pubsub(
+            pubsub, event_bus.control_channel(thread_id)
+        ):
             try:
                 payload = json.loads(message["data"])
             except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
                 continue
             if isinstance(payload, dict) and payload.get("event") == "abort":
                 signal_abort(thread_id)
+                return
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        # 控制频道断了不影响正确性：abort 标记在 Redis 里，下一个 run 开头
+        # 会 consume_abort_request 兜住。只记日志，不重试。
+        logger.exception("取消频道订阅断开 thread_id=%s", thread_id)
     finally:
-        await pubsub.unsubscribe(event_bus.control_channel(thread_id))
-        await pubsub.aclose()
+        await _release_and_shield(pubsub)
+
+
+async def _poll_pubsub(pubsub: Any, channel: str) -> AsyncIterator[dict[str, Any]]:
+    """按 `_POLL_SECONDS` 轮询 Pub/Sub，并给空闲连接做活性探测。
+
+    不用 `pubsub.listen()`：它内部把读超时传成 `math.inf`，半开连接上会
+    永久阻塞、既不返回也不报错。这里 `get_message(timeout=...)` 是真实有界读，
+    空转时由我们自己发 PING 判定连接是否还活着——PONG 没在 `_PROBE_TIMEOUT`
+    内回来就抛 `ConnectionError`，让上层结束这条流（客户端重连时带 since，
+    从 Redis Stream 把漏掉的事件补齐，不会静默卡住）。
+    """
+    last_alive = asyncio.get_running_loop().time()
+    probe_token: str | None = None
+    probe_sent_at = 0.0
+
+    while True:
+        message = await pubsub.get_message(
+            ignore_subscribe_messages=True, timeout=_POLL_SECONDS
+        )
+        now = asyncio.get_running_loop().time()
+
+        if message is not None:
+            last_alive = now
+            probe_token = None
+            if message.get("type") == "pong":
+                continue
+            yield message
+            continue
+
+        if probe_token is not None:
+            # 探测已发出却没等到 PONG：连接已死（半开/对端消失）。
+            if now - probe_sent_at >= _PROBE_TIMEOUT:
+                raise ConnectionError(f"pubsub 探测超时 channel={channel}")
+            continue
+
+        if now - last_alive >= _PROBE_SECONDS:
+            # 用带 token 的 PING 而不是 bare PING：只有自己这次发出的探测被回
+            # 才算数，避免把健康检查自带的 PONG 误当成本次探测的回应。
+            probe_token = uuid.uuid4().hex
+            probe_sent_at = now
+            await pubsub.ping(probe_token)
+
+
+def _cancel_control_subscription(thread_id: str) -> None:
+    """取消该线程的取消频道订阅（若在本进程且仍登记着）。
+
+    取消后 task 的 finally 会走 `_release_pubsub` 把连接还回池。调用方不
+    await：done_callback 里不能 await，连接释放不需要串行等待。
+    """
+    task = _control_tasks.pop(thread_id, None)
+    if task is not None and not task.done():
+        task.cancel()
+
+
+async def _release_and_shield(
+    pubsub: Any, *, reader: asyncio.Task[Any] | None = None
+) -> None:
+    """在独立 task 里释放连接并等它跑完；调用方处于取消态也不会半途而废。
+
+    独立 task 是必须的：直接 await `_release_pubsub` 的话，调用方被取消时
+    第一个挂起点就抛 CancelledError，后面的 aclose 执行不到，连接泄漏。
+    shield 让取消不传染进清理 task；对外层的 CancelledError 用 suppress 吞掉，
+    继续向上抛由调用方自己决定。
+    """
+    task = asyncio.create_task(_release_pubsub(pubsub, reader=reader))
+    _cleanup_tasks.add(task)
+    task.add_done_callback(_cleanup_tasks.discard)
+    with suppress(asyncio.CancelledError):
+        await asyncio.shield(task)
+
+
+async def _release_pubsub(pubsub: Any, *, reader: asyncio.Task[Any] | None = None) -> None:
+    """退订并归还连接。**幂等且不抛**：尽力而为，每一步失败都只记日志。
+
+    由 `_release_and_shield` 在独立 task 里调用，这里只管动作本身。
+
+    reader 先 cancel 再 join：它可能正阻塞在同一个连接上读，不 join 就走
+    aclose 会与它的读并发，连接池会报错。join 用 suppress 包住，吞掉取消
+    期间可能冒出的 CancelledError。
+    """
+    if reader is not None:
+        reader.cancel()
+        with suppress(BaseException):
+            await reader
+    channel = next(iter(pubsub.channels), None)
+    try:
+        if channel is not None:
+            await pubsub.unsubscribe(channel)
+    except Exception:
+        logger.warning("Pub/Sub 退订失败，直接关闭连接", exc_info=True)
+    finally:
+        try:
+            await pubsub.aclose()
+        except Exception:
+            logger.warning("Pub/Sub 连接关闭失败", exc_info=True)
 
 
 def _payload_of(raw: Any) -> dict[str, Any] | None:
@@ -202,6 +321,9 @@ class ThreadSession:
         """
         if _runs.get(self._thread_id) is task:
             del _runs[self._thread_id]
+            # 只在这个分支里取消：同线程新 run 已经顶上来时（`_runs[id]` 换成
+            # 新的 task），订阅必须留给新的那个继续用。
+            _cancel_control_subscription(self._thread_id)
         # 异常已经被 _run 内部兜成 lifecycle/failed，这里只需把没被 await 的
         # task 异常取出来，避免 "Task exception was never retrieved" 噪音。
         if not task.cancelled() and task.exception() is not None:
@@ -377,12 +499,13 @@ class ThreadSession:
         # 事件会两头都看不到，表现为流里缺一段。
         await pubsub.subscribe(event_bus.event_channel(thread_id))
 
-        # 后台读 Pub/Sub 的单写单读队列。为什么不用 get_message(timeout=)：
-        # redis-py 的 get_message 要求 listen() 已经起了读循环，且它自己的
-        # timeout 只对内部缓冲有效——空闲时等不到消息就轮询，语义和我们要的
-        # 「阻塞到有消息或超时」不一样。一个常驻 reader task 最直白。
+        # 后台读 Pub/Sub 的单写单读队列：reader 一直读，stream() 这边用
+        # `wait_for` 带超时地等队列（心跳就挂在这个超时上）。读取本身走
+        # `_poll_pubsub` 的有界轮询 + 活性探测，见那边的说明。
         queue: asyncio.Queue[bytes | None] = asyncio.Queue()
-        reader = asyncio.create_task(_pump(pubsub, queue))
+        reader = asyncio.create_task(
+            _pump(pubsub, event_bus.event_channel(thread_id), queue)
+        )
 
         since = params.get("since")
         last_seq: int = since if isinstance(since, int) else -1
@@ -448,9 +571,9 @@ class ThreadSession:
                     last_seq = live_seq
                 yield encode_sse(live)
         finally:
-            reader.cancel()
-            await pubsub.unsubscribe(event_bus.event_channel(thread_id))
-            await pubsub.aclose()
+            # 客户端断连时这个 generator 是被 cancel 的，所以释放必须走
+            # 独立 task + shield，否则 aclose 永远执行不到，连接从池里泄漏。
+            await _release_and_shield(pubsub, reader=reader)
 
     # ── 取消 ───────────────────────────────────────────────────────────────
 
@@ -462,17 +585,27 @@ class ThreadSession:
         return local or await event_bus.has_run(thread_id)
 
 
-async def _pump(pubsub: Any, queue: asyncio.Queue[bytes | None]) -> None:
-    """把 Pub/Sub 的 `listen()` 迭代器推进单写单读队列。
+async def _pump(
+    pubsub: Any, channel: str, queue: asyncio.Queue[bytes | None]
+) -> None:
+    """把 Pub/Sub 消息推进单写单读队列。
 
     单独成函数而不是在 `stream()` 里用 `wait_for(iterator.__anext__())`：
     超时取消 `__anext__` 会丢掉迭代器内部状态，下一轮再取会漏消息或报错。
     常驻 task 负责「一直读」，队列负责「带超时地等」，两件事分开才对。
+
+    连接死掉（`_poll_pubsub` 探测失败）时**不重连**：置 None 让 `stream()`
+    结束，客户端带 since 重连时会从 Redis Stream 回放断线期间的事件。就地
+    重连的话 on_connect 会自动重订阅，但中间丢的那段没有 seq 可对齐，不如
+    让连接方按协议重来。
     """
     try:
-        async for message in pubsub.listen():
-            if message.get("type") == "message":
-                queue.put_nowait(message["data"])
+        async for message in _poll_pubsub(pubsub, channel):
+            queue.put_nowait(message["data"])
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("Pub/Sub 订阅断开")
     finally:
         # 结束信号：让 stream() 的 while 能退出，而不是永远等心跳。
         queue.put_nowait(None)
