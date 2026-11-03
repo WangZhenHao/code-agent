@@ -89,18 +89,52 @@ class MessageBufferTestCase(unittest.TestCase):
 
     def test_tool_call_chunks_are_joined_into_callable_tool_calls(self):
         partial: dict = {}
-        accumulate(partial, AIMessageChunk(content="", id="m1", tool_call_chunks=[
-            {"name": "bash", "args": '{"cmd"', "id": "call_1", "index": 0, "type": "tool_call_chunk"},
-        ]))
-        accumulate(partial, AIMessageChunk(content="", id="m1", tool_call_chunks=[
-            {"name": None, "args": ': "ls"}', "id": None, "index": 0, "type": "tool_call_chunk"},
-        ]))
+        accumulate(
+            partial,
+            AIMessageChunk(
+                content="",
+                id="m1",
+                tool_call_chunks=[
+                    {
+                        "name": "bash",
+                        "args": '{"cmd"',
+                        "id": "call_1",
+                        "index": 0,
+                        "type": "tool_call_chunk",
+                    },
+                ],
+            ),
+        )
+        accumulate(
+            partial,
+            AIMessageChunk(
+                content="",
+                id="m1",
+                tool_call_chunks=[
+                    {
+                        "name": None,
+                        "args": ': "ls"}',
+                        "id": None,
+                        "index": 0,
+                        "type": "tool_call_chunk",
+                    },
+                ],
+            ),
+        )
 
         # args 拼成完整 JSON 后，tool_calls 就是可直接用的对象（这正是中止时
         # 要落库的内容）。
-        self.assertEqual(partial["m1"].tool_calls, [
-            {"name": "bash", "args": {"cmd": "ls"}, "id": "call_1", "type": "tool_call"},
-        ])
+        self.assertEqual(
+            partial["m1"].tool_calls,
+            [
+                {
+                    "name": "bash",
+                    "args": {"cmd": "ls"},
+                    "id": "call_1",
+                    "type": "tool_call",
+                },
+            ],
+        )
 
     def test_idless_chunk_is_dropped(self):
         partial: dict = {}
@@ -109,13 +143,17 @@ class MessageBufferTestCase(unittest.TestCase):
 
     def test_tool_message_keyed_by_tool_call_id(self):
         partial: dict = {}
-        accumulate(partial, ToolMessage(content="ok", tool_call_id="call_1", name="bash"))
+        accumulate(
+            partial, ToolMessage(content="ok", tool_call_id="call_1", name="bash")
+        )
         self.assertEqual(list(partial), ["call_1"])
 
     def test_finalize_yields_roundtrippable_aimessage(self):
         partial: dict = {}
         accumulate(partial, AIMessageChunk(content="hi", id="m1"))
-        accumulate(partial, ToolMessage(content="ok", tool_call_id="call_1", name="bash"))
+        accumulate(
+            partial, ToolMessage(content="ok", tool_call_id="call_1", name="bash")
+        )
 
         out = finalize_partial(partial)
 
@@ -129,18 +167,32 @@ class MessageBufferTestCase(unittest.TestCase):
         # 此时 tool_calls **仍是有一条**，但 args 解析失败退化成 {}——实测如此，
         # 不是空列表。文本部分照常保留。
         partial: dict = {}
-        accumulate(partial, AIMessageChunk(
-            content="让我看看",
-            id="m1",
-            tool_call_chunks=[{"name": "bash", "args": '{"cmd"', "id": "call_1", "index": 0, "type": "tool_call_chunk"}],
-        ))
+        accumulate(
+            partial,
+            AIMessageChunk(
+                content="让我看看",
+                id="m1",
+                tool_call_chunks=[
+                    {
+                        "name": "bash",
+                        "args": '{"cmd"',
+                        "id": "call_1",
+                        "index": 0,
+                        "type": "tool_call_chunk",
+                    }
+                ],
+            ),
+        )
 
         out = finalize_partial(partial)
 
         self.assertEqual(out[0].content, "让我看看")
-        self.assertEqual(out[0].tool_calls, [
-            {"name": "bash", "args": {}, "id": "call_1", "type": "tool_call"},
-        ])
+        self.assertEqual(
+            out[0].tool_calls,
+            [
+                {"name": "bash", "args": {}, "id": "call_1", "type": "tool_call"},
+            ],
+        )
         # 残缺但可往返：不补全、不丢弃。
         self.assertEqual(messages_from_dict([message_to_dict(out[0])])[0], out[0])
 
@@ -229,7 +281,8 @@ class RunAgentRaceTestCase(unittest.IsolatedAsyncioTestCase):
         # 必须照常跑完，不能因为「找不到 run」就失败。
         agent = _FastAgent()
         result, aborted = await asyncio.wait_for(
-            run_agent_with_abort(agent, {"messages": []}, self._config("unregistered")), timeout=5
+            run_agent_with_abort(agent, {"messages": []}, self._config("unregistered")),
+            timeout=5,
         )
 
         self.assertFalse(aborted)
@@ -253,7 +306,9 @@ class RunAgentRaceTestCase(unittest.IsolatedAsyncioTestCase):
 
         # 给被取消的内层一点时间完成收尾
         await asyncio.sleep(0)
-        self.assertTrue(agent.cancelled, "内层 agent 必须被取消，不能留下悬空的模型调用")
+        self.assertTrue(
+            agent.cancelled, "内层 agent 必须被取消，不能留下悬空的模型调用"
+        )
 
 
 class AbortUpdateTestCase(unittest.TestCase):
@@ -283,7 +338,12 @@ class AbortUpdateTestCase(unittest.TestCase):
         run_registry._runs.clear()
 
     def _state(self, session_id="s1"):
-        return {"session": {"id": session_id, "user_id": 1}, "model": "m", "mode": "agent", "input": []}
+        return {
+            "session": {"id": session_id, "user_id": 1},
+            "model": "m",
+            "mode": "agent",
+            "input": [],
+        }
 
     def test_committed_wins_over_partial_for_same_id(self):
         run = run_registry.register("s1")
@@ -294,7 +354,9 @@ class AbortUpdateTestCase(unittest.TestCase):
         out = abort_update(self._state(), self._FakeSummarization())
 
         self.assertTrue(out["aborted"])
-        self.assertEqual([m.id for m in out["currentRoundMessages"] if m.id], ["done-1", "half-1"])
+        self.assertEqual(
+            [m.id for m in out["currentRoundMessages"] if m.id], ["done-1", "half-1"]
+        )
         self.assertEqual(out["currentRoundMessages"][0].content, "已提交的一步")
 
     def test_partial_chunks_are_merged_before_appending(self):
@@ -322,7 +384,9 @@ class AbortUpdateTestCase(unittest.TestCase):
         out = abort_update(self._state("nobody"), self._FakeSummarization())
 
         self.assertTrue(out["aborted"])
-        self.assertEqual([m.id for m in out["currentRoundMessages"] if m.id], ["done-1"])
+        self.assertEqual(
+            [m.id for m in out["currentRoundMessages"] if m.id], ["done-1"]
+        )
 
 
 if __name__ == "__main__":

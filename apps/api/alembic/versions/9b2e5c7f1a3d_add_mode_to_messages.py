@@ -12,6 +12,7 @@ Revises: c3f1a9d4e7b2
 Create Date: 2026-10-05 00:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -19,17 +20,17 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '9b2e5c7f1a3d'
-down_revision: Union[str, Sequence[str], None] = 'c3f1a9d4e7b2'
+revision: str = "9b2e5c7f1a3d"
+down_revision: Union[str, Sequence[str], None] = "c3f1a9d4e7b2"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('messages', sa.Column('mode', sa.String(length=16), nullable=False))
+    op.add_column("messages", sa.Column("mode", sa.String(length=16), nullable=False))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_column('messages', 'mode')
+    op.drop_column("messages", "mode")

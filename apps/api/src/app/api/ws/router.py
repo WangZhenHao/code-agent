@@ -53,9 +53,12 @@ ws 路由**不进 OpenAPI**（`/openapi.json` 里看不到），所以协议写�
 
 from __future__ import annotations
 
+import contextlib
 import logging
 
 from fastapi import APIRouter, WebSocket
+
+from app.api.sandbox.preview import resolve_devbox
 
 # 这一行同时完成方法注册：import methods → import 各方法模块 → 跑 @rpc_method。
 # 放在 router.py 而不是 methods/__init__.py 里由别人 import，是为了让注册
@@ -71,7 +74,6 @@ from app.api.ws.core.auth import (
     origin_allowed,
 )
 from app.api.ws.core.connection import Connection, ConnectionContext
-from app.api.sandbox.preview import resolve_devbox
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +119,6 @@ async def devbox_ws(websocket: WebSocket, devbox_id: str) -> None:
 
     # serve 正常返回代表读循环结束了（客户端断开或协议错误）。退出前补一次
     # close：客户端断开时这是空操作，1009 那个分支已经关过了，也不重复。
-    try:
+    # 已经关过了的话 Starlette 会抛 RuntimeError，正常忽略
+    with contextlib.suppress(RuntimeError):
         await websocket.close()
-    except RuntimeError:
-        # 已经关过了（Starlette 在重复 close 时抛 RuntimeError）
-        pass

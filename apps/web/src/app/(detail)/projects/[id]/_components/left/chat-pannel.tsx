@@ -1,26 +1,26 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from "react"
 
-import { useStreamContext } from "@langchain/react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useStreamContext } from "@langchain/react"
+import { useQueryClient } from "@tanstack/react-query"
 
-import { Composer, TypeParmas } from "@/app/(home)/_components/composer";
-import { useMessageChatMessageIdGet } from "@/api/generated/chat/chat";
+import { Composer, TypeParmas } from "@/app/(home)/_components/composer"
+import { useMessageChatMessageIdGet } from "@/api/generated/chat/chat"
 
-import { useChatMessage } from "../hook/use-chat-message";
-import { useScrollToBottom } from "../hook/use-scroll-to-bottom";
-import { AIMessage } from "./message";
-import LeftHeader from "./left-header";
+import { useChatMessage } from "../hook/use-chat-message"
+import { useScrollToBottom } from "../hook/use-scroll-to-bottom"
+import { AIMessage } from "./message"
+import LeftHeader from "./left-header"
 
 /**
  * 必须在 StreamProvider 内部：useStreamContext 从 context 读，
  * 挂在 Provider 外面拿不到。数据源在这里取，派生交给 useChatMessage。
  */
 function ChatPanel({ sessionId }: { sessionId: string }) {
-  const stream = useStreamContext();
-  const queryClient = useQueryClient();
-  const historyQuery = useMessageChatMessageIdGet(sessionId);
+  const stream = useStreamContext()
+  const queryClient = useQueryClient()
+  const historyQuery = useMessageChatMessageIdGet(sessionId)
 
   const {
     historyMessage,
@@ -30,44 +30,43 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
     isHistoryLoaded,
     error,
     submit,
-  } = useChatMessage({ sessionId, stream, queryClient, historyQuery });
-  const [promptValue, setPromptValue] = useState("");
+  } = useChatMessage({ sessionId, stream, queryClient, historyQuery })
+  const [promptValue, setPromptValue] = useState("")
   const { scrollRef, contentRef, handleScroll, scrollToBottom } =
-    useScrollToBottom();
+    useScrollToBottom()
 
   // 历史到手后无条件置底：重新进入会话时用户处在任何位置，都应该看到最新一条。
   useEffect(() => {
-    if (!isHistoryLoaded) return;
-    scrollToBottom();
-  }, [isHistoryLoaded, scrollToBottom]);
+    if (!isHistoryLoaded) return
+    scrollToBottom()
+  }, [isHistoryLoaded, scrollToBottom])
 
   // 提交后无条件置底。用「isLoading 变 true」而不是「内容变长」，因为用户可能
   // 已经往上翻了，这种情况下内容变化本身不再触发滚动，但提交必须把他拉回来。
   useEffect(() => {
-    if (!isLoading) return;
-    scrollToBottom();
-  }, [isLoading, scrollToBottom]);
+    if (!isLoading) return
+    scrollToBottom()
+  }, [isLoading, scrollToBottom])
 
   const handleSubmit = (prompt: TypeParmas) => {
-    if (!submit(prompt)) return;
-    setPromptValue("");
-  };
+    if (!submit(prompt)) return
+    setPromptValue("")
+  }
 
-  const isEmpty = historyMessage.length === 0 && streamLiveMessage.length === 0;
+  const isEmpty = historyMessage.length === 0 && streamLiveMessage.length === 0
 
   return (
     <div
       style={{ width: "440px" }}
-      className="pl-3 pr-2 flex flex-col flex-1 min-h-0"
+      className="flex min-h-0 flex-1 flex-col pr-2 pl-3"
     >
-              
       <LeftHeader />
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto scroll-bar" 
+        className="scroll-bar flex-1 overflow-y-auto"
       >
-        <div ref={contentRef} className="pr-0,5 pl-1.5 pb-4">
+        <div ref={contentRef} className="pr-0,5 pb-4 pl-1.5">
           {isEmpty && !isHistoryLoading ? (
             <div className="text-sm text-muted-foreground">
               发一条消息开始对话
@@ -79,12 +78,18 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
           ) : null}
 
           {historyMessage.map((message, index) => (
-            <AIMessage key={message.id ?? `history-${index}`} message={message} />
+            <AIMessage
+              key={message.id ?? `history-${index}`}
+              message={message}
+            />
           ))}
 
           {isLoading &&
             streamLiveMessage.map((message, index) => (
-              <AIMessage key={message.id ?? `live-${index}`} message={message} />
+              <AIMessage
+                key={message.id ?? `live-${index}`}
+                message={message}
+              />
             ))}
 
           {isLoading ? (
@@ -93,7 +98,11 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
 
           {error ? (
             <div className="text-sm text-destructive">
-              {error instanceof Error ? error.message : String(error)}
+              {error instanceof Error
+                ? error.message
+                : typeof error === "string"
+                  ? error
+                  : "请求失败，请稍后重试。"}
             </div>
           ) : null}
         </div>
@@ -107,7 +116,7 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
         onSubmit={handleSubmit}
       />
     </div>
-  );
+  )
 }
 
-export default ChatPanel;
+export default ChatPanel

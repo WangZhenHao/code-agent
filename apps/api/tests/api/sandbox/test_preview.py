@@ -31,7 +31,9 @@ class PreviewTestCase(unittest.IsolatedAsyncioTestCase):
         stack = [
             mock.patch.object(preview, "persist_preview", self._persist),
             mock.patch.object(preview, "_publish", self._publish),
-            mock.patch.object(preview, "sandbox_url", lambda s: "http://abc.localtest.me/"),
+            mock.patch.object(
+                preview, "sandbox_url", lambda s: "http://abc.localtest.me/"
+            ),
         ]
         for p in stack:
             p.start()
@@ -39,9 +41,10 @@ class PreviewTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_already_running_does_not_restart(self):
         # 同一会话第二次发消息的常态：dev server 还在，直接 running。
-        with mock.patch.object(preview, "_probe", return_value=True), mock.patch.object(
-            preview, "_start_and_wait"
-        ) as start:
+        with (
+            mock.patch.object(preview, "_probe", return_value=True),
+            mock.patch.object(preview, "_start_and_wait") as start,
+        ):
             await preview._ensure(SID, self.sandbox)
 
         start.assert_not_called()
@@ -54,9 +57,10 @@ class PreviewTestCase(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_not_running_goes_building_then_running(self):
-        with mock.patch.object(
-            preview, "_probe", return_value=False
-        ), mock.patch.object(preview, "_start_and_wait", return_value=True):
+        with (
+            mock.patch.object(preview, "_probe", return_value=False),
+            mock.patch.object(preview, "_start_and_wait", return_value=True),
+        ):
             await preview._ensure(SID, self.sandbox)
 
         statuses = [c.args[1] for c in self._persist.await_args_list]
@@ -68,9 +72,10 @@ class PreviewTestCase(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_timeout_is_failed_and_still_publishes(self):
-        with mock.patch.object(
-            preview, "_probe", return_value=False
-        ), mock.patch.object(preview, "_start_and_wait", return_value=False):
+        with (
+            mock.patch.object(preview, "_probe", return_value=False),
+            mock.patch.object(preview, "_start_and_wait", return_value=False),
+        ):
             await preview._ensure(SID, self.sandbox)
 
         statuses = [c.args[1] for c in self._persist.await_args_list]
@@ -82,8 +87,9 @@ class PreviewTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_start_and_wait_polls_until_200(self):
         # 不打补丁测真实循环：第二次探测才 200，间隔与次数都压到 0 免等待。
         probe = mock.Mock(side_effect=[False, True])
-        with mock.patch.object(preview, "_probe", probe), mock.patch.object(
-            preview, "_PROBE_INTERVAL", 0
+        with (
+            mock.patch.object(preview, "_probe", probe),
+            mock.patch.object(preview, "_PROBE_INTERVAL", 0),
         ):
             self.assertTrue(preview._start_and_wait(self.sandbox))
 
@@ -91,10 +97,10 @@ class PreviewTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(probe.call_count, 2)
 
     async def test_start_and_wait_gives_up_after_attempts(self):
-        with mock.patch.object(
-            preview, "_probe", return_value=False
-        ), mock.patch.object(preview, "_PROBE_INTERVAL", 0), mock.patch.object(
-            preview, "_PROBE_ATTEMPTS", 3
+        with (
+            mock.patch.object(preview, "_probe", return_value=False),
+            mock.patch.object(preview, "_PROBE_INTERVAL", 0),
+            mock.patch.object(preview, "_PROBE_ATTEMPTS", 3),
         ):
             self.assertFalse(preview._start_and_wait(self.sandbox))
 

@@ -18,7 +18,7 @@ nohup 丢到后台，命令本身立刻返回，那不代表服务可用。
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from k8s_agent_sandbox.sandbox import Sandbox
@@ -41,7 +41,9 @@ DEV_PORT = 3000
 # 重启），保证沙箱被回收重建后预览仍然可用。
 PREVIEW_COMMAND = "sh -c 'cd /workspace && nohup npm run dev > /tmp/next.log 2>&1 &'"
 
-PROBE_COMMAND = f"sh -c 'curl -s -o /dev/null -w %{{http_code}} localhost:{DEV_PORT}/ 2>/dev/null'"
+PROBE_COMMAND = (
+    f"sh -c 'curl -s -o /dev/null -w %{{http_code}} localhost:{DEV_PORT}/ 2>/dev/null'"
+)
 
 # 首次编译通常十几秒，给足余量。
 _PROBE_INTERVAL = 1.5
@@ -121,7 +123,7 @@ async def _ensure(session_id: str, sandbox: Sandbox) -> None:
             status = PreviewStatus.running
             url = sandbox_url(sandbox)
 
-        await persist_preview(session_id, status, url, datetime.now(timezone.utc))
+        await persist_preview(session_id, status, url, datetime.now(UTC))
         _publish(session_id, status, url)
     except Exception:
         # 后台任务里的异常没有调用方接，只能记日志，不能让任务静默死掉。
@@ -142,8 +144,11 @@ def _publish(session_id: str, status: PreviewStatus, url: str | None) -> None:
 
 def _probe(sandbox: Sandbox) -> bool:
     """同步探测：dev server 已经在应答。任何异常都当没就绪。"""
+    commands = sandbox.commands
+    if commands is None:
+        return False
     try:
-        stdout = sandbox.commands.run(PROBE_COMMAND).stdout or ""
+        stdout = commands.run(PROBE_COMMAND).stdout or ""
         return stdout.strip() == "200"
     except Exception:
         return False
@@ -151,7 +156,10 @@ def _probe(sandbox: Sandbox) -> bool:
 
 def _start_and_wait(sandbox: Sandbox) -> bool:
     """同步：拉起 dev server 并轮询就绪。整体在 to_thread 里跑，不占事件循环。"""
-    sandbox.commands.run(PREVIEW_COMMAND)
+    commands = sandbox.commands
+    if commands is None:
+        raise RuntimeError("沙箱没有暴露 commands 接口，无法启动预览服务")
+    commands.run(PREVIEW_COMMAND)
     for _ in range(_PROBE_ATTEMPTS):
         if _probe(sandbox):
             return True

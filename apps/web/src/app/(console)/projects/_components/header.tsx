@@ -2,12 +2,7 @@
 
 import { useRouter } from "next/navigation"
 
-import {
-  FolderPlusIcon,
-  ListFilterIcon,
-  PlusCircleIcon,
-  SearchIcon,
-} from "lucide-react"
+import { ListFilterIcon, PlusCircleIcon, SearchIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -61,7 +56,6 @@ export function ProjectsHeader({
     onSearch({ ...params, ...patch })
 
   // 新增文件夹的弹窗尚未实现，先留空
-  const handleNewFolder = () => {}
 
   const handleNewProject = () => router.push("/create")
 

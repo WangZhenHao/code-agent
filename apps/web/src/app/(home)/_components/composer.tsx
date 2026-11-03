@@ -24,19 +24,20 @@ export function Composer({
   prompt,
   onPromptChange,
   onSubmit,
-  className = '',
-  isAutoswitchPrompt = false
+  className = "",
+  isAutoswitchPrompt = false,
 }: {
   loading?: boolean
   prompt: string
   onPromptChange: (prompt: string) => void
-  onSubmit?: (prompt: TypeParmas) => void,
+  onSubmit?: (prompt: TypeParmas) => void
   className?: string
   isAutoswitchPrompt?: boolean
 }) {
   // 输入框空着、且没在编辑时，才用打字动画顶替占位符
   const [focused, setFocused] = React.useState(false)
-  const showTypingPlaceholder = prompt.length === 0 && !focused && isAutoswitchPrompt
+  const showTypingPlaceholder =
+    prompt.length === 0 && !focused && isAutoswitchPrompt
 
   const submit = () => {
     if (prompt.trim().length === 0 || loading) return
@@ -58,7 +59,7 @@ export function Composer({
     // 输入法组合中（如中文拼音候选）回车只用于选词，不提交
     if (event.nativeEvent.isComposing) return
     // 回车提交，Shift/Cmd+Enter 保留换行
-    if (event.key === 'Enter' && !event.shiftKey && !event.metaKey) {
+    if (event.key === "Enter" && !event.shiftKey && !event.metaKey) {
       event.preventDefault()
       submit()
     }
@@ -74,7 +75,7 @@ export function Composer({
           // 失焦时藏起来，让下面的打字动画顶替；聚焦后作为静态提示显示
           placeholder="请输入您想要的内容"
           aria-label="请输入您想要的内容"
-          className={`min-h-24 w-full px-4 py-4 leading-6 focus:placeholder:text-muted-foreground ${showTypingPlaceholder ? 'placeholder:text-transparent' : ''}`}
+          className={`min-h-24 w-full px-4 py-4 leading-6 focus:placeholder:text-muted-foreground ${showTypingPlaceholder ? "placeholder:text-transparent" : ""}`}
           onKeyDown={onKeyDownHandle}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -111,7 +112,11 @@ export function Composer({
             aria-busy={loading}
             className="ml-auto rounded-full bg-foreground text-background hover:bg-foreground/80 disabled:opacity-40"
           >
-            {loading ? <Loader2Icon className="animate-spin" /> : <ArrowUpIcon />}
+            {loading ? (
+              <Loader2Icon className="animate-spin" />
+            ) : (
+              <ArrowUpIcon />
+            )}
           </Button>
         </InputGroupAddon>
       </InputGroup>

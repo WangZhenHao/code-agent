@@ -33,8 +33,12 @@ class User(Base, TimestampMixin):
     password_hash: Mapped[str | None] = mapped_column(String(255), default=None)
 
     __table_args__ = (
-        Index("uq_users_email", "email", unique=True, postgresql_where="email IS NOT NULL"),
-        Index("uq_users_phone", "phone", unique=True, postgresql_where="phone IS NOT NULL"),
+        Index(
+            "uq_users_email", "email", unique=True, postgresql_where="email IS NOT NULL"
+        ),
+        Index(
+            "uq_users_phone", "phone", unique=True, postgresql_where="phone IS NOT NULL"
+        ),
         Index("uq_users_uid", "uid", unique=True, postgresql_where="uid IS NOT NULL"),
     )
 

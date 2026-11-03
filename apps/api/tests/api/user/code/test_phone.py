@@ -41,7 +41,9 @@ class NormalizePhoneTestCase(unittest.TestCase):
     def test_second_digit_range(self):
         # 第二位只接受 3-9：1[0-2] 段在大陆不是有效手机号。
         for second in "3456789":
-            self.assertEqual(normalize_phone(f"1{second}800138000"), f"1{second}800138000")
+            self.assertEqual(
+                normalize_phone(f"1{second}800138000"), f"1{second}800138000"
+            )
         for second in "012":
             with self.assertRaises(InvalidPhoneError):
                 normalize_phone(f"1{second}800138000")

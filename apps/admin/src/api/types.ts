@@ -22,7 +22,8 @@ export interface Session {
   updatedAt: string
 }
 
-export type SandboxPhase = 'pending' | 'running' | 'succeeded' | 'failed' | 'terminating'
+export type SandboxPhase =
+  "pending" | "running" | "succeeded" | "failed" | "terminating"
 
 export interface Sandbox {
   id: string

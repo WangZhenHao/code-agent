@@ -77,10 +77,13 @@ class GraphShapeTestCase(unittest.TestCase):
         # 不是路由。
         for edge in self.graph.get_graph().edges:
             if edge.source == "classify":
-                self.assertTrue(edge.conditional, f"classify → {edge.target} 必须是条件边")
+                self.assertTrue(
+                    edge.conditional, f"classify → {edge.target} 必须是条件边"
+                )
 
         branch_names = sorted(
-            str(e.data) for e in self.graph.get_graph().edges
+            str(e.data)
+            for e in self.graph.get_graph().edges
             if e.source == "classify" and e.conditional
         )
         self.assertEqual(branch_names, ["agent", "plan"])

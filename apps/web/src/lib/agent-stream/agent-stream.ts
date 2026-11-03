@@ -14,23 +14,23 @@
  * SSE 响应交回 SDK 自己解析。
  */
 
-import { HttpAgentServerAdapter } from "@langchain/react";
+import { HttpAgentServerAdapter } from "@langchain/react"
 
-import { useUserStore } from "@/store/user";
+import { useUserStore } from "@/store/user"
 
 export const AGENT_API_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
 
 /** 后端取会话归属用的 session_id，即路由里的项目 id。 */
 export function agentPaths(sessionId: string) {
   return {
     commands: `/agents/${sessionId}/commands`,
-    stream: `/agents/${sessionId}/stream`
-  };
+    stream: `/agents/${sessionId}/stream`,
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null
 }
 
 /**
@@ -41,9 +41,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * 只需要把 `params.input` 原样取出来——不需要逐字段映射。
  */
 function commandBody(command: Record<string, unknown>): string {
-  const params = isRecord(command.params) ? command.params : {};
-  const input = isRecord(params.input) ? params.input : {};
-  return JSON.stringify(input);
+  const params = isRecord(command.params) ? command.params : {}
+  const input = isRecord(params.input) ? params.input : {}
+  return JSON.stringify(input)
 }
 
 /**
@@ -59,34 +59,34 @@ export function createAgentTransport(sessionId: string) {
     paths: agentPaths(sessionId),
     onRequest: (_url, init) => {
       // 鉴权走 http.ts 那一套：令牌存在 zustand persist 里，这里读出来补头。
-      const token = useUserStore.getState().token;
-      const headers = new Headers(init.headers);
-      if (token) headers.set("Authorization", `Bearer ${token}`);
+      const token = useUserStore.getState().token
+      const headers = new Headers(init.headers)
+      if (token) headers.set("Authorization", `Bearer ${token}`)
 
       // 命令请求体改写成 ChatCreateRequest；stream/state 的 POST body
       // （SubscribeParams）本来就和后端一致，原样放行。
-      let body = init.body;
+      let body = init.body
       if (typeof body === "string") {
         try {
-          const parsed = JSON.parse(body) as unknown;
+          const parsed = JSON.parse(body) as unknown
           if (isRecord(parsed) && "method" in parsed) {
-            body = commandBody(parsed);
+            body = commandBody(parsed)
           }
         } catch {
           // 不是 JSON 就原样发出去，让后端返回明确的 422。
         }
       }
 
-      return { ...init, headers, body };
+      return { ...init, headers, body }
     },
-  });
+  })
 
   // 后端没有 state 接口（hydrate 只会在挂载时调一次 transport.getState）。
   // SDK 在 getState 存在时一定发起 `GET /threads/{id}/state`；删掉它又会回退到
   // customize 分支里不存在的 `client.threads.getState()` 直接抛错。所以保留方法、
   // 返回 null：SDK 把 null 当作"没有历史"（不会当成 404 记进 missingThreadIds），
   // 历史交给 /stream 的回放（后端默认 since 缺省 ⇒ 从 seq 0 全量回放）。
-  transport.getState = async () => null;
+  transport.getState = () => Promise.resolve(null)
 
-  return transport;
+  return transport
 }

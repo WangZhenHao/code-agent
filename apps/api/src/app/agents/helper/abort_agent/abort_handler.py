@@ -4,6 +4,7 @@
 """
 
 import asyncio
+import contextlib
 from typing import TYPE_CHECKING
 
 from langchain_core.runnables import RunnableConfig
@@ -12,8 +13,8 @@ from .message_buffer import finalize_partial
 from .run_registry import get as get_run
 
 if TYPE_CHECKING:
-    from app.agents.node.state import State
     from app.agents.helper.middleware import TrackingSummarization
+    from app.agents.node.state import State
 
 
 async def cancel_all(*tasks) -> None:
@@ -33,10 +34,8 @@ async def cancel_all(*tasks) -> None:
     """
     for task in tasks:
         task.cancel()
-    try:
+    with contextlib.suppress(BaseException):
         await asyncio.gather(*tasks, return_exceptions=True)
-    except BaseException:
-        pass
 
 
 async def run_agent_with_abort(agent, payload: dict, config: RunnableConfig):
@@ -58,7 +57,9 @@ async def run_agent_with_abort(agent, payload: dict, config: RunnableConfig):
     # configurable（离线跑图），取不到就当没登记，走下面的纯 await 分支。
     run = get_run((config.get("configurable") or {}).get("thread_id", ""))
 
-    agent_task = asyncio.create_task(agent.ainvoke(payload, config=config, version="v2"))
+    agent_task = asyncio.create_task(
+        agent.ainvoke(payload, config=config, version="v2")
+    )
     if run is None:
         # 没登记（离线直接跑图，或测试里的裸图），退化成原来的纯 await。
         # 中止功能不可用，但这一轮照常跑完。

@@ -19,29 +19,31 @@ export const PROMPT_EXAMPLES = [
 ]
 
 const component = ({ setPrompt }: { setPrompt: (prompt: string) => void }) => {
-    return (  <section className="mt-12 w-full max-w-350">
-          <p className="text-center text-sm font-medium text-muted-foreground">
-            立即开启 AI 编程之旅！
-          </p>
-          <div className="mt-6 flex flex-col">
-            <ExampleRow
-              examples={PROMPT_EXAMPLES.slice(0, 5)}
-              onPick={setPrompt}
-              duration="56s"
-            />
-            <ExampleRow
-              examples={PROMPT_EXAMPLES.slice(5, 10)}
-              onPick={setPrompt}
-              duration="72s"
-              reverse
-            />
-            <ExampleRow
-              examples={PROMPT_EXAMPLES.slice(10, 15)}
-              onPick={setPrompt}
-              duration="72s"
-            />
-          </div>
-        </section> );
+  return (
+    <section className="mt-12 w-full max-w-350">
+      <p className="text-center text-sm font-medium text-muted-foreground">
+        立即开启 AI 编程之旅！
+      </p>
+      <div className="mt-6 flex flex-col">
+        <ExampleRow
+          examples={PROMPT_EXAMPLES.slice(0, 5)}
+          onPick={setPrompt}
+          duration="56s"
+        />
+        <ExampleRow
+          examples={PROMPT_EXAMPLES.slice(5, 10)}
+          onPick={setPrompt}
+          duration="72s"
+          reverse
+        />
+        <ExampleRow
+          examples={PROMPT_EXAMPLES.slice(10, 15)}
+          onPick={setPrompt}
+          duration="72s"
+        />
+      </div>
+    </section>
+  )
 }
- 
-export default component;
+
+export default component

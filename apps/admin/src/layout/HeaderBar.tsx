@@ -1,5 +1,5 @@
-import { BellOutlined, ReloadOutlined } from '@ant-design/icons'
-import { Avatar, Badge, Button, Space, Tag, Tooltip } from 'antd'
+import { BellOutlined, ReloadOutlined } from "@ant-design/icons"
+import { Avatar, Badge, Button, Space, Tag, Tooltip } from "antd"
 
 /**
  * 用普通 div 而不是 antd 的 Layout.Header：
@@ -22,7 +22,7 @@ export default function HeaderBar() {
         <Badge dot>
           <Button type="text" icon={<BellOutlined />} />
         </Badge>
-        <Avatar size="small" style={{ backgroundColor: '#2f6bff' }}>
+        <Avatar size="small" style={{ backgroundColor: "#2f6bff" }}>
           A
         </Avatar>
       </Space>

@@ -7,7 +7,6 @@ import {
   useState,
   type ComponentType,
   type RefAttributes,
-  type RefObject,
 } from "react"
 import {
   motion,
@@ -85,7 +84,7 @@ export function TypingAnimation({
   const [currentCharIndex, setCurrentCharIndex] = useState(0)
   const [phase, setPhase] = useState<"typing" | "pause" | "deleting">("typing")
   const elementRef = useRef<HTMLElement | null>(null)
-  const isInView = useInView(elementRef as RefObject<Element>, {
+  const isInView = useInView(elementRef, {
     amount: 0.3,
     once: true,
   })
@@ -105,12 +104,16 @@ export function TypingAnimation({
     [words, children]
   )
 
-  useEffect(() => {
+  // 文案变了就把动画重置回起点。放在渲染期而不是 effect 里：
+  // 在 effect 里同步 setState 会多触发一轮级联渲染。
+  const [prevSourceKey, setPrevSourceKey] = useState(animationSourceKey)
+  if (prevSourceKey !== animationSourceKey) {
+    setPrevSourceKey(animationSourceKey)
     setDisplayedText("")
     setCurrentWordIndex(0)
     setCurrentCharIndex(0)
     setPhase("typing")
-  }, [animationSourceKey])
+  }
 
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout> | null = null

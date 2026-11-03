@@ -1,28 +1,28 @@
-"use client";
+"use client"
 
-import { useChatCreateChatCreatePost } from "@/api/generated/chat/chat";
-import { Composer } from "@/app/(home)/_components/composer";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import type { ChatCreateChatCreatePostMutationVariables } from "@/api/generated/chat/chat";
+import { useChatCreateChatCreatePost } from "@/api/generated/chat/chat"
+import { Composer } from "@/app/(home)/_components/composer"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import type { ChatCreateChatCreatePostMutationVariables } from "@/api/generated/chat/chat"
 
 const Client = () => {
-  const router = useRouter();
-  const [prompt, setPrompt] = useState("");
-  const { mutate, isPending, error } = useChatCreateChatCreatePost();
+  const router = useRouter()
+  const [prompt, setPrompt] = useState("")
+  const { mutate, isPending, error } = useChatCreateChatCreatePost()
   const handleSumbit = (
-    params: ChatCreateChatCreatePostMutationVariables["data"],
+    params: ChatCreateChatCreatePostMutationVariables["data"]
   ) => {
     mutate(
       { data: params },
       {
         onSuccess: (res) => {
           // create 接口会新建或复用会话，拿到 id 后直接进项目详情页
-          router.push(`/projects/${res.id}`);
+          router.push(`/projects/${res.id}`)
         },
-      },
-    );
-  };
+      }
+    )
+  }
 
   return (
     <>
@@ -36,7 +36,7 @@ const Client = () => {
           </p>
 
           <Composer
-            className="w-200 mt-7"
+            className="mt-7 w-200"
             loading={isPending}
             prompt={prompt}
             onPromptChange={setPrompt}
@@ -52,7 +52,7 @@ const Client = () => {
         </section>
       </main>
     </>
-  );
-};
+  )
+}
 
-export default Client;
+export default Client

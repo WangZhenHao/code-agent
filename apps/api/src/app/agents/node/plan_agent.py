@@ -16,6 +16,8 @@ def plan_agent(state: State) -> dict:
       而不是在函数里写 for 循环——那会挡住 LangGraph 的流式输出。
     """
     return {
-        "messages": [{"role": "assistant", "content": "[planAgent] 占位：待接入规划 prompt"}],
+        "messages": [
+            {"role": "assistant", "content": "[planAgent] 占位：待接入规划 prompt"}
+        ],
         "plan": [],
     }

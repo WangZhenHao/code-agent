@@ -36,28 +36,42 @@ class MemoryCodeStoreTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_issue_then_verify_ok(self):
         await self.store.issue("13800138000", "123456")
-        self.assertEqual(await self.store.verify("13800138000", "123456"), VerifyResult.OK)
+        self.assertEqual(
+            await self.store.verify("13800138000", "123456"), VerifyResult.OK
+        )
 
     async def test_code_is_single_use(self):
         # 成功校验即删除：同一个码第二次必须当过期处理，否则这就是个万能码。
         await self.store.issue("13800138000", "123456")
         await self.store.verify("13800138000", "123456")
-        self.assertEqual(await self.store.verify("13800138000", "123456"), VerifyResult.EXPIRED)
+        self.assertEqual(
+            await self.store.verify("13800138000", "123456"), VerifyResult.EXPIRED
+        )
 
     async def test_mismatch_then_correct_still_ok(self):
         # 单次输错不该把码作废（用户手滑是常态），只有累计到上限才作废。
         await self.store.issue("13800138000", "123456")
-        self.assertEqual(await self.store.verify("13800138000", "000000"), VerifyResult.MISMATCH)
-        self.assertEqual(await self.store.verify("13800138000", "123456"), VerifyResult.OK)
+        self.assertEqual(
+            await self.store.verify("13800138000", "000000"), VerifyResult.MISMATCH
+        )
+        self.assertEqual(
+            await self.store.verify("13800138000", "123456"), VerifyResult.OK
+        )
 
     async def test_too_many_attempts_invalidates_code(self):
         await self.store.issue("13800138000", "123456")
         for _ in range(settings.sms_max_attempts - 1):
-            self.assertEqual(await self.store.verify("13800138000", "x"), VerifyResult.MISMATCH)
+            self.assertEqual(
+                await self.store.verify("13800138000", "x"), VerifyResult.MISMATCH
+            )
 
-        self.assertEqual(await self.store.verify("13800138000", "x"), VerifyResult.TOO_MANY)
+        self.assertEqual(
+            await self.store.verify("13800138000", "x"), VerifyResult.TOO_MANY
+        )
         # 作废之后正确码也不能用——否则"超限"只是个提示而不是限制。
-        self.assertEqual(await self.store.verify("13800138000", "123456"), VerifyResult.EXPIRED)
+        self.assertEqual(
+            await self.store.verify("13800138000", "123456"), VerifyResult.EXPIRED
+        )
 
     async def test_reissue_resets_attempt_counter(self):
         # 上一轮的失败次数不该影响这一轮的码，否则用户重发密码时反而更快被锁。
@@ -66,19 +80,27 @@ class MemoryCodeStoreTestCase(unittest.IsolatedAsyncioTestCase):
             await self.store.verify("13800138000", "wrong")
 
         await self.store.issue("13800138000", "222222")
-        self.assertEqual(await self.store.verify("13800138000", "222222"), VerifyResult.OK)
+        self.assertEqual(
+            await self.store.verify("13800138000", "222222"), VerifyResult.OK
+        )
 
     async def test_verify_without_issue_is_expired(self):
-        self.assertEqual(await self.store.verify("13800138000", "123456"), VerifyResult.EXPIRED)
+        self.assertEqual(
+            await self.store.verify("13800138000", "123456"), VerifyResult.EXPIRED
+        )
 
     async def test_expiry(self):
         await self.store.issue("13800138000", "123456")
         # 时间单调递增，直接把它推到 TTL 之后即可，不必真睡五分钟。
         with mock.patch(
             "app.api.user.code.code_store.time.monotonic",
-            return_value=__import__("time").monotonic() + settings.sms_code_ttl_seconds + 1,
+            return_value=__import__("time").monotonic()
+            + settings.sms_code_ttl_seconds
+            + 1,
         ):
-            self.assertEqual(await self.store.verify("13800138000", "123456"), VerifyResult.EXPIRED)
+            self.assertEqual(
+                await self.store.verify("13800138000", "123456"), VerifyResult.EXPIRED
+            )
 
     async def test_cooldown_then_expires(self):
         await self.store.issue("13800138000", "123456")
@@ -97,14 +119,18 @@ class MemoryCodeStoreTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_phones_are_isolated(self):
         await self.store.issue("13800138000", "aaaaaa")
         await self.store.issue("13900139000", "bbbbbb")
-        self.assertEqual(await self.store.verify("13800138000", "aaaaaa"), VerifyResult.OK)
-        self.assertEqual(await self.store.verify("13900139000", "bbbbbb"), VerifyResult.OK)
+        self.assertEqual(
+            await self.store.verify("13800138000", "aaaaaa"), VerifyResult.OK
+        )
+        self.assertEqual(
+            await self.store.verify("13900139000", "bbbbbb"), VerifyResult.OK
+        )
 
 
 class _FakePipeline:
     """只记录 set/delete，execute 时交给假 client 落库。"""
 
-    def __init__(self, client: "_FakeRedis"):
+    def __init__(self, client: _FakeRedis):
         self._client = client
         self._ops: list[tuple] = []
 
@@ -186,7 +212,9 @@ class RedisCodeStoreTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_verify_decodes_bytes_result(self):
         # redis-py 返回 bytes；不解码的话上层用 == VerifyResult.OK 永远不成立。
         store = RedisCodeStore(_FakeRedis(verify_result="mismatch"))
-        self.assertEqual(await store.verify("13800138000", "wrong"), VerifyResult.MISMATCH)
+        self.assertEqual(
+            await store.verify("13800138000", "wrong"), VerifyResult.MISMATCH
+        )
         self.assertIsInstance(await store.verify("13800138000", "wrong"), str)
 
     async def test_is_cooling_down_is_bool(self):

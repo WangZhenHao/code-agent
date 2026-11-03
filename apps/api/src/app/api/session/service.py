@@ -12,10 +12,10 @@ from app.agents.memory.checkpointer import get_checkpointer
 from app.api.sandbox.service import delete_sandbox
 from app.api.session.schemas import (
     SessionDeleteResponse,
-    SessionSort,
     SessionItem,
     SessionListRequest,
     SessionListResponse,
+    SessionSort,
     SessionUpdateRequest,
 )
 from app.db.models.session import Session, SessionStatus
@@ -67,9 +67,7 @@ async def list_sessions(
     )
 
 
-async def _get_owned_session(
-    id: str, user_id: int, session: AsyncSession
-) -> Session:
+async def _get_owned_session(id: str, user_id: int, session: AsyncSession) -> Session:
     """取一个属于 user_id 且未删除的会话。
 
     不属于就当 404 而不是 403：不泄露「这个 id 存在但不归你」，

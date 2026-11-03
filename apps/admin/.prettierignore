@@ -1,0 +1,15 @@
+# 依赖与构建产物
+node_modules/
+dist/
+dist-ssr/
+coverage/
+
+# 锁文件
+pnpm-lock.yaml
+
+# 自动生成
+*.tsbuildinfo
+vite-env.d.ts
+
+# 静态资源
+public/

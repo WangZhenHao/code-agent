@@ -99,6 +99,8 @@ uv add <pkg>               # 新增依赖
 uv run code-agent-api      # 启动服务
 uv run alembic upgrade head    # 应用迁移
 uv run alembic revision --autogenerate -m "msg"   # 生成迁移（需先起 Postgres）
-uv run pytest              # 跑测试（尚未接入）
-uv run ruff check .        # lint（尚未接入）
+uv run python -m unittest discover -s tests   # 跑测试
+uv run ruff check .        # lint
+uv run ruff format .       # 格式化
+uv run mypy               # 类型检查（只查 src）
 ```

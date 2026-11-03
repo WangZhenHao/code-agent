@@ -64,7 +64,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
           <div
             className={cn(
               "flex size-16 shrink-0 items-center justify-center rounded-lg text-3xl ring-1 ring-foreground/5",
-              plugin.tint,
+              plugin.tint
             )}
             aria-hidden
           >

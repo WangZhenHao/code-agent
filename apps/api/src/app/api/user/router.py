@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.user.code.code_store import CodeStore, get_code_store
+from app.api.user.code.sms import SmsSender, get_sms_sender
 from app.api.user.schemas import (
     LoginRequest,
     LoginResponse,
@@ -16,7 +17,6 @@ from app.api.user.schemas import (
     SendCodeResponse,
 )
 from app.api.user.service import login_or_register, send_code, to_me_response
-from app.api.user.code.sms import SmsSender, get_sms_sender
 from app.db.models.user import User
 from app.db.session import get_session
 from app.security import get_current_user

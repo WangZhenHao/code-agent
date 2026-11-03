@@ -1,8 +1,8 @@
-import { Layout } from 'antd'
-import { useState } from 'react'
+import { Layout } from "antd"
+import { useState } from "react"
 
-import HeaderBar from './HeaderBar'
-import SideNav from './SideNav'
+import HeaderBar from "./HeaderBar"
+import SideNav from "./SideNav"
 
 const { Content, Sider } = Layout
 
@@ -20,7 +20,7 @@ export default function AdminLayout() {
         width={220}
         className="border-r border-gray-200"
         // Sider 内层容器是 position:sticky，必须给足高度，否则菜单下面会漏出页面底色
-        style={{ background: '#fff' }}
+        style={{ background: "#fff" }}
       >
         <div className="flex h-full flex-col">
           <div className="flex h-14 shrink-0 items-center gap-2 px-4">

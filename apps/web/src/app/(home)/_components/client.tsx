@@ -29,7 +29,7 @@ export function Client() {
           </p>
 
           <Composer
-            className="w-200 mt-7"
+            className="mt-7 w-200"
             prompt={prompt}
             onPromptChange={setPrompt}
             isAutoswitchPrompt

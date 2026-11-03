@@ -34,4 +34,6 @@ src/
 - SSE 接口生成不出来，被 `SSE_PATHS` 主动剔除，走 `src/lib/agent-stream/` 手写 fetch。
 - 样式：Tailwind + shadcn。新增 UI 组件用 `shadcn` skill、放 `components/ui/`；业务组件放 `components/custom/`。
 - 状态：zustand（`src/store/`），注意流式输出时的增量更新。
-- lint 是 eslint（`make lint` 里跑 `pnpm lint`）；包管理用 pnpm。
+- lint 是 eslint（flat config，`eslint.config.mjs`，`make lint` 里跑 `pnpm lint`），带 `recommendedTypeChecked` 类型感知规则；格式化是 prettier（`.prettierrc`）。
+- `prettier --write` 会跳过 `src/api/generated/` 和 `AGENTS.md`——前者由 orval 重写，后者由 `next dev` 重写，改了也会被覆盖。
+- 包管理用 pnpm。

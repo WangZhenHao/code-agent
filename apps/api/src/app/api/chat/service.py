@@ -4,8 +4,10 @@
 仍是进程内字典占位，进程重启即丢。落地时换成真实查询，函数签名保持不变。
 """
 
+import typing
 
 from fastapi import HTTPException, status
+from langchain_core.runnables import RunnableConfig
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +47,7 @@ async def chat_detail(
 
     # from_attributes=True 让 Pydantic 直接读 ORM 实例的属性，无需手工搬字段。
     return ChatDetailResponse.model_validate(chat)
+
 
 async def chat_message(
     id: str, user_id: int, session: AsyncSession, limit: int = 50
@@ -87,6 +90,7 @@ async def chat_message(
     )
     return MessageListResponse(data=items, total=total or 0)
 
+
 async def create_chat(
     req: ChatCreateRequest, user_id: int, session: AsyncSession
 ) -> ChatCreateResponse:
@@ -118,9 +122,7 @@ async def create_chat(
     # 会绕成环。放函数里规避。
     from app.api.agent.service import agent_command
 
-    await agent_command(
-        session_id=chat.id, user_id=user_id, req=req, session=session
-    )
+    await agent_command(session_id=chat.id, user_id=user_id, req=req, session=session)
 
     return ChatCreateResponse(
         id=chat.id,
@@ -148,8 +150,9 @@ def _message_item(m: object) -> LangchainMessageItem:
         # model_dump() 的结果是 JSON 可序列化的（content 里的 dataclass 会被展开
         # 成 dict），直接进响应体没问题。
         type=getattr(m, "type", "unknown"),
-        message=m.model_dump(),
+        message=typing.cast(typing.Any, m).model_dump(),
     )
+
 
 async def chat_langchain_history(
     id: str, user_id: int, session: AsyncSession
@@ -191,7 +194,7 @@ async def chat_langchain_history(
     from app.agents.graphs import get_graph
 
     graph = await get_graph()
-    config = {"configurable": {"thread_id": id}}
+    config: RunnableConfig = {"configurable": {"thread_id": id}}
 
     # aget_state 而非 ainvoke/astream：只读当前状态，不触发任何节点执行。
     # 空线程（会话建了但没跑过图）返回的 snapshot.values 为空 dict。

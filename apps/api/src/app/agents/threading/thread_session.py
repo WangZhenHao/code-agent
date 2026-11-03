@@ -28,13 +28,13 @@ import uuid
 import warnings
 from collections.abc import AsyncIterator
 from contextlib import suppress
-from typing import Any
+from typing import Any, cast
 
-from langchain_core._api import LangChainBetaWarning
-from langchain_core.messages import AIMessageChunk
 from langchain.agents.middleware.internal_call_transformer import (
     InternalCallTransformer,
 )
+from langchain_core._api import LangChainBetaWarning
+from langchain_core.messages import AIMessageChunk
 
 from app.agents.helper.abort_agent import register, signal_abort, unregister
 from app.agents.node.state import State
@@ -103,9 +103,7 @@ async def _control_listener(thread_id: str) -> None:
     pubsub = redis.pubsub()
     await pubsub.subscribe(event_bus.control_channel(thread_id))
     try:
-        async for message in _poll_pubsub(
-            pubsub, event_bus.control_channel(thread_id)
-        ):
+        async for message in _poll_pubsub(pubsub, event_bus.control_channel(thread_id)):
             try:
                 payload = json.loads(message["data"])
             except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
@@ -192,7 +190,9 @@ async def _release_and_shield(
         await asyncio.shield(task)
 
 
-async def _release_pubsub(pubsub: Any, *, reader: asyncio.Task[Any] | None = None) -> None:
+async def _release_pubsub(
+    pubsub: Any, *, reader: asyncio.Task[Any] | None = None
+) -> None:
     """退订并归还连接。**幂等且不抛**：尽力而为，每一步失败都只记日志。
 
     由 `_release_and_shield` 在独立 task 里调用，这里只管动作本身。
@@ -452,11 +452,17 @@ class ThreadSession:
                             continue
                         # tool_call_chunk 的增量是「累积的全量 args」，改成只发
                         # 新增片段（SDK 对 tool-call-delta 是拼接），避免 O(n²)。
-                        fragment = fragment_tool_call_delta(event, seen_tool_deltas)
+                        # raw_event 是 ProtocolEvent（TypedDict），运行时就是 dict；
+                        # mypy 只看到 Mapping，这里显式收窄。
+                        fragment = fragment_tool_call_delta(
+                            cast(dict[str, Any], event), seen_tool_deltas
+                        )
                         if fragment is not None:
                             await publish(fragment)
         except Exception as exc:
-            logger.exception("thread run 失败 thread_id=%s run_id=%s", thread_id, run_id)
+            logger.exception(
+                "thread run 失败 thread_id=%s run_id=%s", thread_id, run_id
+            )
             await publish(
                 {
                     "type": "event",
@@ -585,9 +591,7 @@ class ThreadSession:
         return local or await event_bus.has_run(thread_id)
 
 
-async def _pump(
-    pubsub: Any, channel: str, queue: asyncio.Queue[bytes | None]
-) -> None:
+async def _pump(pubsub: Any, channel: str, queue: asyncio.Queue[bytes | None]) -> None:
     """把 Pub/Sub 消息推进单写单读队列。
 
     单独成函数而不是在 `stream()` 里用 `wait_for(iterator.__anext__())`：
@@ -609,4 +613,3 @@ async def _pump(
     finally:
         # 结束信号：让 stream() 的 while 能退出，而不是永远等心跳。
         queue.put_nowait(None)
-

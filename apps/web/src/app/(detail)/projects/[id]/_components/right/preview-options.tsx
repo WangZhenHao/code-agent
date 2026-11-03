@@ -1,28 +1,26 @@
-"use client";
+"use client"
 
 import {
   ArrowLeft,
   ArrowRight,
   Copy,
   Monitor,
-  PenLine,
   Power,
   RefreshCw,
-  RotateCcw,
-} from "lucide-react";
+} from "lucide-react"
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
-} from "@/components/ui/input-group";
+} from "@/components/ui/input-group"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@/components/ui/tooltip"
 
 /**
  * 预览工具栏：前进/后退、地址栏、设备切换、编辑/刷新/旋转。
@@ -32,11 +30,11 @@ const PreviewOptions = ({
   url,
   onRefresh,
 }: {
-  url?: string | null;
-  onRefresh?: () => void;
+  url?: string | null
+  onRefresh?: () => void
 }) => {
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 px-2 bg-white border-b">
+    <div className="flex h-10 shrink-0 items-center gap-1 border-b bg-white px-2">
       <Button variant="ghost" size="icon-sm" aria-label="后退">
         <ArrowLeft />
       </Button>
@@ -88,7 +86,7 @@ const PreviewOptions = ({
         <TooltipContent>重启服务</TooltipContent>
       </Tooltip>
     </div>
-  );
-};
+  )
+}
 
-export default PreviewOptions;
+export default PreviewOptions

@@ -20,13 +20,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.user.code.code_store import CodeStore, VerifyResult
 from app.api.user.code.phone import InvalidPhoneError, normalize_phone
+from app.api.user.code.sms import SmsSender
 from app.api.user.schemas import (
     LoginResponse,
     MeResponse,
     SendCodeResponse,
     UserInfo,
 )
-from app.api.user.code.sms import SmsSender
 from app.db.models.user import User
 from app.security import create_access_token
 from app.settings import settings
@@ -97,7 +97,7 @@ async def login_or_register(
 
     result = await store.verify(phone, code)
 
-    if settings.env == "dev": 
+    if settings.env == "dev":
         logger.info("开发环境不需要登陆")
     else:
         if result == VerifyResult.TOO_MANY:

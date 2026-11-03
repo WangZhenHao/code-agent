@@ -35,7 +35,7 @@ export function ExampleRow({
       pauseOnHover
       className={cn(
         "items-center p-0 [--gap:0.625rem] motion-reduce:overflow-x-auto",
-        "[mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)] motion-reduce:mask-none mb-2"
+        "mb-2 [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)] motion-reduce:mask-none"
       )}
       style={{ "--duration": duration } as React.CSSProperties}
     >

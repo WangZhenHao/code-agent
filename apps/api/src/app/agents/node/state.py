@@ -26,7 +26,6 @@ class Session(TypedDict):
     user_id: int
 
 
-
 class State(TypedDict):
     """贯穿全图的共享状态。
 
@@ -44,7 +43,7 @@ class State(TypedDict):
     # 仅本轮：普通字段，返回即覆盖。不要挂 add_messages。
     currentRoundMessages: NotRequired[list]
 
-    messages:  NotRequired[Annotated[list, add_messages]]
+    messages: NotRequired[Annotated[list, add_messages]]
 
     # 本轮是否被 /agents/abort/{id} 中止。收尾方（finish）据此决定落库时写
     # MessageStatus.interrupted 还是 complete。

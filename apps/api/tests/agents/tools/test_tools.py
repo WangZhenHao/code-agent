@@ -30,7 +30,11 @@ from unittest import mock
 from app.agents.helper import skill_loader
 from app.agents.helper.agent_prompt import generate_system_prompt
 from app.agents.tools import build_tools, create_tools
-from app.agents.tools._common import shell_command, to_sandbox_path
+from app.agents.tools._common import (
+    SandboxToolError,
+    shell_command,
+    to_sandbox_path,
+)
 from app.agents.tools.glob import _find_name_expr, _find_path_expr
 from app.agents.tools.skill import build_read_skill_tool
 from app.db.models.session import MessageMode
@@ -95,7 +99,10 @@ class ToolTestCase(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.base, ignore_errors=True)
 
         os.makedirs(f"{self.base}/app")
-        self._write("app/main.py", "def hello():\n    return 'hi'\n\n\ndef other():\n    return 1\n")
+        self._write(
+            "app/main.py",
+            "def hello():\n    return 'hi'\n\n\ndef other():\n    return 1\n",
+        )
         self._write("README.md", "# demo\nhello world\n")
         self._write("app/page.tsx", "export default () => null\n")
         os.makedirs(f"{self.base}/node_modules/junk")
@@ -113,13 +120,18 @@ class ToolTestCase(unittest.TestCase):
 
     def test_to_sandbox_path_strips_workspace_prefix(self):
         # 这是最关键的断言：不消前缀，文件就会落在 /workspace/workspace/ 下。
-        for given in ("/workspace/src/a.py", "workspace/src/a.py", "/src/a.py", "src/a.py"):
+        for given in (
+            "/workspace/src/a.py",
+            "workspace/src/a.py",
+            "/src/a.py",
+            "src/a.py",
+        ):
             self.assertEqual(to_sandbox_path(given), "src/a.py", given)
         self.assertEqual(to_sandbox_path("/workspace"), ".")
         self.assertEqual(to_sandbox_path("./a.py"), "a.py")
 
     def test_to_sandbox_path_rejects_escape(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(SandboxToolError):
             to_sandbox_path("../../etc/passwd")
 
     def test_shell_command_survives_single_quotes(self):
@@ -131,7 +143,9 @@ class ToolTestCase(unittest.TestCase):
     # --- bash -------------------------------------------------------------
 
     def test_bash_supports_shell_syntax(self):
-        out = self.tools["bash"].invoke({"command": "echo a b | tr ' ' '\\n' && ls *.md"})
+        out = self.tools["bash"].invoke(
+            {"command": "echo a b | tr ' ' '\\n' && ls *.md"}
+        )
         self.assertIn("a", out)
         self.assertIn("README.md", out)
 
@@ -166,7 +180,9 @@ class ToolTestCase(unittest.TestCase):
         self.assertTrue(os.path.exists(f"{self.base}/src/deep/new.txt"))
 
     def test_write_file_does_not_double_workspace(self):
-        self.tools["write_file"].invoke({"file_path": "/workspace/out.txt", "content": "x"})
+        self.tools["write_file"].invoke(
+            {"file_path": "/workspace/out.txt", "content": "x"}
+        )
         self.assertFalse(os.path.exists(f"{self.base}/workspace"))
 
     def test_edit_file_replaces_unique_match(self):
@@ -225,7 +241,9 @@ class ToolTestCase(unittest.TestCase):
         )
 
     def test_glob_expands_braces_in_find_fallback(self):
-        self.assertEqual(_find_name_expr("*.{ts,tsx}"), "\\( -name '*.ts' -o -name '*.tsx' \\)")
+        self.assertEqual(
+            _find_name_expr("*.{ts,tsx}"), "\\( -name '*.ts' -o -name '*.tsx' \\)"
+        )
         out = self.tools["glob"].invoke({"pattern": "**/*.{ts,tsx}"})
         self.assertIn("app/page.tsx", out)
 
@@ -265,7 +283,9 @@ class ToolTestCase(unittest.TestCase):
     # --- 按模式取工具 -----------------------------------------------------
 
     def test_agent_mode_gets_every_tool(self):
-        names = [t.name for t in create_tools(FakeSandbox(self.base), MessageMode.agent)]
+        names = [
+            t.name for t in create_tools(FakeSandbox(self.base), MessageMode.agent)
+        ]
         self.assertEqual(names, [t.name for t in build_tools(FakeSandbox(self.base))])
 
     def test_plan_mode_gets_only_read_only_tools(self):
@@ -328,7 +348,9 @@ class SkillToolTestCase(unittest.TestCase):
 
     def test_list_skills_parses_frontmatter(self):
         skills = {s.name: s.description for s in skill_loader.list_skills()}
-        self.assertEqual(skills["frontend-design"], "Guidance for distinctive visual design.")
+        self.assertEqual(
+            skills["frontend-design"], "Guidance for distinctive visual design."
+        )
         self.assertEqual(skills["bare-skill"], skill_loader.NO_DESCRIPTION)
 
     def test_list_skills_ignores_dirs_without_entry_file(self):
@@ -398,7 +420,9 @@ class SkillToolTestCase(unittest.TestCase):
 
     def test_rejects_bad_limit_and_offset(self):
         self.assertIn("错误", self.tool.invoke({"name": "frontend-design", "limit": 0}))
-        self.assertIn("错误", self.tool.invoke({"name": "frontend-design", "offset": 999}))
+        self.assertIn(
+            "错误", self.tool.invoke({"name": "frontend-design", "offset": 999})
+        )
 
     # --- 提示词 -----------------------------------------------------------
 

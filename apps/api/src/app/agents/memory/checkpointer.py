@@ -11,8 +11,10 @@ Alembic；本模块建的 4 张表由 LangGraph 自己管（见下面 setup() �
 启动时 init_checkpointer()，退出时 close_checkpointer()。
 """
 
-from psycopg_pool import AsyncConnectionPool
+from typing import Any, cast
+
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg_pool import AsyncConnectionPool
 
 from app.settings import settings
 
@@ -52,7 +54,9 @@ async def _build_saver() -> AsyncPostgresSaver:
     )
     await pool.open()
 
-    saver = AsyncPostgresSaver(conn=pool)
+    # psycopg_pool 与 langgraph 对 AsyncConnection 的参数化写法不同（dict vs tuple），
+    # 运行时是同一个池，这里只是让 mypy 放行。
+    saver = AsyncPostgresSaver(conn=cast(Any, pool))
 
     # setup() 必须由使用者主动调用，LangGraph 不会自动建表。它建 4 张表：
     # checkpoint_migrations / checkpoints / checkpoint_blobs / checkpoint_writes。

@@ -1,7 +1,7 @@
 """finish 节点：所有分支汇聚后的收尾。"""
 
-from app.agents.node.state import State
 from app.agents.message_persistence import persist_round
+from app.agents.node.state import State
 from app.db.models.session import MessageStatus
 
 
@@ -22,9 +22,7 @@ async def finish(state: State) -> dict:
     # 被 /agents/abort/{id} 中止的轮次写 interrupted，正常跑完写 complete。
     # state.get 而不是 state["aborted"]：正常路径压根不会设这个字段。
     status = (
-        MessageStatus.interrupted
-        if state.get("aborted")
-        else MessageStatus.complete
+        MessageStatus.interrupted if state.get("aborted") else MessageStatus.complete
     )
 
     # 先落库，避免后续副作用失败导致消息丢失。

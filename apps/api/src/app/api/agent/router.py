@@ -85,7 +85,6 @@ async def thread_stream(
     )
 
 
-
 @router.post("/{session_id}/abort", response_model=AbortResponse)
 async def thread_abort(
     session_id: str,

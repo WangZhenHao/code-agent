@@ -5,7 +5,7 @@ UV   ?= uv
 PY   := apps/api
 
 .DEFAULT_GOAL := help
-.PHONY: help install dev dev-web dev-admin dev-api gen-api db-up db-migrate db-revision db-check lint build test fmt clean
+.PHONY: help install dev dev-web dev-admin server gen-api db-up db-migrate db-revision db-check lint lint-fix build test typecheck fmt fmt-check clean
 
 help: ## 显示所有命令
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -43,13 +43,31 @@ db-revision: ## 生成迁移，用法：make db-revision m="add xxx"
 db-check: ## 检查模型与数据库是否已同步（漂移检测）
 	cd $(PY) && $(UV) run alembic check
 
-lint: ## 前后端 lint
+lint: ## 前后端 lint（eslint + prettier 一致性 + ruff + mypy）
 	cd apps/web && $(PNPM) lint
 	cd apps/admin && $(PNPM) lint
-	cd $(PY) && $(UV) run ruff check . && $(UV) run mypy src
+	cd apps/web && $(PNPM) format:check
+	cd apps/admin && $(PNPM) format:check
+	cd $(PY) && $(UV) run ruff check . && $(UV) run ruff format --check . && $(UV) run mypy
 
-fmt: ## 格式化 Python（前端未装 formatter，暂不处理）
+lint-fix: ## lint 自动修复（eslint --fix + ruff check --fix）
+	cd apps/web && $(PNPM) lint:fix
+	cd apps/admin && $(PNPM) lint:fix
+	cd $(PY) && $(UV) run ruff check --fix . && $(UV) run ruff format .
+
+typecheck: ## 前端类型检查（tsc）
+	cd apps/web && $(PNPM) typecheck
+	cd apps/admin && $(PNPM) typecheck
+
+fmt: ## 格式化全部（prettier + ruff format）
+	cd apps/web && $(PNPM) format
+	cd apps/admin && $(PNPM) format
 	cd $(PY) && $(UV) run ruff format . && $(UV) run ruff check --fix .
+
+fmt-check: ## 只检查格式，不改文件
+	cd apps/web && $(PNPM) format:check
+	cd apps/admin && $(PNPM) format:check
+	cd $(PY) && $(UV) run ruff format --check .
 
 test: ## 跑测试（unittest；测试不依赖 pytest）
 	cd $(PY) && $(UV) run python -m unittest discover -s tests

@@ -15,7 +15,7 @@ import logging
 
 from langchain_core.messages import message_to_dict
 
-from app.db.models.session import MessageStatus, Messages, Role
+from app.db.models.session import Messages, MessageStatus, Role
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -38,12 +38,12 @@ async def persist_round(state, status: MessageStatus = MessageStatus.complete):
     # session_id 在 try **之前**取。原来它在 try 里绑定，于是除了 SessionLocal()
     # 本身失败之外的任何异常（比如 currentRoundMessages 缺 key），except 里引用
     # session_id 都会再抛一个 UnboundLocalError，把真正的错误盖掉。
-    session_id = state['session']['id']
+    session_id = state["session"]["id"]
 
     # 用 .get 而不是 []：currentRoundMessages 只有 codeAgent 会写。planAgent 分支
     # （sync 占位节点）永远没有这个 key，取不着就是 KeyError，而异常从节点抛出会让
     # 整轮 run 失败——收尾节点自己把跑完的一轮搞挂，是最不该发生的失败方式。
-    round_messages = state.get('currentRoundMessages') or []
+    round_messages = state.get("currentRoundMessages") or []
 
     # 一条都没有就不写。空数组在 JSONB 里是合法值但没有意义，前端还要为一个空气泡
     # 多渲染一条；而且中止在第一次模型调用之前正是这种情况。
@@ -57,9 +57,9 @@ async def persist_round(state, status: MessageStatus = MessageStatus.complete):
                 session_id=session_id,
                 role=Role.assistant,
                 status=status,
-                model=state['model'],
+                model=state["model"],
                 parts=parsts,
-                mode=state['mode'],
+                mode=state["mode"],
             )
             session.add(message)
             await session.commit()

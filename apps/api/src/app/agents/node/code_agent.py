@@ -1,18 +1,20 @@
 """codeAgent 节点：按计划读写沙箱内文件。"""
 
+import typing
+
+from langchain.agents import create_agent
+from langchain.messages import HumanMessage, RemoveMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
+
+from app.agents.helper.abort_agent import abort_update, run_agent_with_abort
 from app.agents.helper.agent_prompt import generate_system_prompt
-from app.agents.helper.abort_agent import run_agent_with_abort, abort_update
 from app.agents.helper.middleware import TrackingSummarization
 from app.agents.node.state import State
-from langchain.agents import create_agent
-from langchain_core.runnables import RunnableConfig
-
 from app.agents.tools import create_tools
 from app.agents.tools._common import WORKSPACE
 from app.api.sandbox.client.sandbox import get_sandbox_for_id
 from app.llm import get_model
-from langchain.messages import HumanMessage, RemoveMessage
-from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 
 async def code_agent(state: State, config: RunnableConfig):
@@ -22,11 +24,13 @@ async def code_agent(state: State, config: RunnableConfig):
     并且用 ainvoke 而不是 invoke，子 agent 产出的 token 和工具结果才会流到外层
     的 messages 流里——本来它们全被 invoke 憋在节点内部，外层只剩一个最终结果。
     """
-    session_id = state['session']['id']
+    session_id = state["session"]["id"]
     sandbox = get_sandbox_for_id(session_id)
-    tools = create_tools(sandbox, mode=state['mode'])
-    model = get_model(state['model'])
-    system_prompt = generate_system_prompt(cwd=WORKSPACE, mode=state['mode'], project_context='')
+    tools = create_tools(sandbox, mode=state["mode"])
+    model = get_model(state["model"])
+    system_prompt = generate_system_prompt(
+        cwd=WORKSPACE, mode=state["mode"], project_context=""
+    )
 
     summarization = TrackingSummarization(
         model=model,
@@ -37,15 +41,15 @@ async def code_agent(state: State, config: RunnableConfig):
     )
 
     agent = create_agent(
-        model=model, 
-        tools=tools, 
+        model=model,
+        tools=tools,
         system_prompt=system_prompt,
         middleware=[summarization],
     )
 
-    input = state['input']
-    messages = state.get('messages', [])
-    inputMessage = HumanMessage(content=input)
+    input = state["input"]
+    messages = state.get("messages", [])
+    inputMessage = HumanMessage(content=typing.cast(str, input))
 
     # 本轮发出去的全部消息（历史 + 本轮用户输入），进 agent 的同时留作后面提取基准。
     input_messages = messages + [inputMessage]
@@ -53,7 +57,9 @@ async def code_agent(state: State, config: RunnableConfig):
     # 透传父 config（不要自造只带 thread_id 的 config——那样会丢掉回调，子 agent 的
     # 流式事件就回不到外层）。create_agent 默认无 checkpointer，复用父 thread_id 无副作用。
     # 赛跑与中止判定都在 run_agent_with_abort 里。
-    result, aborted = await run_agent_with_abort(agent, {"messages": input_messages}, config)
+    result, aborted = await run_agent_with_abort(
+        agent, {"messages": input_messages}, config
+    )
 
     if aborted:
         return abort_update(state, summarization)
@@ -75,7 +81,7 @@ async def code_agent(state: State, config: RunnableConfig):
         messages_update = [RemoveMessage(id=REMOVE_ALL_MESSAGES), *result["messages"]]
     else:
         messages_update = result["messages"]
-        
+
     return {
         "messages": messages_update,
         "currentRoundMessages": currentRoundMessages,

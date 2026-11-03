@@ -16,7 +16,6 @@ from __future__ import annotations
 import shlex
 from typing import Any, Protocol, runtime_checkable
 
-
 # 沙箱内的工作根目录。必须与镜像的 SANDBOX_BASE_DIR 一致（见
 # deploy/api/sandbox-image/Dockerfile），它同时决定两件事：
 #   - /execute 执行命令时的 cwd
@@ -128,7 +127,7 @@ def to_sandbox_path(path: str) -> str:
         return "."
     for prefix in (WORKSPACE + "/", WORKSPACE.lstrip("/") + "/"):
         if p.startswith(prefix):
-            p = p[len(prefix):]
+            p = p[len(prefix) :]
             break
 
     # 剩下的前导斜杠直接当成"相对根的绝对路径"（`/src/a.py` 等价 `src/a.py`）。

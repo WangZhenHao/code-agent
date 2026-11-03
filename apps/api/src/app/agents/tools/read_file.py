@@ -46,10 +46,7 @@ def read_file(
 
         total = len(lines)
         if start > total:
-            return (
-                f"错误：offset={start} 超出文件末尾"
-                f"（{file_path} 共 {total} 行）"
-            )
+            return f"错误：offset={start} 超出文件末尾（{file_path} 共 {total} 行）"
 
         window = lines[start - 1 : start - 1 + limit]
         # 行号宽度按窗口内最大行号算，窄文件不会出现难看的一堆空格。

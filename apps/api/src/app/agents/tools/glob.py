@@ -58,9 +58,7 @@ def _find_name_expr(basename: str) -> str:
 
     prefix, alternatives = match.group(1), match.group(2)
     parts = [
-        f"-name {shlex.quote(prefix + alt)}"
-        for alt in alternatives.split(",")
-        if alt
+        f"-name {shlex.quote(prefix + alt)}" for alt in alternatives.split(",") if alt
     ]
     if not parts:
         return f"-name {shlex.quote(basename)}"

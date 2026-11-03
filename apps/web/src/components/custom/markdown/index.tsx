@@ -1,9 +1,9 @@
-"use client";
+"use client"
 
-import { memo } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { cn } from "@/lib/utils";
+import { memo } from "react"
+import ReactMarkdown, { type Components } from "react-markdown"
+import remarkGfm from "remark-gfm"
+import { cn } from "@/lib/utils"
 
 /**
  * 模型输出的 Markdown 渲染。
@@ -17,14 +17,14 @@ import { cn } from "@/lib/utils";
 
 const components: Components = {
   p: ({ children }) => (
-    <p className="mt-3 first:mt-0 leading-relaxed break-words">{children}</p>
+    <p className="mt-3 leading-relaxed break-words first:mt-0">{children}</p>
   ),
   a: ({ href, children }) => (
     <a
       href={href}
       target="_blank"
       rel="noreferrer noopener"
-      className="text-primary underline underline-offset-2 break-all"
+      className="break-all text-primary underline underline-offset-2"
     >
       {children}
     </a>
@@ -33,14 +33,10 @@ const components: Components = {
     <h1 className="mt-5 mb-2 text-lg font-semibold first:mt-0">{children}</h1>
   ),
   h2: ({ children }) => (
-    <h2 className="mt-5 mb-2 text-base font-semibold first:mt-0">
-      {children}
-    </h2>
+    <h2 className="mt-5 mb-2 text-base font-semibold first:mt-0">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="mt-4 mb-1.5 text-sm font-semibold first:mt-0">
-      {children}
-    </h3>
+    <h3 className="mt-4 mb-1.5 text-sm font-semibold first:mt-0">{children}</h3>
   ),
   h4: ({ children }) => (
     <h4 className="mt-3 mb-1 font-semibold first:mt-0">{children}</h4>
@@ -93,17 +89,23 @@ const components: Components = {
   td: ({ children }) => (
     <td className="border border-border px-2 py-1 align-top">{children}</td>
   ),
-};
+}
 
-const Markdown = ({ text, className }: { text: string; className?: string }) => {
+const Markdown = ({
+  text,
+  className,
+}: {
+  text: string
+  className?: string
+}) => {
   return (
     <div className={cn("text-sm break-words", className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {text}
       </ReactMarkdown>
     </div>
-  );
-};
+  )
+}
 
 // 消息列表里其它气泡不随流式 token 变化，跳过重复解析
-export default memo(Markdown);
+export default memo(Markdown)

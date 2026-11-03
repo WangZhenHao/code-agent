@@ -1,12 +1,12 @@
-"use client";
+"use client"
 
-import { useState } from "react";
+import { useState } from "react"
 
-import { useWs, useWsEvent } from "@/components/providers/ws-provider";
+import { useWs, useWsEvent } from "@/components/providers/ws-provider"
 
-import Header from "./header";
-import Preview from "./preview";
-import PreviewOptions from "./preview-options";
+import Header from "./header"
+import Preview from "./preview"
+import PreviewOptions from "./preview-options"
 
 /**
  * 预览面板。数据来源是后端推送 `web.server_status_changed`
@@ -14,23 +14,23 @@ import PreviewOptions from "./preview-options";
  * `preview.status` 补齐当前快照——推送是尽力而为，丢了不会重发。
  */
 const Right = () => {
-  const { sendWs } = useWs();
-  const [previewStatus, setPreviewStatus] = useState<string>("idle");
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const { sendWs } = useWs()
+  const [previewStatus, setPreviewStatus] = useState<string>("idle")
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   useWsEvent("web.server_status_changed", (params) => {
-    const preview = params.preview;
+    const preview = params.preview
     if (preview && typeof preview === "object") {
-      const p = preview as Record<string, unknown>;
-      if (typeof p.status === "string") setPreviewStatus(p.status);
-      setPreviewUrl(typeof p.preview_url === "string" ? p.preview_url : null);
+      const p = preview as Record<string, unknown>
+      if (typeof p.status === "string") setPreviewStatus(p.status)
+      setPreviewUrl(typeof p.preview_url === "string" ? p.preview_url : null)
     }
-  });
+  })
 
   return (
     <div className="flex min-w-0 flex-1 flex-col pr-2 pb-2">
       <Header />
-      <div className="border rounded-xl flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border">
         <PreviewOptions
           url={previewUrl}
           onRefresh={() => sendWs("preview.status", {})}
@@ -38,7 +38,7 @@ const Right = () => {
         <Preview status={previewStatus} url={previewUrl} />
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Right;
+export default Right

@@ -55,7 +55,9 @@ class FragmentToolCallDeltaTest(unittest.TestCase):
     def test_growth_sends_only_suffix(self) -> None:
         seen: dict[str, str] = {}
         fragment_tool_call_delta(_messages_event(_tool_call_delta('{"a"')), seen)
-        kept = fragment_tool_call_delta(_messages_event(_tool_call_delta('{"a": 1}')), seen)
+        kept = fragment_tool_call_delta(
+            _messages_event(_tool_call_delta('{"a": 1}')), seen
+        )
 
         self.assertEqual(
             kept["params"]["data"]["delta"],
@@ -82,15 +84,17 @@ class FragmentToolCallDeltaTest(unittest.TestCase):
 
     def test_non_prefix_falls_back_to_full_block(self) -> None:
         seen: dict[str, str] = {}
-        fragment_tool_call_delta(_messages_event(_tool_call_delta('{"path": "a"}')), seen)
+        fragment_tool_call_delta(
+            _messages_event(_tool_call_delta('{"path": "a"}')), seen
+        )
         replaced = _tool_call_delta('{"path": "b"}')
         kept = fragment_tool_call_delta(_messages_event(replaced), seen)
 
         # 退回原事件：SDK 对 block-delta 整体覆盖，状态仍然正确。
-        self.assertIs(
-            kept["params"]["data"]["delta"]["type"], "block-delta"
+        self.assertIs(kept["params"]["data"]["delta"]["type"], "block-delta")
+        self.assertEqual(
+            kept["params"]["data"]["delta"]["fields"]["args"], '{"path": "b"}'
         )
-        self.assertEqual(kept["params"]["data"]["delta"]["fields"]["args"], '{"path": "b"}')
 
     def test_blocks_are_tracked_independently(self) -> None:
         seen: dict[str, str] = {}
@@ -213,7 +217,9 @@ class MessageSnapshotTest(unittest.TestCase):
         )
         self.assertTrue(is_message_snapshot(_messages_event(summary)))
         self.assertTrue(is_message_snapshot(_messages_event((summary, {}))))
-        self.assertTrue(is_message_snapshot(_messages_event(RemoveMessage(id="__remove_all__"))))
+        self.assertTrue(
+            is_message_snapshot(_messages_event(RemoveMessage(id="__remove_all__")))
+        )
 
     def test_delta_events_kept(self) -> None:
         payload = {

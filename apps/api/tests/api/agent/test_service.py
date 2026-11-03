@@ -71,7 +71,7 @@ class FakeSandbox:
 class FakeThreadSession:
     """替换 ThreadSession：记录 start_run 的 state 和 cancel 的调用。"""
 
-    instances: list["FakeThreadSession"] = []
+    instances: list[FakeThreadSession] = []
     run_id = "run-123"
     cancelled_return = True
 

@@ -86,7 +86,14 @@ class RejectTestCase(unittest.TestCase):
             self.assertIn(contains, reason)
 
     def test_write_commands_rejected(self):
-        for cmd in ("rm -rf src", "mv a b", "cp a b", "mkdir x", "touch x", "tar -xf a.tar"):
+        for cmd in (
+            "rm -rf src",
+            "mv a b",
+            "cp a b",
+            "mkdir x",
+            "touch x",
+            "tar -xf a.tar",
+        ):
             self.assertRejected(cmd)
 
     def test_forwarders_rejected(self):
@@ -133,7 +140,13 @@ class RejectTestCase(unittest.TestCase):
             self.assertRejected(cmd)
 
     def test_git_write_subcommands_rejected(self):
-        for cmd in ("git checkout .", "git reset --hard", "git clean -fd", "git push", "git config a b"):
+        for cmd in (
+            "git checkout .",
+            "git reset --hard",
+            "git clean -fd",
+            "git push",
+            "git config a b",
+        ):
             self.assertRejected(cmd, contains="git")
 
     def test_git_branch_is_rejected(self):

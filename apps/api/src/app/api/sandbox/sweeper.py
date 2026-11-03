@@ -18,7 +18,7 @@ SandboxNotFoundError 吞成「没建过」，所以后果只是多一次调用�
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
@@ -35,7 +35,7 @@ _SWEEP_JOB_ID = "sweep_expired_previews"
 
 # 模块级单体：lifespan 启停的是同一个实例。不设成 None 再懒加载，是因为
 # `AsyncIOScheduler()` 构造本身不启动循环、不建线程，只是建个对象。
-_scheduler = AsyncIOScheduler(timezone=timezone.utc)
+_scheduler = AsyncIOScheduler(timezone=UTC)
 
 
 async def sweep_expired_previews() -> None:
@@ -45,9 +45,7 @@ async def sweep_expired_previews() -> None:
     连不上，不该让后面几十个正常会话都跟着不回收。失败的行 preview_time 保持不变，
     下一轮会再试，天然重试。
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(
-        minutes=settings.sandbox_preview_ttl_minutes
-    )
+    cutoff = datetime.now(UTC) - timedelta(minutes=settings.sandbox_preview_ttl_minutes)
 
     # 时间比较放在 DB 端做（用 cutoff 参数而不是 SQL 的 now()，是为了让 ttl
     # 留在 Python 侧统一配置），避免各副本时钟不一致导致该收的不收。

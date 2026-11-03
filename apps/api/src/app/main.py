@@ -81,7 +81,9 @@ def create_app() -> FastAPI:
             logger.exception("unhandled error: %s %s", request.method, request.url.path)
             # 生产不把异常原文给客户端（可能带连接串、SQL、内部路径）；
             # debug 下透出来，本地排查不用回去翻日志。
-            detail = f"{type(exc).__name__}: {exc}" if settings.debug else "服务器内部错误"
+            detail = (
+                f"{type(exc).__name__}: {exc}" if settings.debug else "服务器内部错误"
+            )
             return JSONResponse(status_code=500, content={"detail": detail})
 
     # 允许的来源由 CODE_AGENT_CORS_ORIGINS 控制（逗号分隔）。

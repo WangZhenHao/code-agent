@@ -1,31 +1,51 @@
-"use client";
+"use client"
+
+import { Bot, PanelBottom, PanelLeft, PanelTop, Search } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 
 import {
-  Bot,
-  PanelBottom,
-  PanelLeft,
-  PanelTop,
-  Search,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-
-import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Kbd, KbdGroup } from "@/components/ui/kbd";
-import { Spinner } from "@/components/ui/spinner";
+  Empty,
+  EmptyContent,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { Spinner } from "@/components/ui/spinner"
 
 interface Shortcut {
-  icon: LucideIcon;
-  label: string;
-  mac: [string, string];
-  win: [string, string];
+  icon: LucideIcon
+  label: string
+  mac: [string, string]
+  win: [string, string]
 }
 
 const SHORTCUTS: Shortcut[] = [
-  { icon: Search, label: "快速检索代码内容", mac: ["⌘", "K"], win: ["Ctrl", "K"] },
-  { icon: PanelLeft, label: "切换文件目录可见性", mac: ["⌘", "B"], win: ["Alt", "B"] },
-  { icon: PanelBottom, label: "切换底部面板可见性", mac: ["⌘", "J"], win: ["Alt", "J"] },
-  { icon: PanelTop, label: "打开新的默认标签页", mac: ["⌘", "N"], win: ["Alt", "N"] },
-];
+  {
+    icon: Search,
+    label: "快速检索代码内容",
+    mac: ["⌘", "K"],
+    win: ["Ctrl", "K"],
+  },
+  {
+    icon: PanelLeft,
+    label: "切换文件目录可见性",
+    mac: ["⌘", "B"],
+    win: ["Alt", "B"],
+  },
+  {
+    icon: PanelBottom,
+    label: "切换底部面板可见性",
+    mac: ["⌘", "J"],
+    win: ["Alt", "J"],
+  },
+  {
+    icon: PanelTop,
+    label: "打开新的默认标签页",
+    mac: ["⌘", "N"],
+    win: ["Alt", "N"],
+  },
+]
 
 /**
  * 预览未就绪时的占位：点阵背景 + 空态（快捷键提示）。
@@ -37,7 +57,7 @@ const PreviewLoading = ({ ready }: { ready: boolean }) => {
       {/* 点阵背景 */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-size-[16px_16px] mask-[radial-gradient(ellipse_at_center,black_35%,transparent_78%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] mask-[radial-gradient(ellipse_at_center,black_35%,transparent_78%)] bg-size-[16px_16px]"
       />
       <div className="relative flex size-full items-center justify-center px-6">
         <Empty className="border-0">
@@ -74,7 +94,7 @@ const PreviewLoading = ({ ready }: { ready: boolean }) => {
         </Empty>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default PreviewLoading;
+export default PreviewLoading

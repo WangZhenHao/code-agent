@@ -1,0 +1,21 @@
+# 依赖与构建产物
+node_modules/
+.next/
+out/
+build/
+dist/
+.turbo/
+coverage/
+
+# 锁文件
+pnpm-lock.yaml
+bun.lock
+
+# 生成 / 自动重写文件
+src/api/generated/
+AGENTS.md
+next-env.d.ts
+*.tsbuildinfo
+
+# 静态资源
+public/

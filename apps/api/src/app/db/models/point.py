@@ -25,7 +25,17 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity, Index, Integer, String, Text, func
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    Identity,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -90,7 +100,9 @@ class PointRecord(Base):
     points: Mapped[int] = mapped_column(Integer)
 
     # 这一笔积分的过期时刻。null = 永久有效（比如后台调整给的补偿分）
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
 
     # Text 而非 String(n)：后台调整的备注长度不可控
     remark: Mapped[str | None] = mapped_column(Text, default=None)

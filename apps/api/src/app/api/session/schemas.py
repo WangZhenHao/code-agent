@@ -83,7 +83,9 @@ class SessionItem(BaseModel):
 
 class SessionListResponse(BaseModel):
     data: list[SessionItem]
-    total: int = Field(description="符合过滤条件的会话总数（不含已删除）", examples=[42])
+    total: int = Field(
+        description="符合过滤条件的会话总数（不含已删除）", examples=[42]
+    )
     page: int = Field(examples=[1])
     page_size: int = Field(examples=[20])
 

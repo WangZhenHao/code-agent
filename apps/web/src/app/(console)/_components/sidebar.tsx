@@ -1,11 +1,10 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -13,7 +12,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu"
 import {
   Sidebar,
   SidebarContent,
@@ -31,65 +30,66 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
   useSidebar,
-} from "@/components/ui/sidebar";
+} from "@/components/ui/sidebar"
 import {
-  BellIcon,
   ChevronsUpDownIcon,
   CirclePlusIcon,
   InfoIcon,
   LayoutGridIcon,
   Settings2Icon,
   Share2Icon,
-  SparklesIcon,
-} from "lucide-react";
-import * as React from "react";
+} from "lucide-react"
+import * as React from "react"
 
-import { useUserStore, useHydrated } from "@/store/user";
-import BrandMark from "@/components/custom/BrandMark";
+import { useUserStore, useHydrated } from "@/store/user"
+import BrandMark from "@/components/custom/BrandMark"
 
 type NavItem = {
-  title: string;
-  icon: React.ComponentType;
+  title: string
+  icon: React.ComponentType
   /** 未提供 href 的条目为占位项，暂不可点击 */
-  href?: string;
-  hint?: "notice" | "new";
-};
+  href?: string
+  hint?: "notice" | "new"
+}
 
 type NavGroup = {
-  label: string;
-  items: NavItem[];
-};
+  label: string
+  items: NavItem[]
+}
 
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "项目",
     items: [{ title: "项目管理", icon: LayoutGridIcon, href: "/projects" }],
   },
-];
+]
 
-const USER_AVATAR = "/home/1.png";
+const USER_AVATAR = "/home/1.png"
 
 export function AppSidebar() {
-  const pathname = usePathname();
-  const router = useRouter();
-  const [logoutOpen, setLogoutOpen] = React.useState(false);
-  const user = useUserStore((state) => state.user);
-  const hydrated = useHydrated();
+  const pathname = usePathname()
+  const router = useRouter()
+  const [logoutOpen, setLogoutOpen] = React.useState(false)
+  const user = useUserStore((state) => state.user)
+  const hydrated = useHydrated()
 
   const displayName =
-    (hydrated && user ? user.name || user.phone : null) ?? "用户";
-  const avatarInitial = displayName.slice(0, 1);
+    (hydrated && user ? user.name || user.phone : null) ?? "用户"
+  const avatarInitial = displayName.slice(0, 1)
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="gap-3">
         <div className="flex h-8 items-center gap-2 px-1">
-          <Link  className="flex items-center group-data-[collapsible=icon]:hidden" href="/create" aria-label="码灵编程首页">
+          <Link
+            className="flex items-center group-data-[collapsible=icon]:hidden"
+            href="/create"
+            aria-label="码灵编程首页"
+          >
             <BrandMark size={20} />
             <span className="truncate pl-2 text-sm font-semibold">
               码灵编程
@@ -142,13 +142,13 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   size="lg"
                   tooltip={displayName}
-                  className="pr-2 flex"
+                  className="flex pr-2"
                 >
                   <Avatar className="size-8">
                     <AvatarImage src={USER_AVATAR} alt={displayName} />
                     <AvatarFallback>{avatarInitial}</AvatarFallback>
                   </Avatar>
-                  <div className="flex justify-between items-center flex-1">
+                  <div className="flex flex-1 items-center justify-between">
                     <span className="truncate text-sm font-medium group-data-[collapsible=icon]:hidden">
                       {displayName}
                     </span>
@@ -156,10 +156,6 @@ export function AppSidebar() {
                   </div>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              {/* <SidebarMenuAction aria-label="通知" className="top-2 right-2">
-                <BellIcon />
-                <span className="absolute top-1 right-1 size-1.5 rounded-full bg-destructive" />
-              </SidebarMenuAction> */}
               <DropdownMenuContent
                 side="top"
                 align="start"
@@ -202,24 +198,24 @@ export function AppSidebar() {
 
       <LogoutDialog open={logoutOpen} onOpenChange={setLogoutOpen} />
     </Sidebar>
-  );
+  )
 }
 
 function PlaceholderOrLink({
   item,
   active,
 }: {
-  item: NavItem;
-  active: boolean;
+  item: NavItem
+  active: boolean
 }) {
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar()
 
   const content = (
     <>
       <item.icon />
       <span>{item.title}</span>
     </>
-  );
+  )
 
   if (!item.href) {
     return (
@@ -228,7 +224,7 @@ function PlaceholderOrLink({
           {content}
         </SidebarMenuButton>
       </SidebarMenuItem>
-    );
+    )
   }
 
   return (
@@ -237,25 +233,25 @@ function PlaceholderOrLink({
         <Link
           href={item.href}
           onClick={() => {
-            if (isMobile) setOpenMobile(false);
+            if (isMobile) setOpenMobile(false)
           }}
         >
           {content}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
-  );
+  )
 }
 
 function LogoutDialog({
   open,
   onOpenChange,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }) {
-  const router = useRouter();
-  const logout = useUserStore((state) => state.logout);
+  const router = useRouter()
+  const logout = useUserStore((state) => state.logout)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -273,9 +269,9 @@ function LogoutDialog({
           <Button
             variant="destructive"
             onClick={() => {
-              onOpenChange(false);
-              logout();
-              router.replace("/");
+              onOpenChange(false)
+              logout()
+              router.replace("/")
             }}
           >
             确认退出
@@ -283,5 +279,5 @@ function LogoutDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

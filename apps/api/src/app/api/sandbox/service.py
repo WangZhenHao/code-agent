@@ -23,16 +23,18 @@ from fastapi import HTTPException, status
 from k8s_agent_sandbox import SandboxError
 from k8s_agent_sandbox.exceptions import SandboxNotFoundError
 from k8s_agent_sandbox.sandbox import Sandbox
-from sqlalchemy import select, update
+from sqlalchemy import update
 
 from app.api.sandbox.client import (
     create_sandbox_for_id,
-    delete_sandbox as delete_sandbox_handle,
     get_sandbox_for_id,
     resume_sandbox,
     suspend_sandbox,
 )
-from app.db.models.session import PreviewStatus, Session, SessionStatus
+from app.api.sandbox.client import (
+    delete_sandbox as delete_sandbox_handle,
+)
+from app.db.models.session import PreviewStatus, Session
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)

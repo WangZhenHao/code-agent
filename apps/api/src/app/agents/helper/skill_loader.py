@@ -243,7 +243,7 @@ def read_skill(
     if not target.is_file():
         files = list_skill_files(skill)
         hint = (
-            f"\n该技能包现有文件：\n" + "\n".join(f"- {f}" for f in files)
+            "\n该技能包现有文件：\n" + "\n".join(f"- {f}" for f in files)
             if files
             else "\n该技能包没有子文件。"
         )

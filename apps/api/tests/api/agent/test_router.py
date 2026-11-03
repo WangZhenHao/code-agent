@@ -54,7 +54,11 @@ class CommandRouteTestCase(unittest.TestCase):
     def test_returns_plain_json_not_sse(self):
         resp = self.client.post(
             "/agents/s1/commands",
-            json={"model": "m1", "mode": "agent", "parts": [{"type": "text", "text": "hi"}]},
+            json={
+                "model": "m1",
+                "mode": "agent",
+                "parts": [{"type": "text", "text": "hi"}],
+            },
         )
 
         self.assertEqual(resp.status_code, 200)
@@ -63,7 +67,9 @@ class CommandRouteTestCase(unittest.TestCase):
 
     def test_path_param_reaches_service(self):
         # 路径参数名写错会退化成 ?session_id=/id= 查询参数，接口仍 200 但值为空。
-        self.client.post("/agents/s1/commands", json={"parts": [{"type": "text", "text": "x"}]})
+        self.client.post(
+            "/agents/s1/commands", json={"parts": [{"type": "text", "text": "x"}]}
+        )
 
         kwargs = self.cmd.await_args.kwargs
         self.assertEqual(kwargs["session_id"], "s1")
@@ -72,7 +78,11 @@ class CommandRouteTestCase(unittest.TestCase):
     def test_request_body_is_parsed_into_schema(self):
         self.client.post(
             "/agents/s1/commands",
-            json={"model": "m1", "mode": "plan", "parts": [{"type": "text", "text": "x"}]},
+            json={
+                "model": "m1",
+                "mode": "plan",
+                "parts": [{"type": "text", "text": "x"}],
+            },
         )
         req = self.cmd.await_args.kwargs["req"]
         self.assertEqual(req.model, "m1")
@@ -98,7 +108,9 @@ class StreamRouteTestCase(unittest.TestCase):
         async def fake_stream(**kwargs):
             yield "event: message\ndata: {}\n\n"
 
-        patcher = mock.patch.object(agent_router_module, "agent_stream_events", fake_stream)
+        patcher = mock.patch.object(
+            agent_router_module, "agent_stream_events", fake_stream
+        )
         patcher.start()
         self.addCleanup(patcher.stop)
 

@@ -34,10 +34,17 @@ make dev-admin      # React SPA :5174
 make server         # FastAPI :8000 —— README 里写的 make dev-api 不存在，target 叫 server
 make gen-api        # 后端 OpenAPI → 前端类型/hooks（需先起 api）
 make db-up / db-migrate / db-revision m="msg" / db-check
-make lint / fmt / test / build
+make lint           # 前端 eslint + prettier 检查，后端 ruff + ruff format --check + mypy
+make lint-fix       # lint 自动修复
+make typecheck      # 前端 tsc
+make fmt / fmt-check  # 格式化全部 / 只检查
+make test / build
 ```
 
 `make test` 跑的是 `python -m unittest`，不是 pytest。
+
+两个前端统一 **ESLint 9（flat config）+ Prettier**，配置各自留在 app 目录内（`eslint.config.*`、`.prettierrc`）——仓库不是 workspace，依赖按 app 各自安装。
+后端是 **ruff**（格式化 + lint）+ **mypy**（类型检查），配置在 `apps/api/pyproject.toml` 的 `[tool.ruff]` / `[tool.mypy]`。
 
 ## 跨 app 约定（最容易漏）
 

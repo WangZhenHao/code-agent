@@ -83,8 +83,7 @@ export function Login({
     )
   }
 
-  const errorMessage =
-    login.error?.message || sendCode.error?.message || null
+  const errorMessage = login.error?.message || sendCode.error?.message || null
 
   return (
     <form
@@ -93,7 +92,9 @@ export function Login({
     >
       <div className="flex flex-col items-center gap-4 pt-4">
         <BrandMark />
-        <h2 className="text-2xl font-semibold tracking-tight pt-2 pb-4">欢迎使用码灵</h2>
+        <h2 className="pt-2 pb-4 text-2xl font-semibold tracking-tight">
+          欢迎使用码灵
+        </h2>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -166,9 +167,16 @@ export function Login({
         </p>
       )}
 
-      {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
+      {errorMessage && (
+        <p className="text-sm text-destructive">{errorMessage}</p>
+      )}
 
-      <Button type="submit" size="lg" className="h-11 rounded-xl" disabled={!canSubmit}>
+      <Button
+        type="submit"
+        size="lg"
+        className="h-11 rounded-xl"
+        disabled={!canSubmit}
+      >
         {login.isPending ? "登录中..." : "登录"}
       </Button>
 

@@ -1,19 +1,19 @@
-"use client";
+"use client"
 
-import { useSyncExternalStore } from "react";
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { useSyncExternalStore } from "react"
+import { create } from "zustand"
+import { persist } from "zustand/middleware"
 
-import type { MessageMode } from "@/api/generated/model";
-import { DEFAULT_MODEL, DEFAULT_MODE } from "@/lib/chat-options";
+import type { MessageMode } from "@/api/generated/model"
+import { DEFAULT_MODEL, DEFAULT_MODE } from "@/lib/chat-options"
 
 interface AgentChatState {
   /** 对话模式：agent 或 plan */
-  mode: MessageMode;
+  mode: MessageMode
   /** 传给后端 ChatCreateRequest.model 的模型标识 */
-  model: string;
-  setMode: (mode: MessageMode) => void;
-  setModel: (model: string) => void;
+  model: string
+  setMode: (mode: MessageMode) => void
+  setModel: (model: string) => void
 }
 
 /**
@@ -33,24 +33,24 @@ export const useAgentChatStore = create<AgentChatState>()(
     {
       name: "code-agent-agent-chat",
       partialize: (state) => ({ mode: state.mode, model: state.model }),
-    },
-  ),
-);
+    }
+  )
+)
 
 /** persist 在客户端挂载后才完成回填，用该标记避免 SSR / 首屏渲染不一致 */
 export function useAgentChatHydrated() {
   return useSyncExternalStore(
     (onChange) => {
-      const persist = useAgentChatStore.persist;
-      if (!persist) return useAgentChatStore.subscribe(onChange);
-      const unsubscribeHydration = persist.onFinishHydration(onChange);
-      const unsubscribeStore = useAgentChatStore.subscribe(onChange);
+      const persist = useAgentChatStore.persist
+      if (!persist) return useAgentChatStore.subscribe(onChange)
+      const unsubscribeHydration = persist.onFinishHydration(onChange)
+      const unsubscribeStore = useAgentChatStore.subscribe(onChange)
       return () => {
-        unsubscribeHydration();
-        unsubscribeStore();
-      };
+        unsubscribeHydration()
+        unsubscribeStore()
+      }
     },
     () => useAgentChatStore.persist?.hasHydrated() ?? false,
-    () => false,
-  );
+    () => false
+  )
 }

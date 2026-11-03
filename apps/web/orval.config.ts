@@ -1,17 +1,17 @@
-import { defineConfig } from "orval";
-import type { OpenApiDocument } from "orval";
+import { defineConfig } from "orval"
+import type { OpenApiDocument } from "orval"
 
 /** SSE 流式接口：生成出来是普通 promise，没法消费流，单独手写 fetch */
 const SSE_PATHS = [
   "/agents/talking/{session_id}",
   "/agents/retalk/{session_id}",
-] as const;
+] as const
 
 const dropSsePaths = (spec: OpenApiDocument): OpenApiDocument => {
-  const paths = { ...spec.paths };
-  for (const path of SSE_PATHS) delete paths[path];
-  return { ...spec, paths };
-};
+  const paths = { ...spec.paths }
+  for (const path of SSE_PATHS) delete paths[path]
+  return { ...spec, paths }
+}
 
 export default defineConfig({
   api: {
@@ -38,4 +38,4 @@ export default defineConfig({
       },
     },
   },
-});
+})

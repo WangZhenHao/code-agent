@@ -37,7 +37,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 async def chat_create(
     req: ChatCreateRequest,
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ):
     return await create_chat(req, user_id=user.id, session=session)
 
@@ -52,7 +52,7 @@ async def message(
     id: str,
     limit: int = Query(50, ge=1, le=200, description="返回最新多少条消息，上限 200"),
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ):
     """获取会话消息，按时间正序；默认取最新 50 条。
 
@@ -70,7 +70,7 @@ async def message(
 async def detail(
     id: str,
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ):
     return await chat_detail(id, user.id, session)
 
@@ -92,7 +92,7 @@ async def langchain_history(
     id: str,
     # path 参数名必须与 {id} 逐字一致，写成别的会退化成查询参数 ?id=。
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ):
     """获取会话的对话历史（来自 LangGraph 图状态）。"""
     return await chat_langchain_history(id, user.id, session)

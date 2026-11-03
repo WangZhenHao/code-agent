@@ -53,7 +53,9 @@ class Deployment(Base, TimestampMixin):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
 
-    port: Mapped[int] = mapped_column(Integer, default=3000, server_default=text("3000"))
+    port: Mapped[int] = mapped_column(
+        Integer, default=3000, server_default=text("3000")
+    )
     start_command: Mapped[str] = mapped_column(
         String(512), default="bun run start", server_default="bun run start"
     )

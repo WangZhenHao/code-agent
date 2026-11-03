@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from collections.abc import Mapping
 from typing import Any, TypeGuard
 
 from langchain_core.messages import BaseMessage
@@ -169,15 +170,13 @@ def sanitize_for_json(value: Any) -> Any:
 def sanitize_event(event: dict[str, Any]) -> dict[str, Any]:
     params = dict(event["params"])
     method = event.get("method", "")
-    params["data"] = sanitize_for_json(
-        unwrap_protocol_data(method, params.get("data"))
-    )
+    params["data"] = sanitize_for_json(unwrap_protocol_data(method, params.get("data")))
     if "interrupts" in params:
         params["interrupts"] = sanitize_for_json(params["interrupts"])
     return {**event, "params": params}
 
 
-def _messages_from_values_event(event: dict[str, Any]) -> list[dict[str, Any]]:
+def _messages_from_values_event(event: Mapping[str, Any]) -> list[dict[str, Any]]:
     if event.get("method") != "values":
         return []
     params = event.get("params")
@@ -196,7 +195,7 @@ def _messages_from_values_event(event: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def synthesize_tools_events(
-    event: dict[str, Any],
+    event: Mapping[str, Any],
     *,
     announced: set[str],
     finished: set[str],
@@ -265,7 +264,7 @@ def synthesize_tools_events(
     return synthesized
 
 
-def is_message_snapshot(event: dict[str, Any]) -> bool:
+def is_message_snapshot(event: Mapping[str, Any]) -> bool:
     """messages 通道上的「整条消息快照」（不带 `event` 字段），不转发。
 
     v3 的 astream_events 除了 message-start / content-block-* 增量，还会把
@@ -296,7 +295,7 @@ def is_message_snapshot(event: dict[str, Any]) -> bool:
     return "event" not in data
 
 
-def is_root_lifecycle(event: dict[str, Any], name: str) -> bool:
+def is_root_lifecycle(event: Mapping[str, Any], name: str) -> bool:
     """判断是否是根命名空间上的某类 lifecycle 事件（running/completed/...）。"""
     if event.get("method") != "lifecycle":
         return False
@@ -312,7 +311,7 @@ def is_root_lifecycle(event: dict[str, Any], name: str) -> bool:
     return data.get("event") == name
 
 
-def is_text_block_finish(event: dict[str, Any]) -> bool:
+def is_text_block_finish(event: Mapping[str, Any]) -> bool:
     """text 块的 content-block-finish：全文已由 delta 逐段发过，重复且体积大，不转发。
 
     tool_call 块必须保留——JS SDK 的 Assembler 用它的完整 content 拿可解析的
@@ -362,8 +361,14 @@ def fragment_tool_call_delta(
         return event
     data = params.get("data")
     # v3 下 messages 的 data 可能是 (payload, metadata) 元组，发布前还没 unwrap。
-    is_tuple = isinstance(data, tuple)
-    payload = (data[0] if data else None) if is_tuple else data
+    if isinstance(data, tuple):
+        is_tuple = True
+        payload = data[0] if data else None
+        rest = tuple(data[1:])
+    else:
+        is_tuple = False
+        payload = data
+        rest = ()
     if not is_record(payload) or payload.get("event") != "content-block-delta":
         return event
     delta = payload.get("delta")
@@ -387,8 +392,11 @@ def fragment_tool_call_delta(
     if not args.startswith(previous):
         return event
 
-    fragment = {**payload, "delta": {"type": "tool-call-delta", "args": args[len(previous):]}}
-    fragment_data = (fragment, *data[1:]) if is_tuple else fragment
+    fragment = {
+        **payload,
+        "delta": {"type": "tool-call-delta", "args": args[len(previous) :]},
+    }
+    fragment_data = (fragment, *rest) if is_tuple else fragment
     return {**event, "params": {**params, "data": fragment_data}}
 
 

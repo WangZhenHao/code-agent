@@ -40,11 +40,13 @@ class SessionStatus(IntEnum):
     delete = 0  # 已删除（软删）
     running = 1  # 进行中
 
+
 class PublicStatus(IntEnum):
     """部署状态：会话是否已发布成可访问的站点。"""
 
     hidden = 0  # 未部署
     visible = 1  # 已部署
+
 
 class Role(StrEnum):
     """消息角色。"""
@@ -53,11 +55,13 @@ class Role(StrEnum):
     assistant = "assistant"
     error = "error"
 
+
 class Platform(StrEnum):
     """平台"""
 
     web = "web"
     mini_program = "mini_program"
+
 
 class MessageStatus(StrEnum):
     """消息状态。interrupted = 流到一半断了（进程重启、客户端断开、上游 5xx）。"""
@@ -65,11 +69,13 @@ class MessageStatus(StrEnum):
     complete = "complete"
     interrupted = "interrupted"
 
+
 class MessageMode(StrEnum):
     """模式。"""
 
     agent = "agent"
     plan = "plan"
+
 
 class PreviewStatus(StrEnum):
     """沙箱预览的状态。Prisma 里只给了 `@default(idle)`，其余值待补。
@@ -109,7 +115,9 @@ class Session(Base, TimestampMixin):
     # （裸 SQL / 数据修复脚本 insert 也生效）。非空列两个都要给，只给 default 的话
     # 裸 SQL 会撞 NOT NULL。
     status: Mapped[int] = mapped_column(
-        Integer, default=SessionStatus.running, server_default=text(str(SessionStatus.running.value))
+        Integer,
+        default=SessionStatus.running,
+        server_default=text(str(SessionStatus.running.value)),
     )
     # publish：是否已部署（PublicStatus）；views：浏览量
     # server_default 要的是字符串：text() 只收 str，直接塞 IntEnum 会在 import 时报

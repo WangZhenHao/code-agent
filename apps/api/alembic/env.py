@@ -58,9 +58,7 @@ _EXCLUDED_TABLES = frozenset(
 
 def include_object(obj, name, type_, reflected, compare_to):  # noqa: ANN001
     """挡住 checkpointer 的私有表，其余一律放行。"""
-    if type_ == "table" and name in _EXCLUDED_TABLES:
-        return False
-    return True
+    return not (type_ == "table" and name in _EXCLUDED_TABLES)
 
 
 def run_migrations_offline() -> None:

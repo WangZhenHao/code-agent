@@ -63,9 +63,7 @@ export function toListRequest(params: ProjectSearchParams): SessionListRequest {
     keyword: params.keyword.trim() || null,
     platform: params.type === "all" ? null : params.type,
     publish:
-      params.status === "all"
-        ? null
-        : (Number(params.status) as PublicStatus),
+      params.status === "all" ? null : (Number(params.status) as PublicStatus),
     sort: params.sort,
   }
 }

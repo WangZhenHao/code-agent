@@ -113,8 +113,7 @@ def grep_files(
         return "错误：pattern 不能为空"
     if output_mode not in OUTPUT_MODES:
         return (
-            f"错误：output_mode 只能是 {' / '.join(OUTPUT_MODES)}，"
-            f"收到 {output_mode!r}"
+            f"错误：output_mode 只能是 {' / '.join(OUTPUT_MODES)}，收到 {output_mode!r}"
         )
 
     head_limit = min(max(int(head_limit), 1), MAX_HEAD_LIMIT)
@@ -155,8 +154,7 @@ def grep_files(
         )
 
         script = (
-            f"if command -v rg >/dev/null 2>&1; then\n{rg_cmd}\n"
-            f"else\n{grep_cmd}\nfi"
+            f"if command -v rg >/dev/null 2>&1; then\n{rg_cmd}\nelse\n{grep_cmd}\nfi"
         )
 
         stdout, stderr, exit_code = run_shell_raw(sandbox, script, timeout=120)

@@ -11,6 +11,7 @@ Revises: 9b2e5c7f1a3d
 Create Date: 2026-10-11 00:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -18,8 +19,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'f4a1b2c3d4e5'
-down_revision: Union[str, Sequence[str], None] = '9b2e5c7f1a3d'
+revision: str = "f4a1b2c3d4e5"
+down_revision: Union[str, Sequence[str], None] = "9b2e5c7f1a3d"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -27,11 +28,11 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     op.add_column(
-        'sessions',
-        sa.Column('preview_time', sa.DateTime(timezone=True), nullable=True),
+        "sessions",
+        sa.Column("preview_time", sa.DateTime(timezone=True), nullable=True),
     )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_column('sessions', 'preview_time')
+    op.drop_column("sessions", "preview_time")

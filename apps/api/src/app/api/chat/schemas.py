@@ -4,17 +4,15 @@
 """
 
 from datetime import datetime
-from enum import StrEnum
-from typing import Any, Literal, TypeAlias
+from typing import Any
 
+from langchain.messages import ContentBlock
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.models.session import MessageMode
-from langchain.messages import ContentBlock
 
 
 class ChatCreateRequest(BaseModel):
-
     model: str = Field(
         default="deepseek-v4-flash",
         description="模型名称",
@@ -42,14 +40,16 @@ class ChatCreateResponse(BaseModel):
     # sessions.description 可空（建会话时还没填），这里必须跟着可空，
     # 否则新建出来的会话（description 为 None）直接过不了序列化。
     description: str | None = Field(default=None, examples=["这个一个网站"])
-    
-MessageDict: TypeAlias = dict[str, Any]
+
+
+type MessageDict = dict[str, Any]
 
 
 class MessageItem(BaseModel):
     """一条消息。对应 Messages 表的字段，parts 原样透出。"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str = Field(examples=["an1hhebbsm8n"])
     role: str = Field(description="user / assistant / error", examples=["user"])
     status: str = Field(description="complete / interrupted", examples=["complete"])
@@ -99,8 +99,6 @@ class ChatDetailResponse(BaseModel):
     updated_at: datetime
 
 
-
-
 class LangchainMessageItem(BaseModel):
     """LangGraph 状态里的一条消息。
 
@@ -115,7 +113,9 @@ class LangchainMessageItem(BaseModel):
     """
 
     type: str = Field(description="消息类型，如 human / ai / tool", examples=["ai"])
-    message: dict[str, Any] = Field(description="消息对象 model_dump() 的结果，原样透出")
+    message: dict[str, Any] = Field(
+        description="消息对象 model_dump() 的结果，原样透出"
+    )
 
 
 class LangchainHistoryResponse(BaseModel):

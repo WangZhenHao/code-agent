@@ -42,9 +42,9 @@ from __future__ import annotations
 from langchain_core.tools import BaseTool
 
 from app.agents.tools._common import (
+    WORKSPACE,
     SandboxLike,
     SandboxToolError,
-    WORKSPACE,
 )
 from app.agents.tools.bash import build_bash_tool
 from app.agents.tools.edit_file import build_edit_file_tool
@@ -117,4 +117,3 @@ def create_tools(sandbox: SandboxLike, mode: MessageMode) -> list[BaseTool]:
             build_read_skill_tool(),
         ]
     return build_tools(sandbox)
-

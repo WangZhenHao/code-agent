@@ -67,6 +67,7 @@ class TrackingSummarization(SummarizationMiddleware):
         两边各自漏掉的正是对方有的，按 id 去重合并即是完整的本轮。顺序取 _seen 的首次
         出现序（即真实发生序），再把 final_messages 里 _seen 还没有的尾部补上。
         """
+
         def _is_round_message(m):
             return (
                 m.id not in self._input_ids
@@ -80,7 +81,7 @@ class TrackingSummarization(SummarizationMiddleware):
                 merged[m.id] = m
         for m in final_messages:
             if _is_round_message(m):
-                merged.setdefault(m.id, m)   # 已有则不覆盖，保持首次出现顺序
+                merged.setdefault(m.id, m)  # 已有则不覆盖，保持首次出现顺序
         return list(merged.values())
 
     def before_model(self, state, runtime):

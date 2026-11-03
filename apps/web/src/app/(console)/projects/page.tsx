@@ -1,5 +1,5 @@
-import { ProjectsClient } from "./_components/client";
+import { ProjectsClient } from "./_components/client"
 
 export default function ProjectsPage() {
-  return <ProjectsClient />;
+  return <ProjectsClient />
 }

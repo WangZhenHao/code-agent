@@ -1,30 +1,30 @@
-"use client";
+"use client"
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react"
 
-import { AIMessage as LangchainAIMessage } from "@langchain/core/messages";
-import type { BaseMessage } from "@langchain/core/messages";
-import type { useStreamContext } from "@langchain/react";
-import type { QueryClient } from "@tanstack/react-query";
+import { AIMessage as LangchainAIMessage } from "@langchain/core/messages"
+import type { BaseMessage } from "@langchain/core/messages"
+import type { useStreamContext } from "@langchain/react"
+import type { QueryClient } from "@tanstack/react-query"
 
-import { TypeParmas } from "@/app/(home)/_components/composer";
-import { getMessageChatMessageIdGetQueryKey } from "@/api/generated/chat/chat";
-import type { MessageListResponse } from "@/api/generated/model/messageListResponse";
-import { MessageItem } from "@/api/generated/model/messageItem";
-import { MessageMode } from "@/api/generated/model/messageMode";
-import { toHistoryMessages } from "@/lib/agent-stream/chat-history";
+import { TypeParmas } from "@/app/(home)/_components/composer"
+import { getMessageChatMessageIdGetQueryKey } from "@/api/generated/chat/chat"
+import type { MessageListResponse } from "@/api/generated/model/messageListResponse"
+import { MessageItem } from "@/api/generated/model/messageItem"
+import { MessageMode } from "@/api/generated/model/messageMode"
+import { toHistoryMessages } from "@/lib/agent-stream/chat-history"
 
 type ChatMessageSources = {
-  sessionId: string;
-  stream: ReturnType<typeof useStreamContext>;
-  queryClient: QueryClient;
+  sessionId: string
+  stream: ReturnType<typeof useStreamContext>
+  queryClient: QueryClient
   // 生成的重载签名套 ReturnType 会退化成 {}，这里只声明用到的形状。
   historyQuery: {
-    data?: MessageListResponse;
-    isLoading: boolean;
-    isSuccess: boolean;
-  };
-};
+    data?: MessageListResponse
+    isLoading: boolean
+    isSuccess: boolean
+  }
+}
 
 /**
  * 纯派生层：数据源（stream / queryClient / historyQuery）由调用方准备好传入，
@@ -44,11 +44,11 @@ export const useChatMessage = ({
   queryClient,
   historyQuery,
 }: ChatMessageSources) => {
-  const wasLoading = useRef(false);
-  const syncedRef = useRef<string | null>(null);
+  const wasLoading = useRef(false)
+  const syncedRef = useRef<string | null>(null)
   // 本轮提交时选的模型 / 模式：流完成时回写 MessageItem 要用，但 stream 的
   // 事件里不带这两项，只能记在提交那一刻。
-  const lastPromptRef = useRef<TypeParmas | null>(null);
+  const lastPromptRef = useRef<TypeParmas | null>(null)
 
   const historyMessage = useMemo<BaseMessage[]>(
     () =>
@@ -56,43 +56,47 @@ export const useChatMessage = ({
         toHistoryMessages(item)
       ),
     [historyQuery.data]
-  );
+  )
 
   const streamLiveMessage = useMemo<BaseMessage[]>(() => {
-    return stream.messages.filter((message) => message != null);
-  }, [stream.messages]);
+    return stream.messages.filter((message) => message != null)
+  }, [stream.messages])
 
-  const appendChatMessage = (message: MessageItem) => {
-    queryClient.setQueryData(
-      getMessageChatMessageIdGetQueryKey(sessionId),
-      (prev: MessageListResponse | undefined) =>
-        prev
-          ? {
-              ...prev,
-              data: [...prev.data, message],
-              total: prev.total + 1,
-            }
-          : prev
-    );
-  };
+  // 引用要稳定：下面的回写 effect 依赖它，否则每次渲染都会重跑。
+  const appendChatMessage = useCallback(
+    (message: MessageItem) => {
+      queryClient.setQueryData(
+        getMessageChatMessageIdGetQueryKey(sessionId),
+        (prev: MessageListResponse | undefined) =>
+          prev
+            ? {
+                ...prev,
+                data: [...prev.data, message],
+                total: prev.total + 1,
+              }
+            : prev
+      )
+    },
+    [queryClient, sessionId]
+  )
 
   // 流结束时把这一轮写回历史缓存，刷新后仍能看到。
   useEffect(() => {
-    const finished = wasLoading.current && !stream.isLoading;
-    wasLoading.current = stream.isLoading;
-    if (!finished) return;
+    const finished = wasLoading.current && !stream.isLoading
+    wasLoading.current = stream.isLoading
+    if (!finished) return
 
-    const last = stream.messages.at(-1);
-    if (!last || !LangchainAIMessage.isInstance(last) || !last.text) return;
+    const last = stream.messages.at(-1)
+    if (!last || !LangchainAIMessage.isInstance(last) || !last.text) return
     // 同一个 id 只写一次，防止 effect 因其他依赖重跑时重复插入
-    const key = last.id ?? last.text;
-    if (syncedRef.current === key) return;
-    syncedRef.current = key;
+    const key = last.id ?? last.text
+    if (syncedRef.current === key) return
+    syncedRef.current = key
 
     // parts 要的是后端 message_to_dict() 的形状（{ type: "ai", data: {...} }），
     // 和 toHistoryMessages 反解析的是同一套；直接塞 BaseMessage 实例会被它
     // 的 `isRecord(part.data)` 判空跳过，刷新后消息就没了。
-    const lastPrompt = lastPromptRef.current;
+    const lastPrompt = lastPromptRef.current
     appendChatMessage({
       id: last.id ?? crypto.randomUUID(),
       role: "assistant",
@@ -103,18 +107,20 @@ export const useChatMessage = ({
         .filter((message) => LangchainAIMessage.isInstance(message))
         // StoredMessage 是 interface，没有索引签名，直接赋给
         // `{ [key: string]: unknown }[]` 那一支过不了 TS；运行时形状就是普通对象。
-        .map((message) => message.toDict() as unknown as Record<string, unknown>),
+        .map(
+          (message) => message.toDict() as unknown as Record<string, unknown>
+        ),
       created_at: new Date().toISOString(),
-    });
-  }, [stream.isLoading, stream.messages, streamLiveMessage]);
+    })
+  }, [stream.isLoading, stream.messages, streamLiveMessage, appendChatMessage])
 
   const submit = (prompt: TypeParmas) => {
-    if (stream.isLoading) return false;
+    if (stream.isLoading) return false
 
     // 新一轮开始：完成回写用的是这一轮的 model / mode，上一轮的不能留。
-    lastPromptRef.current = prompt;
-    syncedRef.current = null;
-    void stream.submit({ ...prompt });
+    lastPromptRef.current = prompt
+    syncedRef.current = null
+    void stream.submit({ ...prompt })
 
     // 后端不把 user 消息回显进 SSE，历史又只在进入会话时拉一次，
     // 所以先在缓存里补一条，等下一轮刷新时再被服务端的同内容消息替换掉。
@@ -126,10 +132,10 @@ export const useChatMessage = ({
       mode: prompt.mode!,
       parts: prompt.parts,
       created_at: new Date().toISOString(),
-    };
-    appendChatMessage(userMessage);
-    return true;
-  };
+    }
+    appendChatMessage(userMessage)
+    return true
+  }
 
   return {
     historyMessage,
@@ -142,5 +148,5 @@ export const useChatMessage = ({
     isHistoryLoaded: historyQuery.isSuccess,
     error: stream.error,
     submit,
-  };
-};
+  }
+}

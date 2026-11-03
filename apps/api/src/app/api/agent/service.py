@@ -37,7 +37,9 @@ from app.db.session import SessionLocal
 logger = logging.getLogger(__name__)
 
 
-async def _require_owned_session(session: AsyncSession, session_id: str, user_id: int) -> None:
+async def _require_owned_session(
+    session: AsyncSession, session_id: str, user_id: int
+) -> None:
     """归属校验。拿别人的 id 来探测时响应 404，不泄露「存在但不归你」。"""
     exists = await session.scalar(
         select(SessionModel.id)

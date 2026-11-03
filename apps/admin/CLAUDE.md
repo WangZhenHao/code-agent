@@ -17,7 +17,8 @@ src/
 
 ## 约定
 
-- **lint 用 oxlint，不是 eslint**（`pnpm lint` → `oxlint`，配置 `.oxlintrc.json`）。
+- lint 是 eslint（flat config，`eslint.config.js`，`make lint` 里跑 `pnpm lint`），与 `apps/web` 同一套工具链；格式化是 prettier（`.prettierrc`）。原来的 oxlint 已移除。
+- 类型检查用 `pnpm typecheck`（`tsc -b --noEmit`）。根 tsconfig 只有 project references，直接跑 `tsc --noEmit` 什么都不检查。
 - UI 组件优先用 antd，不要再引入第二套组件库；不要从 `apps/web` 的 shadcn 组件里复制。
 - `src/api/types.ts` 是手写类型，和 `apps/web` 的 orval 生成代码没有共享。
 - 与 `apps/web` 的不同点：一个走 REST、一个走 SSE；admin 不需要流式渲染。

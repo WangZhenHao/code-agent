@@ -48,6 +48,7 @@ def _ensure_parent_dir(sandbox: SandboxLike, rel_path: str) -> None:
 
 def write_file(sandbox: SandboxLike, file_path: str, content: str) -> str:
     """写入文件，返回一句确认（含字节数）。"""
+
     def _write() -> str:
         rel = to_sandbox_path(file_path)
         _ensure_parent_dir(sandbox, rel)
@@ -57,7 +58,9 @@ def write_file(sandbox: SandboxLike, file_path: str, content: str) -> str:
             raise SandboxToolError(f"写入失败：{rel}（{exc}）") from exc
 
         size = len(content.encode("utf-8"))
-        line_count = content.count("\n") + (1 if content and not content.endswith("\n") else 0)
+        line_count = content.count("\n") + (
+            1 if content and not content.endswith("\n") else 0
+        )
         return f"已写入 {rel}（{size} 字节，{line_count} 行）"
 
     return safe_call(_write)

@@ -114,7 +114,7 @@ async def replay_events(thread_id: str, since: int | None) -> list[dict[str, Any
     start = f"({since}-0" if isinstance(since, int) else "-"
     entries = await redis.xrange(_key(thread_id, "events"), min=start, max="+")
     events: list[dict[str, Any]] = []
-    for _entry_id, fields in entries:
+    for _entry_id, fields in entries or []:
         event = _load(fields)
         if event is not None:
             events.append(event)
@@ -164,9 +164,7 @@ def sse_from_raw(raw: bytes | str) -> str:
 async def mark_run(thread_id: str, run_id: str) -> None:
     """登记活跃 run。同一时刻只留一个：后来的 run 直接覆盖先来的标记。"""
     redis = get_redis()
-    await redis.set(
-        _key(thread_id, "run"), run_id, ex=_RUN_MARKER_TTL_SECONDS
-    )
+    await redis.set(_key(thread_id, "run"), run_id, ex=_RUN_MARKER_TTL_SECONDS)
 
 
 async def clear_run(thread_id: str, run_id: str) -> None:

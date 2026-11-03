@@ -1,9 +1,9 @@
-"use client";
+"use client"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import Markdown from "@/components/custom/markdown";
-import { AIMessage as LangchainAIMessage } from "@langchain/core/messages";
-import type { BaseMessage } from "@langchain/core/messages";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import Markdown from "@/components/custom/markdown"
+import { AIMessage as LangchainAIMessage } from "@langchain/core/messages"
+import type { BaseMessage } from "@langchain/core/messages"
 
 /**
  * 一条消息的统一渲染：历史的（REST）和实时的（SSE）都是 `BaseMessage`，
@@ -14,26 +14,26 @@ import type { BaseMessage } from "@langchain/core/messages";
 
 const User = ({ message }: { message: BaseMessage }) => {
   return (
-    <div className="text-sm mt-4">
-      <div className="flex justify-end items-center mb-1 text-muted-foreground">
+    <div className="mt-4 text-sm">
+      <div className="mb-1 flex items-center justify-end text-muted-foreground">
         <Avatar className="size-8">
           <AvatarImage alt="头像" />
           <AvatarFallback>U</AvatarFallback>
         </Avatar>
         <span className="ml-1 text-xs">用户</span>
       </div>
-      <div className="flex justify-end mt-3">
-        <div className=" px-2.5 py-2 rounded-md bg-input">{message.text}</div>
+      <div className="mt-3 flex justify-end">
+        <div className="rounded-md bg-input px-2.5 py-2">{message.text}</div>
       </div>
     </div>
-  );
-};
+  )
+}
 const System = ({ message }: { message: BaseMessage }) => {
   const toolCalls = LangchainAIMessage.isInstance(message)
     ? (message.tool_calls ?? []).flatMap((call) =>
         call.name ? [call.name] : []
       )
-    : [];
+    : []
 
   return (
     <div className="mt-4">
@@ -48,11 +48,11 @@ const System = ({ message }: { message: BaseMessage }) => {
       ) : null}
       {message.text ? <Markdown text={message.text} /> : null}
     </div>
-  );
-};
+  )
+}
 export const AIMessage = ({ message }: { message: BaseMessage }) => {
-  const isUser = message.type === "human";
-  if (!isUser && message.type !== "ai") return null;
+  const isUser = message.type === "human"
+  if (!isUser && message.type !== "ai") return null
 
-  return isUser ? <User message={message} /> : <System message={message} />;
-};
+  return isUser ? <User message={message} /> : <System message={message} />
+}

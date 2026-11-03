@@ -35,18 +35,18 @@ function useDebouncedValue<T>(value: T, delay: number) {
 export function ProjectsClient() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = React.useState<ProjectSearchParams>(
-    DEFAULT_SEARCH_PARAMS,
+    DEFAULT_SEARCH_PARAMS
   )
 
   const debouncedKeyword = useDebouncedValue(
     searchParams.keyword,
-    SEARCH_DEBOUNCE_MS,
+    SEARCH_DEBOUNCE_MS
   )
 
   const request = React.useMemo(
     () => toListRequest({ ...searchParams, keyword: debouncedKeyword }),
     // searchParams 里的 keyword 换成防抖后的值，其余字段即时生效
-    [searchParams, debouncedKeyword],
+    [searchParams, debouncedKeyword]
   )
 
   // 接口是 POST，orval 只会生成 useMutation；这里要的是「按条件取数据」，
@@ -61,7 +61,7 @@ export function ProjectsClient() {
     mutationFn: (id: string) => sessionDeleteSessionDeleteIdPost(id),
     onSuccess: () => {
       // 不手动改动本地列表：删除后 total 也变了，重拉一次最省心
-      queryClient.invalidateQueries({ queryKey: LIST_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: LIST_QUERY_KEY })
     },
   })
 
@@ -93,7 +93,7 @@ export function ProjectsClient() {
             </p>
             <button
               type="button"
-              onClick={() => listQuery.refetch()}
+              onClick={() => void listQuery.refetch()}
               className="text-sm font-medium underline underline-offset-4"
             >
               重新加载

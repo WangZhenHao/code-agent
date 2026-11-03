@@ -153,7 +153,6 @@ DENIED_COMMANDS: frozenset[str] = frozenset(
         "perl",
         "ruby",
         "php",
-        "tee",
         "bash",
         "sh",
         "zsh",

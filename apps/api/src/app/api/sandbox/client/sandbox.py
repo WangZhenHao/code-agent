@@ -50,7 +50,7 @@ SANDBOX_ID_LABEL = "code-agent/sandbox-id"
 _LABEL_VALUE_RE = re.compile(r"^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$")
 
 
-sandbox_client = SandboxClient(
+sandbox_client: SandboxClient = SandboxClient(
     connection_config=SandboxLocalTunnelConnectionConfig(
         router_namespace=ROUTER_NAMESPACE,
         server_port=SERVER_PORT,
