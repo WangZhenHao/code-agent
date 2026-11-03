@@ -72,8 +72,7 @@ Postgres（LangGraph checkpointer）和 Redis（会话/缓存）通过 docker-co
 
 ```bash
 # 2.1 准备环境变量
-cd apps/api
-cp .env.example .env
+cp apps/api/.env.example apps/api/.env
 
 # 2.2 启动 Postgres + Redis（端口 5433 / 6380，避开 5432 / 6379）
 docker-compose up -d
@@ -89,19 +88,28 @@ cd ../..   # 回到仓库根
 现在依赖都就绪，可以起前后端了：
 
 ```bash
-# 3.1 安装所有前后端依赖（根目录执行）
-make install
-# 或分别执行：
-#   pnpm install              # 前端（web + admin）
-#   cd apps/api && uv sync    # 后端
+# 3.1 准备前端环境变量（web 要知道后端地址，不填会回退到 http://localhost:8000）
+cp apps/web/.env.example apps/web/.env
+# admin 不需要 .env：dev server 默认把 /api 代理到 127.0.0.1:8000，
+# 要改后端地址就临时传 VITE_API_TARGET=http://... make dev-admin
 
-# 3.2 启动全栈（web:3000 + admin:5174 + api:8000）
-make dev
+# 3.2 安装所有前后端依赖（根目录执行）
+make install
+# 或分别执行（仓库不是 pnpm workspace，依赖按 app 各自安装）：
+#   cd apps/web   && pnpm install
+#   cd apps/admin && pnpm install
+#   cd apps/api   && uv sync
+
+# 3.3 启动后端（FastAPI :8000）
+make server
+
+# 3.4 另开一个终端起两个前端（web:3000 + admin:5174）
+make dev-web
 
 # 若只想起某一个：
 # make dev-web      # Next.js (http://localhost:3000)
 # make dev-admin    # React SPA (http://localhost:5174)
-# make dev-api      # FastAPI (http://localhost:8000)
+# make server       # FastAPI (http://localhost:8000)
 ```
 
 #### 验证应用运行
@@ -113,9 +121,6 @@ curl http://localhost:8000/health
 
 # Web 前端（浏览器打开）
 open http://localhost:3000
-
-# Admin 管理台（浏览器打开）
-open http://localhost:5174
 ```
 
 
