@@ -103,7 +103,7 @@ make install
 # 3.3 启动后端（FastAPI :8000）
 make server
 
-# 3.4 另开一个终端起两个前端（web:3000 + admin:5174）
+# 3.4 
 make dev-web
 
 # 若只想起某一个：
