@@ -10,7 +10,7 @@ import { useMessageChatMessageIdGet } from "@/api/generated/chat/chat"
 
 import { useChatMessage } from "../hook/use-chat-message"
 import { useScrollToBottom } from "../hook/use-scroll-to-bottom"
-import { AIMessage } from "./message"
+import { MessageList } from "./message"
 import LeftHeader from "./left-header"
 
 /**
@@ -77,20 +77,9 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
             <div className="text-sm text-muted-foreground">加载中…</div>
           ) : null}
 
-          {historyMessage.map((message, index) => (
-            <AIMessage
-              key={message.id ?? `history-${index}`}
-              message={message}
-            />
-          ))}
+          <MessageList messages={historyMessage} />
 
-          {isLoading &&
-            streamLiveMessage.map((message, index) => (
-              <AIMessage
-                key={message.id ?? `live-${index}`}
-                message={message}
-              />
-            ))}
+          {isLoading ? <MessageList messages={streamLiveMessage} /> : null}
 
           {isLoading ? (
             <div className="text-sm text-muted-foreground">思考中…</div>

@@ -43,8 +43,9 @@ export function toHistoryMessages(item: {
   const result: BaseMessage[] = []
   for (const part of parts) {
     if (!isRecord(part) || !isRecord(part.data)) continue
-    // 只渲染模型产出的消息；工具结果（type=tool）不单独成气泡。
-    if (part.type !== "ai") continue
+    // 模型消息和工具结果都保留：工具结果不单独成气泡，而是在对应
+    // tool_call 下面展开显示（见 message.tsx 的 ToolCall）。
+    if (part.type !== "ai" && part.type !== "tool") continue
     try {
       // data 原样喂给构造函数：content / tool_calls / id 都在里面，
       // 由 langchain 自己的反序列化负责，不在这里手挑字段。

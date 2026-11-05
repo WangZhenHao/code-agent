@@ -1,58 +1,49 @@
 "use client"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import Markdown from "@/components/custom/markdown"
-import { AIMessage as LangchainAIMessage } from "@langchain/core/messages"
-import type { BaseMessage } from "@langchain/core/messages"
+import { Fragment, useMemo } from "react"
+
+import { ToolMessage, type BaseMessage } from "@langchain/core/messages"
+
+import { System } from "./system"
+import { User } from "./user"
 
 /**
- * 一条消息的统一渲染：历史的（REST）和实时的（SSE）都是 `BaseMessage`，
- * 所以这个组件不关心来源，只按类型分支。
+ * 消息列表的统一渲染：历史的（REST）和实时的（SSE）都是 `BaseMessage[]`，
+ * 所以这里不关心来源，只按类型分支。
  *
- * tool 结果不进气泡（后端也不把它当一轮的展示内容），返回 null 即可。
+ * tool 结果不单独成气泡：它按 tool_call_id 挂在对应工具调用下面，
+ * 点一下展开 / 收起（见 ./tool-call）。配对在同一次渲染里完成，
+ * 调用方只管把消息数组给进来。
  */
 
-const User = ({ message }: { message: BaseMessage }) => {
-  return (
-    <div className="mt-4 text-sm">
-      <div className="mb-1 flex items-center justify-end text-muted-foreground">
-        <Avatar className="size-8">
-          <AvatarImage alt="头像" />
-          <AvatarFallback>U</AvatarFallback>
-        </Avatar>
-        <span className="ml-1 text-xs">用户</span>
-      </div>
-      <div className="mt-3 flex justify-end">
-        <div className="rounded-md bg-input px-2.5 py-2">{message.text}</div>
-      </div>
-    </div>
-  )
+const renderMessage = (
+  message: BaseMessage,
+  toolResults: Map<string, ToolMessage>
+) => {
+  if (message.type === "human") return <User message={message} />
+  if (message.type !== "ai") return null
+  return <System message={message} toolResults={toolResults} />
 }
-const System = ({ message }: { message: BaseMessage }) => {
-  const toolCalls = LangchainAIMessage.isInstance(message)
-    ? (message.tool_calls ?? []).flatMap((call) =>
-        call.name ? [call.name] : []
-      )
-    : []
+
+export const MessageList = ({ messages }: { messages: BaseMessage[] }) => {
+  // 工具结果按 tool_call_id 索引：tool_calls 只带参数，输出来自另一条 ToolMessage。
+  // 历史和 SSE 的列表形状一致，都走这里。
+  const toolResults = useMemo(() => {
+    const map = new Map<string, ToolMessage>()
+    for (const message of messages) {
+      if (ToolMessage.isInstance(message))
+        map.set(message.tool_call_id, message)
+    }
+    return map
+  }, [messages])
 
   return (
-    <div className="mt-4">
-      {toolCalls.length > 0 ? (
-        <ul className="mb-1 space-y-1 text-xs text-muted-foreground">
-          {toolCalls.map((name, index) => (
-            <li key={`${message.id ?? "tool"}-${index}`}>
-              <strong>{name}</strong>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {message.text ? <Markdown text={message.text} /> : null}
-    </div>
+    <>
+      {messages.map((message, index) => (
+        <Fragment key={message.id ?? `message-${index}`}>
+          {renderMessage(message, toolResults)}
+        </Fragment>
+      ))}
+    </>
   )
-}
-export const AIMessage = ({ message }: { message: BaseMessage }) => {
-  const isUser = message.type === "human"
-  if (!isUser && message.type !== "ai") return null
-
-  return isUser ? <User message={message} /> : <System message={message} />
 }

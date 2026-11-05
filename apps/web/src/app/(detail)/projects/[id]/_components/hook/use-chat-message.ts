@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react"
 
-import { AIMessage as LangchainAIMessage } from "@langchain/core/messages"
+import {
+  AIMessage as LangchainAIMessage,
+  ToolMessage,
+} from "@langchain/core/messages"
 import type { BaseMessage } from "@langchain/core/messages"
 import type { useStreamContext } from "@langchain/react"
 import type { QueryClient } from "@tanstack/react-query"
@@ -104,7 +107,12 @@ export const useChatMessage = ({
       model: lastPrompt?.model ?? "",
       mode: lastPrompt?.mode ?? MessageMode.agent,
       parts: streamLiveMessage
-        .filter((message) => LangchainAIMessage.isInstance(message))
+        // 工具结果也要写进去，否则刷新后展开 tool_call 是空的。
+        .filter(
+          (message) =>
+            LangchainAIMessage.isInstance(message) ||
+            ToolMessage.isInstance(message)
+        )
         // StoredMessage 是 interface，没有索引签名，直接赋给
         // `{ [key: string]: unknown }[]` 那一支过不了 TS；运行时形状就是普通对象。
         .map(
