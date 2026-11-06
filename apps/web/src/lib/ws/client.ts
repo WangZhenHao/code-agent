@@ -111,14 +111,18 @@ export function createWsClient({ devboxId }: { devboxId: string }): WsClient {
       return
     }
 
-    ws = new WebSocket(buildUrl(devboxId, token))
+    // 用局部引用：StrictMode 下旧连接的 onclose 可能晚于新连接建立才触发，
+    // 若直接写外层 ws，会把新连接置空并多排一次重连。
+    const socket = new WebSocket(buildUrl(devboxId, token))
+    ws = socket
 
-    ws.onopen = () => {
+    socket.onopen = () => {
       reconnectAttempt = 0
       flushQueue()
     }
 
-    ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (ws !== socket) return // 已被替换的旧连接，丢弃它的消息
       let msg: unknown
       try {
         msg = JSON.parse(event.data as string)
@@ -135,7 +139,8 @@ export function createWsClient({ devboxId }: { devboxId: string }): WsClient {
       dispatch(msg.method, isRecord(msg.params) ? msg.params : {})
     }
 
-    ws.onclose = (event) => {
+    socket.onclose = (event) => {
+      if (ws !== socket) return // 已被替换的旧连接，它的关闭不影响当前连接
       ws = null
       if (closedByUs) return
 
@@ -157,7 +162,13 @@ export function createWsClient({ devboxId }: { devboxId: string }): WsClient {
   }
 
   return {
-    connect: open,
+    // StrictMode 下 effect 会「挂载→清理→再挂载」，清理里的 close() 把
+    // closedByUs 置 true 后如果不复位，第二次挂载的 connect() 会被 open() 首行挡住，
+    // 整页 ws 从此连不上。所以重新连接前先解除主动关闭标记。
+    connect() {
+      closedByUs = false
+      open()
+    },
 
     close() {
       closedByUs = true
