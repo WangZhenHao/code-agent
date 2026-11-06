@@ -52,7 +52,7 @@ deploy/api/sandbox-ingress/install.sh
 
 ```bash
 # 控制器运行
-kubectl -n my-agent-sandbox-system get pod
+kubectl -n agent-sandbox-system get pod
 # 应能看到 agent-sandbox-controller 和 sandbox-router 各自的 Pod 都 Running
 
 # 预热池有一个待命沙箱
@@ -60,7 +60,7 @@ kubectl get sandboxes -A
 # 应能看到 python-sandbox-warmpool-xxxxx，STATUS = Ready
 
 # Ingress 配置就绪
-kubectl get ingress -n my-agent-sandbox-system sandbox-wildcard
+kubectl get ingress -n agent-sandbox-system sandbox-wildcard
 # 应能看到 *.localtest.me 和 *.k8s.orb.local 规则
 ```
 

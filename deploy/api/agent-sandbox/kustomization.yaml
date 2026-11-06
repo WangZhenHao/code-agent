@@ -8,7 +8,7 @@ kind: Kustomization
 # ... at the cluster scope"）。
 #
 # 换命名空间改这一行即可，不用碰下面的清单。
-namespace: my-agent-sandbox-system
+namespace: agent-sandbox-system
 
 # 版本可复现性由 URL 路径里的 tag 保证。换 manifest 改这一行的文件名（三选一：
 # sandbox.yaml / extensions.yaml / sandbox-with-extensions.yaml，说明见 README）。

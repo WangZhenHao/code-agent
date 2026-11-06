@@ -83,10 +83,9 @@ spec:
               mountPath: /workspace
       restartPolicy: OnFailure
   # 控制器会给沙箱 Pod 自动生成一个 NetworkPolicy（Managed 模式）。它的默认 ingress
-  # 只放行 **agent-sandbox-system** 命名空间的 router —— 而本项目把 router 装在了
-  # my-agent-sandbox-system（见 deploy/api/agent-sandbox-router/），选择器对不上，
-  # router → 沙箱 的流量被拒（症状：dial tcp <podIP>:8888: no route to host）。
-  # 这里显式声明 ingress，放行实际 router 的命名空间 + 标签。
+  # 只放行 **agent-sandbox-system** 命名空间的 router —— 本项目 router 也装在该命名空间
+  # （见 deploy/api/agent-sandbox-router/），但这里仍显式声明 ingress，放行 router 的
+  # 命名空间 + 标签，避免依赖上游默认规则。
   # egress 保持宽松（沙箱要能出网装依赖 / 跑 Next）。
   #
   # 关键：这条 except 里的私有网段**必须排除集群自己的 CIDR**，否则会误伤 DNS。

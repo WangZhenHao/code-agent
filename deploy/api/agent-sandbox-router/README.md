@@ -21,7 +21,7 @@ kubectl apply -k .
 
 ## 装完的效果
 
-命名空间 `my-agent-sandbox-system`(与控制面一致)里多了:
+命名空间 `agent-sandbox-system`(与控制面一致)里多了:
 
 - `Deployment/sandbox-router`(2 副本)
 - `Service/sandbox-router-svc`(ClusterIP:8080)—— **SDK 认的就是这个名字**
@@ -30,7 +30,7 @@ kubectl apply -k .
 验证(与 SDK 同款隧道):
 
 ```bash
-NS=my-agent-sandbox-system
+NS=agent-sandbox-system
 kubectl -n $NS port-forward svc/sandbox-router-svc 8080:8080 &
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/healthz   # 200
 ```
@@ -39,7 +39,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/healthz   # 200
 
 | 项 | 上游 | 本 overlay | 为什么 |
 | --- | --- | --- | --- |
-| 命名空间 | `agent-sandbox-system` | `my-agent-sandbox-system` | 跟控制面对齐;kustomize 会同步 ClusterRoleBinding 的 `subjects` |
+| 命名空间 | `agent-sandbox-system` | `agent-sandbox-system`（不覆盖） | 与控制面同命名空间;kustomize 会同步 ClusterRoleBinding 的 `subjects` |
 | 镜像 tag | `:latest` | `:v1.0.4` | registry 上 **latest 是 404**,拉不到;顺便让版本可复现 |
 | NetworkPolicy | 有 | **不引** | 见下 |
 

@@ -21,7 +21,7 @@ kubectl apply -k deploy/api/agent-sandbox/
 脚本从那里读，不自己存一份：
 
 ```yaml
-namespace: my-agent-sandbox-system   # ← 换命名空间改这行
+namespace: agent-sandbox-system
 resources:
   - https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.4/sandbox-with-extensions.yaml
 ```
@@ -32,7 +32,7 @@ resources:
 
 集群里多了：
 
-- **Namespace** `my-agent-sandbox-system` —— 控制器住的命名空间（上游默认 `agent-sandbox-system`，本项目覆盖）。
+- **Namespace** `agent-sandbox-system` —— 控制器住的命名空间（即上游默认值）。
 - **4 个 CRD**（集群级，装一次全局可用）：
   - `sandboxes.agents.x-k8s.io`（核心，`v1beta1`）
   - `sandboxclaims.extensions.agents.x-k8s.io`
@@ -44,7 +44,7 @@ resources:
 验证：
 
 ```bash
-NS=my-agent-sandbox-system
+NS=agent-sandbox-system
 kubectl -n $NS rollout status deploy/agent-sandbox-controller
 kubectl get crd | grep -E 'agents\.x-k8s\.io'
 kubectl get sandboxes -A                                          # 空列表且不报错 = CRD 生效

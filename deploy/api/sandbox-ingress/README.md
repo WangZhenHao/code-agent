@@ -3,7 +3,7 @@
 配一条**通配 Ingress**,让每个沙箱都能通过
 
 ```
-http://<沙箱ID>.localtest.me/          ← 首选（公共 DNS → 127.0.0.1）
+http://<沙箱ID>.localtest.me/          ← 当前使用（公共 DNS → 127.0.0.1）
 http://<沙箱ID>.k8s.orb.local/         ← 后备（OrbStack magic DNS）
 ```
 

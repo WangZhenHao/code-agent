@@ -15,9 +15,9 @@ import time
 from k8s_agent_sandbox import SandboxClient
 from k8s_agent_sandbox.models import SandboxLocalTunnelConnectionConfig
 
-# Router 装在本项目命名空间（见 deploy/api/agent-sandbox-router/）。
+# Router 装在 agent-sandbox-system（见 deploy/api/agent-sandbox-router/），与控制面同命名空间。
 # server_port 是沙箱内官方运行时的端口（deploy/api/sandbox-image/index.yaml）。
-ROUTER_NAMESPACE = "my-agent-sandbox-system"
+ROUTER_NAMESPACE = "agent-sandbox-system"
 SERVER_PORT = 8888
 WARMPOOL = "python-sandbox-warmpool"
 SANDBOX_NAMESPACE = "default"
