@@ -44,7 +44,7 @@ const PreviewOptions = ({
 
       <InputGroup className="mx-1 h-8 flex-1 rounded-lg border-transparent bg-muted/60 dark:bg-muted/40">
         <InputGroupInput
-          defaultValue={url ?? ""}
+          // defaultValue={url ?? ""}
           placeholder="输入 URL..."
           className="text-sm"
           aria-label="预览地址"
