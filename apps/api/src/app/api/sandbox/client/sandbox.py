@@ -18,13 +18,15 @@ from k8s_agent_sandbox.constants import (
 )
 from k8s_agent_sandbox.models import SandboxLocalTunnelConnectionConfig
 
-# Router 装在本项目的命名空间（见 deploy/api/agent-sandbox-router/），不是上游默认的
-# agent-sandbox-system。SDK 会据此 port-forward svc/sandbox-router-svc，对不上就连不上。
+# Router 装在本机的 agent-sandbox-system（见 deploy/api/agent-sandbox-router/）。
+# 之所以不新建命名空间：控制面已在该命名空间，而 router 的 ClusterRole /
+# ClusterRoleBinding 是集群级按名字唯一的，分命名空间装会互相覆盖。
+# SDK 会据此 port-forward svc/sandbox-router-svc，对不上就连不上。
 #
 # server_port 跟随沙箱镜像里官方运行时（uvicorn）的端口，也就是
 # deploy/api/sandbox-image/index.yaml 声明的 containerPort: 8888。
 # 该值作为 X-Sandbox-Port 头交给 router。
-ROUTER_NAMESPACE = "my-agent-sandbox-system"
+ROUTER_NAMESPACE = "agent-sandbox-system"
 SERVER_PORT = 8888
 
 # create_sandbox 的 namespace 是**沙箱 Pod 所在的命名空间**（不是 router 那个），
@@ -35,9 +37,9 @@ WARMPOOL = "python-sandbox-warmpool"
 # 沙箱里 Next 应用的公网访问域名。这是**部署层约定**，不是 SDK 能告诉你的：
 # 通配 Ingress（deploy/api/sandbox-ingress/index.yaml）把 `<沙箱ID>.<域名>` 的
 # 子域名剥出来当 X-Sandbox-ID 交给 router，固定转发到沙箱内 3000 端口的 dev server。
-# 必须与那条 Ingress 的通配 host 对齐。*.localtest.me 全解析到 127.0.0.1，
-# 是本地 Chrome 首选；备用 *.k8s.orb.local 有不可达 IPv6 的坑。
-PUBLIC_DOMAIN = "localtest.me"
+# 必须与那条 Ingress 的通配 host 对齐。sslip.io 把 IP 编在域名里，解析到 kind
+# 节点的 192.168.107.2——本机 80 端口没映射进 kind，所以不能用 *.localtest.me。
+PUBLIC_DOMAIN = "192.168.107.2.sslip.io"
 
 # 应用侧给沙箱起的逻辑 ID。SDK 不允许指定沙箱名（claim 名是内部 uuid，sandbox 名
 # 在 warmpool 场景下继承自池），所以只好把 ID 贴成 label 当外部索引键：

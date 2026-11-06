@@ -122,7 +122,7 @@ spec:
       - from:
           - namespaceSelector:
               matchLabels:
-                kubernetes.io/metadata.name: my-agent-sandbox-system
+                kubernetes.io/metadata.name: agent-sandbox-system
             podSelector:
               matchLabels:
                 app.kubernetes.io/name: sandbox-router
