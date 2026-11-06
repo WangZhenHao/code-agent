@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     # 代价是多扫几次空表，收益是回收延迟小。
     sandbox_sweep_interval_minutes: int = 5
 
+    # 沙箱里 Next 应用的公网访问域名。部署层约定，SDK 无从得知：通配 Ingress
+    # （deploy/api/sandbox-ingress/index.yaml）把 `<沙箱ID>.<域名>` 的子域名剥出来
+    # 当 X-Sandbox-ID 交给 router，固定转发到沙箱内 3000 端口的 dev server。
+    # 改这里必须同时改那条 Ingress 的通配 host，否则预览链接是死链。
+    sandbox_public_domain: str
+
     env: str
 
     @property

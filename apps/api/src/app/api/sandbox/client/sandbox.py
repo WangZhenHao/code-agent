@@ -18,6 +18,8 @@ from k8s_agent_sandbox.constants import (
 )
 from k8s_agent_sandbox.models import SandboxLocalTunnelConnectionConfig
 
+from app.settings import settings
+
 # Router 装在本机的 agent-sandbox-system（见 deploy/api/agent-sandbox-router/）。
 # 之所以不新建命名空间：控制面已在该命名空间，而 router 的 ClusterRole /
 # ClusterRoleBinding 是集群级按名字唯一的，分命名空间装会互相覆盖。
@@ -34,12 +36,10 @@ SERVER_PORT = 8888
 SANDBOX_NAMESPACE = "default"
 WARMPOOL = "python-sandbox-warmpool"
 
-# 沙箱里 Next 应用的公网访问域名。这是**部署层约定**，不是 SDK 能告诉你的：
-# 通配 Ingress（deploy/api/sandbox-ingress/index.yaml）把 `<沙箱ID>.<域名>` 的
-# 子域名剥出来当 X-Sandbox-ID 交给 router，固定转发到沙箱内 3000 端口的 dev server。
-# 必须与那条 Ingress 的通配 host 对齐。sslip.io 把 IP 编在域名里，解析到 kind
-# 节点的 192.168.107.2——本机 80 端口没映射进 kind，所以不能用 *.localtest.me。
-PUBLIC_DOMAIN = "192.168.107.2.sslip.io"
+# 沙箱里 Next 应用的公网访问域名不在这里写死：它是部署层约定，随环境变化
+# （本地 localtest.me、生产自有域名），所以由 CODE_AGENT_SANDBOX_PUBLIC_DOMAIN
+# 注入，见 app.settings.sandbox_public_domain。域名必须与通配 Ingress
+# （deploy/api/sandbox-ingress/index.yaml）的 host 对齐。
 
 # 应用侧给沙箱起的逻辑 ID。SDK 不允许指定沙箱名（claim 名是内部 uuid，sandbox 名
 # 在 warmpool 场景下继承自池），所以只好把 ID 贴成 label 当外部索引键：
@@ -60,13 +60,17 @@ sandbox_client: SandboxClient = SandboxClient(
 )
 
 
-def sandbox_url(sandbox, domain: str = PUBLIC_DOMAIN) -> str:
+def sandbox_url(sandbox, domain: str | None = None) -> str:
     """拼沙箱里 Next 应用的公网访问地址。
 
     用 sandbox_id 而非 claim_name：Ingress 正则从 Host 剥出的子域名要能被 router
     解析回沙箱目标，warmpool 场景下这俩不相等（claim 是新建的，sandbox 名来自池）。
     端口由 Ingress 固定成 3000，所以这里不编码端口。
+
+    域名默认取配置（CODE_AGENT_SANDBOX_PUBLIC_DOMAIN）；运行时读 settings
+    而不是写成默认参数，环境变量在 import 之后改动也能生效。
     """
+    domain = domain or settings.sandbox_public_domain
     return f"http://{sandbox.sandbox_id}.{domain}/"
 
 
