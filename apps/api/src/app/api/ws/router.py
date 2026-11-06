@@ -15,7 +15,7 @@ ws 路由**不进 OpenAPI**（`/openapi.json` 里看不到），所以协议写�
 
 请求（客户端 → 服务端）：
 
-    {"jsonrpc":"2.0","id":6,"method":"preview.status","params":{}}
+    {"jsonrpc":"2.0","id":6,"method":"web.preview_status","params":{}}
 
 应答（服务端 → 客户端，id 原样回显）：
 
@@ -48,13 +48,15 @@ ws 路由**不进 OpenAPI**（`/openapi.json` 里看不到），所以协议写�
 
 ## 已注册方法
 
-    preview.status       {} → 预览状态快照
-    sandbox_status       {} → 沙箱状态快照；未启动（preview_time 为 NULL）或
-                              上次预览失败时，后台拉起沙箱 + dev server。
-                              应答是触发前的快照，后续变化走推送。
-    preview.heartbeat    {} → 续期（把 preview_time 刷成当前时刻），返回
-                              {extended, status, preview_url, preview_enabled}。
-                              extended=false 表示沙箱已不在跑，不会复活。
+    统一 `web.` 前缀，与推送 `web.server_status_changed` 同一命名空间。
+
+    web.preview_status     {} → 预览状态快照
+    web.sandbox_status     {} → 沙箱状态快照；未启动（preview_time 为 NULL）或
+                               上次预览失败时，后台拉起沙箱 + dev server。
+                               应答是触发前的快照，后续变化走推送。
+    web.preview_heartbeat  {} → 续期（把 preview_time 刷成当前时刻），返回
+                               {devbox_id, extended}。extended=false 表示沙箱
+                               已不在跑，不会复活。
 """
 
 from __future__ import annotations

@@ -40,7 +40,7 @@ button.addEventListener("click", () => {
     JSON.stringify({
       jsonrpc: "2.0",
       id: nextId++,
-      method: "preview.status",
+      method: "web.preview_status",
       params: {},          // 必须是对象，不支持位置参数数组
     }),
   );
@@ -128,7 +128,7 @@ ws.onmessage = (e) => {
   handlePush(msg);              // 没有 id = 推送
 };
 
-const status = await call(ws, "preview.status");
+const status = await call(ws, "web.preview_status");
 console.log(status.status, status.preview_url);
 ```
 
@@ -139,7 +139,7 @@ console.log(status.status, status.preview_url);
 ```ts
 ws.send(JSON.stringify({
   jsonrpc: "2.0",
-  method: "preview.status",
+  method: "web.preview_status",
   params: {},
 }));
 // 不会有任何应答回来，别在这里 await
@@ -160,7 +160,12 @@ async def main():
     async with websockets.connect(url) as ws:
         await ws.send(
             json.dumps(
-                {"jsonrpc": "2.0", "id": 6, "method": "preview.status", "params": {}}
+                {
+                    "jsonrpc": "2.0",
+                    "id": 6,
+                    "method": "web.preview_status",
+                    "params": {},
+                }
             )
         )
         print(await ws.recv())
@@ -173,7 +178,7 @@ asyncio.run(main())
 
 ```bash
 wscat -c "ws://localhost:8000/ws/devbox/<session_id>?token=<jwt>"
-> {"jsonrpc":"2.0","id":6,"method":"preview.status","params":{}}
+> {"jsonrpc":"2.0","id":6,"method":"web.preview_status","params":{}}
 ```
 
 发通知（不带 id）时服务端不回包，`recv()` 会一直等着——联调时别把「不回」
@@ -187,7 +192,7 @@ wscat -c "ws://localhost:8000/ws/devbox/<session_id>?token=<jwt>"
 | `params` 里多一个键 / 类型不对 | `error.code = -32602`（`params` 模型是 `extra="forbid"`） |
 | `jsonrpc` 不是 `"2.0"` | `error.code = -32600` |
 | `not json` | `error.code = -32700`，`id = null` |
-| `[{"jsonrpc":"2.0","id":1,"method":"preview.status"}]` | `error.code = -32600`「不支持批量请求」 |
+| `[{"jsonrpc":"2.0","id":1,"method":"web.preview_status"}]` | `error.code = -32600`「不支持批量请求」 |
 | 二进制帧 | `error.code = -32600`「只能发送文本帧」 |
 | 单帧超过 256 KiB（默认） | 连接被 **close 1009**，之后收不到任何消息 |
 | 连发太快（单连接并发 > 32） | `error.code = -32002`，`id = null` |
@@ -240,7 +245,7 @@ try:
         {
             "status": "ready" if preview_status == PreviewStatus.running else "idle",
             "preview_enable": "",
-            "preview": preview_params(row),  # 和 preview.status 应答同一形状
+            "preview": preview_params(row),  # 和 web.preview_status 应答同一形状
         },
     )
 except Exception:
@@ -362,9 +367,10 @@ ws.onmessage = (e) => {
 
 ## 方法命名约定
 
-- 领域前缀 + 点号：`preview.status`、`file.stat`、`agent.run_started`
-- 请求和推送分开两个命名空间，别撞车：请求 `preview.status`（前端主动问），
-  推送 `web.server_status_changed`（沿用 Coze 的名字）
+- 统一 `web.` 前缀 + 下划线：`web.preview_status`、`web.sandbox_status`、
+  `web.preview_heartbeat`、`web.server_status_changed`
+- 请求和推送共用同一命名空间，方法名不重复即可：请求 `web.preview_status`
+  （前端主动问），推送 `web.server_status_changed`（沿用 Coze 的名字）
 - 加新方法或推送时，在 `apps/api/src/app/api/ws/router.py` 模块 docstring 的
   「已注册方法」一节登记——ws 路由不进 OpenAPI，那份 docstring 是唯一文档
 
@@ -376,6 +382,6 @@ ws.onmessage = (e) => {
 |---|---|
 | 前端收不到推送 | 没连上，或连的 `devbox_id` 和推送时传的 `session_id` 不一致。`publish_devbox_event` 返回 0 就是没人在线 |
 | 多副本部署偶发收不到 | `hub` 是**进程内**的：`start_sandbox` 在 A 副本、WS 连接在 B 副本时，B 上的客户端收不到。单副本没问题；要跨副本就把 `hub.py` 内部换成 Redis Pub/Sub，调用方不用改 |
-| 推送丢了 | 出站队列满时会丢弃通知（客户端不读）。状态类消息丢得起——前端重连后发一次 `preview.status` 就能补齐 |
+| 推送丢了 | 出站队列满时会丢弃通知（客户端不读）。状态类消息丢得起——前端重连后发一次 `web.preview_status` 就能补齐 |
 | 前端发完请求拿不到应答 | 可能漏了 `id`（成了通知），或 `id` 用了字符串/数字混用导致 `pending` 对不上 |
 | 握手失败只看到 `1006` | 之前关掉了 accept-then-close 的路径，浏览器就只能看到 1006。现在实现是先 accept 再带码 close，应该能拿到 4401/4403/4404 |

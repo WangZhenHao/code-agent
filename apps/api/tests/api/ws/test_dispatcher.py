@@ -160,7 +160,7 @@ class DispatchTestCase(unittest.TestCase):
                 return {}
 
     def test_preview_status_registered(self):
-        self.assertIsNotNone(get_method("preview.status"))
+        self.assertIsNotNone(get_method("web.preview_status"))
 
 
 if __name__ == "__main__":

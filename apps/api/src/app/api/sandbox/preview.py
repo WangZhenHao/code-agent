@@ -7,7 +7,7 @@
 nohup 丢到后台，命令本身立刻返回，那不代表服务可用。
 
 推送走 `publish_devbox_event`（进程内），method 是 `web.server_status_changed`，
-`params.preview` 与 `preview.status` 应答同形状（`preview_payload`）。
+`params.preview` 与 `web.preview_status` 应答同形状（`preview_payload`）。
 
 另外承载 WS 层「读预览状态」的两个纯函数：`resolve_devbox`（归属校验）与
 `preview_params`（Session 行 → 预览对象）。放这里是因为它们和推送共用同一份
@@ -57,7 +57,7 @@ _ensure_tasks: dict[str, asyncio.Task] = {}
 
 
 def preview_payload(status: str, preview_url: str | None) -> dict[str, Any]:
-    """预览对象的对外形状。推送和 `preview.status` 应答共用这一份定义。"""
+    """预览对象的对外形状。推送和 `web.preview_status` 应答共用这一份定义。"""
     return {
         "status": status,
         "preview_url": preview_url,

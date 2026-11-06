@@ -6,7 +6,7 @@
     await publish_devbox_event(session_id, "web.server_status_changed", {"preview": {...}})
 
 **为什么不用 Redis**：这里的消息是「状态变了」这类可重复获取的信息，丢一条的代价
-是前端显示过期，重连或再问一次 `preview.status` 就能补齐；为它背上 Stream + seq +
+是前端显示过期，重连或再问一次 `web.preview_status` 就能补齐；为它背上 Stream + seq +
 回放窗口的复杂度不划算。代价是**多副本部署时只有发布方所在副本上的连接能收到**。
 要跨副本时，把这个模块的实现换成 Redis Pub/Sub 即可，调用方一行不用改——
 所以对外只暴露 `subscribe` / `unsubscribe` / `publish_devbox_event` 三个函数。

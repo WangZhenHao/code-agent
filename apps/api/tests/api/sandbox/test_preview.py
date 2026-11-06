@@ -109,7 +109,7 @@ class PreviewTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(preview._probe(self.sandbox))
 
     def test_payload_shape_matches_rpc(self):
-        # 推送和 preview.status 应答必须同形状，否则前端要写两套解析。
+        # 推送和 web.preview_status 应答必须同形状，否则前端要写两套解析。
         payload = preview.preview_payload("running", "http://x/")
         self.assertEqual(payload["status"], "running")
         self.assertEqual(payload["preview_url"], "http://x/")

@@ -10,9 +10,11 @@ from __future__ import annotations
 
 from app.settings import settings
 
-# 应用层心跳间隔（秒）。LB / nginx 的空闲超时往往比想象中短（ALB 默认 60s），
-# 靠 uvicorn 协议层 ping 不够——有些代理只认数据帧。25s 是给 60s 留一半余量。
-HEARTBEAT_SECONDS: int = getattr(settings, "ws_heartbeat_seconds", 25)
+# 应用层心跳间隔（秒），<= 0 表示关闭。它的唯一作用是给链路上的代理保活：
+# 有些网关不转发协议层 ping，只按「多久没有数据帧」判空闲（ALB / nginx 默认 60s），
+# 所以间隔要取其一半左右。当前 ingress 的 proxy-read-timeout 是 3600s，
+# 默认关掉；部署到默认超时的网关时用 CODE_AGENT_WS_HEARTBEAT_SECONDS 打开（如 25）。
+HEARTBEAT_SECONDS: int = getattr(settings, "ws_heartbeat_seconds", 0)
 
 # 单条消息上限（字节）。这是应用层的第二道闸：uvicorn 的 --ws-max-size 默认
 # 16 MiB，且在应用看到消息之前就把它读进内存了，部署命令上要一起调小。

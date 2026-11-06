@@ -75,7 +75,7 @@ class AuthenticatedRoundTripTestCase(unittest.TestCase):
     def test_preview_status_round_trip(self):
         with self.client.websocket_connect("/ws/devbox/s1?token=t") as ws:
             ws.send_text(
-                '{"jsonrpc":"2.0","id":6,"method":"preview.status","params":{}}'
+                '{"jsonrpc":"2.0","id":6,"method":"web.preview_status","params":{}}'
             )
             frame = ws.receive_json()
 
@@ -87,7 +87,7 @@ class AuthenticatedRoundTripTestCase(unittest.TestCase):
     def test_path_param_is_session_id(self):
         with self.client.websocket_connect("/ws/devbox/s1?token=t") as ws:
             ws.send_text(
-                '{"jsonrpc":"2.0","id":1,"method":"preview.status","params":{}}'
+                '{"jsonrpc":"2.0","id":1,"method":"web.preview_status","params":{}}'
             )
             ws.receive_json()
 
@@ -171,7 +171,7 @@ class AuthFailureTestCase(unittest.TestCase):
         )
         with self.client.websocket_connect("/ws/devbox/s1?token=t") as ws:
             ws.send_text(
-                '{"jsonrpc":"2.0","id":6,"method":"preview.status","params":{}}'
+                '{"jsonrpc":"2.0","id":6,"method":"web.preview_status","params":{}}'
             )
             frame = ws.receive_json()
         # 连接期间会话被删：handler 抛 WsAuthError → WsAuthError 不是 JsonRpcError，

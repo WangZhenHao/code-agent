@@ -1,6 +1,6 @@
-"""`preview.*` 方法。
+"""`web.preview_status` 方法。
 
-目前只有 `preview.status`：前端连上后主动拉一次，以及收到
+目前只有 `web.preview_status`：前端连上后主动拉一次，以及收到
 `web.server_status_changed` 后兜底核对。预览的启动/停止仍走 HTTP
 （`POST /agents/{id}/commands` 里会 start_sandbox），不在这里开。
 """
@@ -32,7 +32,7 @@ class PreviewStatusResult(BaseModel):
     preview_enabled: bool = False
 
 
-@rpc_method("preview.status", params_model=PreviewStatusParams)
+@rpc_method("web.preview_status", params_model=PreviewStatusParams)
 async def preview_status(
     ctx: ConnectionContext, params: PreviewStatusParams
 ) -> PreviewStatusResult:

@@ -22,7 +22,7 @@ https://code.coze.cn/api/ideserver_api/sandbox/init_sandbox?msToken=kaGejykT7-hx
 {"jsonrpc": "2.0", "method": "web.server_status_changed", "params": {"status": "ready", "preview_enable": "", "preview": {"worktree_name": "", "branch": "main", "status": "running", "preview_enabled": true, "preview_url": "https://8fbbe450-0c99-44c3-ac15-1daca69c9b8a-5000.dev.coze.site", "running_previews": 1, "max_previews": 5}}}
 
 发送：
-{"jsonrpc":"2.0","id":6,"method":"preview.status","params":{}}
+{"jsonrpc":"2.0","id":6,"method":"web.preview_status","params":{}}
 
 接收：
 {"jsonrpc":"2.0","id":6,"result":{"worktree_name":"","branch":"main","status":"running","preview_enabled":true,"preview_url":"https://8fbbe450-0c99-44c3-ac15-1daca69c9b8a-5000.dev.coze.site","running_previews":1,"max_previews":5,"sub_id":null,"project_type":null}}

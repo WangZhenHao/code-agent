@@ -9,7 +9,7 @@ import Preview from "./preview"
 import PreviewOptions from "./preview-options"
 
 /** 续期间隔。后端 ttl 30 分钟、回收器 5 分钟扫一次，5 分钟一拍留足余量。 */
-const KEEPALIVE_MS = 5 * 60 * 1000
+const KEEPALIVE_MS = 2 * 60 * 1000
 
 interface PreviewSnapshot {
   status?: string
@@ -20,7 +20,7 @@ interface PreviewSnapshot {
 /**
  * 预览面板。数据来源有两个：
  *   - 推送 `web.server_status_changed`（params.preview 与应答同形状）
- *   - 主动请求 `sandbox_status`：进入页面时拉一次快照，后端顺带把沙箱和 dev
+ *   - 主动请求 `web.sandbox_status`：进入页面时拉一次快照，后端顺带把沙箱和 dev
  *     server 拉起来；推送是尽力而为，丢了不会重发，所以还需要这第一次查询
  *
  * 是否可用只看 `preview_enabled`：`status` 的取值（idle/building/running/failed）
@@ -48,10 +48,10 @@ const Right = () => {
 
   const refresh = useCallback(async () => {
     try {
-      applySnapshot(await call<PreviewSnapshot>("sandbox_status", {}))
+      applySnapshot(await call<PreviewSnapshot>("web.sandbox_status", {}))
     } catch (error) {
       // 首次查询失败不致命：推送到达时仍会补上状态，续期下一拍也会再试
-      console.warn("sandbox_status 请求失败", error)
+      console.warn("web.sandbox_status 请求失败", error)
     }
   }, [applySnapshot, call])
 
@@ -63,9 +63,9 @@ const Right = () => {
     const timer = setInterval(() => {
       if (heartbeatInFlight.current) return
       heartbeatInFlight.current = true
-      call<{ extended?: boolean }>("preview.heartbeat", {})
+      call<{ devbox_id: string; extended: boolean }>("web.preview_heartbeat", {})
         .catch((error: unknown) => {
-          console.warn("preview.heartbeat 请求失败", error)
+          console.warn("web.preview_heartbeat 请求失败", error)
         })
         .finally(() => {
           heartbeatInFlight.current = false

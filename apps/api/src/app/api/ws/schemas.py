@@ -2,7 +2,7 @@
 
 线格式以 docs/test.md 里抓到的 Coze 帧为准：
 
-    客户端 → 服务端  {"jsonrpc":"2.0","id":6,"method":"preview.status","params":{}}
+    客户端 → 服务端  {"jsonrpc":"2.0","id":6,"method":"web.preview_status","params":{}}
     服务端 → 客户端  {"jsonrpc":"2.0","id":6,"result":{...}}
     服务端主动推送  {"jsonrpc":"2.0","method":"web.server_status_changed","params":{...}}
 

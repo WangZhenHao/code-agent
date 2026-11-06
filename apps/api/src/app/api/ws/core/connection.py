@@ -100,7 +100,7 @@ class Connection:
             await self._ws.send_text(text)
 
     async def _heartbeat(self) -> None:
-        """应用层心跳。uvicorn 协议层 ping 有些代理不认/不转发，补一层数据帧。"""
+        """应用层心跳，仅用于给链路上的代理保活（间隔 <= 0 时不启动）。"""
         while True:
             await asyncio.sleep(self._heartbeat_seconds)
             self.send_nowait(
@@ -133,7 +133,12 @@ class Connection:
         """读循环，直到客户端断开或协议错误。调用方负责 accept / 鉴权 / 关连接。"""
         hub.subscribe(ctx.devbox_id, ctx)
         writer = asyncio.create_task(self._writer())
-        heartbeat = asyncio.create_task(self._heartbeat())
+        # 心跳只服务代理保活，间隔 <= 0 时整个协程都不起（见 config.HEARTBEAT_SECONDS）。
+        heartbeat = (
+            asyncio.create_task(self._heartbeat())
+            if self._heartbeat_seconds > 0
+            else None
+        )
         inflight: set[asyncio.Task[None]] = set()
 
         try:
@@ -185,5 +190,8 @@ class Connection:
             for task in inflight:
                 task.cancel()
             writer.cancel()
-            heartbeat.cancel()
-            await asyncio.gather(writer, heartbeat, *inflight, return_exceptions=True)
+            tasks = [writer, *inflight]
+            if heartbeat is not None:
+                heartbeat.cancel()
+                tasks.append(heartbeat)
+            await asyncio.gather(*tasks, return_exceptions=True)
