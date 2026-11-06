@@ -48,7 +48,13 @@ ws 路由**不进 OpenAPI**（`/openapi.json` 里看不到），所以协议写�
 
 ## 已注册方法
 
-    preview.status    {} → 预览状态快照
+    preview.status       {} → 预览状态快照
+    sandbox_status       {} → 沙箱状态快照；未启动（preview_time 为 NULL）或
+                              上次预览失败时，后台拉起沙箱 + dev server。
+                              应答是触发前的快照，后续变化走推送。
+    preview.heartbeat    {} → 续期（把 preview_time 刷成当前时刻），返回
+                              {extended, status, preview_url, preview_enabled}。
+                              extended=false 表示沙箱已不在跑，不会复活。
 """
 
 from __future__ import annotations

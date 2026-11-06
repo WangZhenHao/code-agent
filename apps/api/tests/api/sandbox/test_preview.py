@@ -115,7 +115,7 @@ class PreviewTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["preview_url"], "http://x/")
         self.assertTrue(payload["preview_enabled"])
         self.assertFalse(preview.preview_payload("idle", None)["preview_enabled"])
-        self.assertIn("worktree_name", payload)
+        self.assertEqual(set(payload), {"status", "preview_url", "preview_enabled"})
 
 
 if __name__ == "__main__":

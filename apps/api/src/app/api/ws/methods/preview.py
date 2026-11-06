@@ -25,23 +25,11 @@ class PreviewStatusParams(BaseModel):
 
 
 class PreviewStatusResult(BaseModel):
-    """预览状态。
-
-    只有 `status` / `preview_url` / `preview_enabled` 有真实数据来源；
-    其余字段是 Coze 那边有、本地还没有的概念，键名先留着，值待定（返回 None）。
-    """
+    """预览状态。字段集与 `preview_payload` 一致。"""
 
     status: str
     preview_url: str | None = None
     preview_enabled: bool = False
-
-    # --- 值待定 ---
-    worktree_name: str | None = None
-    branch: str | None = None
-    running_previews: int | None = None
-    max_previews: int | None = None
-    sub_id: str | None = None
-    project_type: str | None = None
 
 
 @rpc_method("preview.status", params_model=PreviewStatusParams)

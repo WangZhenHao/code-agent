@@ -24,15 +24,9 @@ import {
 
 /**
  * 预览工具栏：前进/后退、地址栏、设备切换、编辑/刷新/旋转。
- * 目前是静态壳，`url` 有值时地址栏显示后端推送的 preview_url。
+ * 目前是静态壳，地址栏还没有接后端数据。
  */
-const PreviewOptions = ({
-  url,
-  onRefresh,
-}: {
-  url?: string | null
-  onRefresh?: () => void
-}) => {
+const PreviewOptions = ({ onRefresh }: { onRefresh?: () => void }) => {
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b bg-white px-2">
       <Button variant="ghost" size="icon-sm" aria-label="后退">

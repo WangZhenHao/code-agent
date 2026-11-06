@@ -5,6 +5,6 @@
 所以**新加方法文件后必须在这里 import 一次**，否则方法存在但永远 -32601。
 """
 
-from app.api.ws.methods import preview
+from app.api.ws.methods import preview, sandbox
 
-__all__ = ["preview"]
+__all__ = ["preview", "sandbox"]

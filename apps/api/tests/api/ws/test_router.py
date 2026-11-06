@@ -28,15 +28,9 @@ from app.db.models.user import User
 
 FAKE_USER = User(id=7, phone="13800138000")
 SNAPSHOT = {
-    "worktree_name": "",
-    "branch": "main",
     "status": "running",
     "preview_enabled": True,
     "preview_url": "http://abc.localtest.me/",
-    "running_previews": 1,
-    "max_previews": 5,
-    "sub_id": None,
-    "project_type": None,
 }
 
 

@@ -49,6 +49,11 @@ export function useWs() {
     () => ({
       sendWs: (method: string, params: Record<string, unknown>) =>
         client.sendWs(method, params),
+      call: <T,>(
+        method: string,
+        params: Record<string, unknown>,
+        timeoutMs?: number
+      ) => client.call<T>(method, params, timeoutMs),
     }),
     [client]
   )

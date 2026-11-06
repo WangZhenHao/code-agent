@@ -6,7 +6,7 @@
  * 而不是每次调用都 `new WebSocket()`。
  *
  * 协议见 apps/api/src/app/api/ws/ws.md，前端只需要两条约定：
- *   - 有 `id` 的是应答（这里全部丢弃，业务数据都走推送）
+ *   - 有 `id` 的是应答：`call()` 等它，`sendWs()` 发出的不认领、直接丢弃
  *   - 没有 `id` 的是推送，按 `method` 分发给订阅者；`ping` 是心跳，静默忽略
  */
 
@@ -23,13 +23,28 @@ const CLOSE_DEVBOX_NOT_FOUND = 4404
 
 type Handler = (params: Record<string, unknown>) => void
 
+/** `call()` 的默认应答超时。状态查询本身就是查库，正常几十毫秒内回。 */
+const CALL_TIMEOUT_MS = 10_000
+
+interface PendingCall {
+  resolve: (result: unknown) => void
+  reject: (error: Error) => void
+  timer: ReturnType<typeof setTimeout>
+}
+
 export interface WsClient {
   /** 发起连接；重复调用无副作用 */
   connect(): void
   /** 主动断开且不再重连（组件卸载时用） */
   close(): void
-  /** 发一条 JSON-RPC 请求（不等应答） */
+  /** 发一条 JSON-RPC 请求，不等应答 */
   sendWs(method: string, params: Record<string, unknown>): void
+  /** 发一条 JSON-RPC 请求并等应答；超时/断开/返回 error 时 reject */
+  call<T>(
+    method: string,
+    params: Record<string, unknown>,
+    timeoutMs?: number
+  ): Promise<T>
   /** 订阅某条推送；返回退订函数 */
   subscribe(method: string, handler: Handler): () => void
 }
@@ -57,6 +72,33 @@ export function createWsClient({ devboxId }: { devboxId: string }): WsClient {
   const queue: string[] = []
 
   const handlers = new Map<string, Set<Handler>>()
+  // 等应答的请求（`call()` 发起的），按 JSON-RPC id 索引。
+  const pending = new Map<number, PendingCall>()
+
+  function settlePending(id: number, msg: Record<string, unknown>) {
+    const entry = pending.get(id)
+    if (!entry) return // sendWs 发出的请求不认领应答
+    pending.delete(id)
+    clearTimeout(entry.timer)
+    if (isRecord(msg.error)) {
+      const message =
+        typeof msg.error.message === "string"
+          ? msg.error.message
+          : "ws 请求失败"
+      entry.reject(new Error(message))
+    } else {
+      entry.resolve(msg.result)
+    }
+  }
+
+  /** 连接结束时让所有等待中的调用失败，否则它们的 promise 永远悬着。 */
+  function rejectAllPending(reason: string) {
+    for (const [id, entry] of pending) {
+      pending.delete(id)
+      clearTimeout(entry.timer)
+      entry.reject(new Error(reason))
+    }
+  }
 
   function rawSend(text: string) {
     if (ws?.readyState === WebSocket.OPEN) {
@@ -131,8 +173,11 @@ export function createWsClient({ devboxId }: { devboxId: string }): WsClient {
       }
       if (!isRecord(msg)) return
 
-      // 应答（有 id）一律丢弃：本封装只关心推送
-      if (msg.id !== undefined) return
+      // 应答（有 id）：只交给 call() 发起的请求，其余照旧丢弃
+      if (msg.id !== undefined) {
+        if (typeof msg.id === "number") settlePending(msg.id, msg)
+        return
+      }
       if (typeof msg.method !== "string") return
       if (msg.method === "ping") return // 心跳
 
@@ -142,6 +187,7 @@ export function createWsClient({ devboxId }: { devboxId: string }): WsClient {
     socket.onclose = (event) => {
       if (ws !== socket) return // 已被替换的旧连接，它的关闭不影响当前连接
       ws = null
+      rejectAllPending("ws 连接已关闭")
       if (closedByUs) return
 
       if (event.code === CLOSE_UNAUTHORIZED) {
@@ -190,6 +236,34 @@ export function createWsClient({ devboxId }: { devboxId: string }): WsClient {
           params,
         })
       )
+    },
+
+    call<T>(
+      method: string,
+      params: Record<string, unknown>,
+      timeoutMs = CALL_TIMEOUT_MS
+    ): Promise<T> {
+      const id = nextId++
+      const text = JSON.stringify({
+        jsonrpc: "2.0",
+        id,
+        method,
+        params,
+      })
+
+      return new Promise<T>((resolve, reject) => {
+        // 断开时 rawSend 只会排队，超时由 timer 兜底——promise 不会悬着。
+        const timer = setTimeout(() => {
+          pending.delete(id)
+          reject(new Error(`ws 请求超时: ${method}`))
+        }, timeoutMs)
+        pending.set(id, {
+          resolve: resolve as (result: unknown) => void,
+          reject,
+          timer,
+        })
+        rawSend(text)
+      })
     },
 
     subscribe(method, handler) {
