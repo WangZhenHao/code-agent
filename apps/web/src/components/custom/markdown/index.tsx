@@ -2,8 +2,10 @@
 
 import { memo } from "react"
 import ReactMarkdown, { type Components } from "react-markdown"
+import rehypeHighlight from "rehype-highlight"
 import remarkGfm from "remark-gfm"
 import { cn } from "@/lib/utils"
+import "./highlight.css"
 
 /**
  * 模型输出的 Markdown 渲染。
@@ -11,8 +13,9 @@ import { cn } from "@/lib/utils"
  * 项目没有装 `@tailwindcss/typography`，所以这里不用 `prose`，而是把每个
  * 元素显式映射成 Tailwind 类，保证在流式输出时样式稳定、和气泡排版一致。
  *
- * 代码块不做语法高亮（没有装高亮插件），只区分行内 code 和围栏代码块：
- * 行内用 `[pre_&]` 变体把自己还原成透明背景。
+ * 代码块用 rehype-highlight（highlight.js）上色，`.hljs-*` 的配色在同目录的
+ * highlight.css，跟随明暗主题。没标语言的围栏不做自动探测——流式时半截
+ * 代码会被探测成错误的语言、颜色一直闪，代价大于收益。
  */
 
 const components: Components = {
@@ -100,7 +103,13 @@ const Markdown = ({
 }) => {
   return (
     <div className={cn("text-sm break-words", className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[
+          [rehypeHighlight, { detect: false, ignoreMissing: true }],
+        ]}
+        components={components}
+      >
         {text}
       </ReactMarkdown>
     </div>

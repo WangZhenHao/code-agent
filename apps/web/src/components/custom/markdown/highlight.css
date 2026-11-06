@@ -1,0 +1,111 @@
+/*
+ * 代码块高亮：rehype-highlight（highlight.js）输出的 `.hljs-*` 类。
+ *
+ * 色值参照 GitHub 的语法配色，浅色定义在 `:root`、深色覆盖在 `.dark` 下，
+ * 跟随站点主题切换；没匹配到的 token 继承正文色。
+ */
+:root {
+  --hljs-keyword: #cf222e;
+  --hljs-string: #0a3069;
+  --hljs-number: #0550ae;
+  --hljs-title: #8250df;
+  --hljs-attr: #953800;
+  --hljs-builtin: #0550ae;
+  --hljs-meta: #116329;
+  --hljs-comment: #6e7781;
+  --hljs-deleted: #82071e;
+  --hljs-added: #116329;
+}
+
+.dark {
+  --hljs-keyword: #ff7b72;
+  --hljs-string: #a5d6ff;
+  --hljs-number: #79c0ff;
+  --hljs-title: #d2a8ff;
+  --hljs-attr: #ffa657;
+  --hljs-builtin: #79c0ff;
+  --hljs-meta: #7ee787;
+  --hljs-comment: #8b949e;
+  --hljs-deleted: #ffdcd7;
+  --hljs-added: #aff5b4;
+}
+
+.hljs-keyword,
+.hljs-doctag,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-variable.language_,
+.hljs-type,
+.hljs-selector-class,
+.hljs-selector-pseudo {
+  color: var(--hljs-keyword);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-selector-attr,
+.hljs-selector-tag,
+.hljs-char.escape_,
+.hljs-subst {
+  color: var(--hljs-string);
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-operator {
+  color: var(--hljs-number);
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-section,
+.hljs-name {
+  color: var(--hljs-title);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-variable.constant_,
+.hljs-params {
+  color: var(--hljs-attr);
+}
+
+.hljs-built_in,
+.hljs-class .hljs-title,
+.hljs-tag {
+  color: var(--hljs-builtin);
+}
+
+.hljs-meta,
+.hljs-meta .hljs-keyword,
+.hljs-selector-id {
+  color: var(--hljs-meta);
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--hljs-comment);
+  font-style: italic;
+}
+
+.hljs-deletion {
+  color: var(--hljs-deleted);
+}
+
+.hljs-addition {
+  color: var(--hljs-added);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 600;
+}
