@@ -39,7 +39,7 @@ DEV_PORT = 3000
 # 后台起 dev server。运行时 /execute 用 shlex.split 不经 shell，所以显式 `sh -c`，
 # 末尾 `&` 让 shell 立刻返回、不阻塞到超时。每次起 run 都跑一遍是幂等的（nohup
 # 重启），保证沙箱被回收重建后预览仍然可用。
-PREVIEW_COMMAND = "sh -c 'cd /workspace && nohup npm run dev > /tmp/next.log 2>&1 &'"
+PREVIEW_COMMAND = "sh -c 'cd /workspace && nohup npm run dev -- --port 3000 > /tmp/next.log 2>&1 &'"
 
 PROBE_COMMAND = (
     f"sh -c 'curl -s -o /dev/null -w %{{http_code}} localhost:{DEV_PORT}/ 2>/dev/null'"
