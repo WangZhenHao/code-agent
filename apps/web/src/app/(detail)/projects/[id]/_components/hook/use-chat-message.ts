@@ -49,17 +49,30 @@ export const useChatMessage = ({
 }: ChatMessageSources) => {
   const wasLoading = useRef(false)
   const syncedRef = useRef<string | null>(null)
+  // stream.messages 在同一 thread 内是跨轮累积的（SDK 只在换 thread 时重置），
+  // 回写「本轮」的 parts 时必须先减掉这一轮开始前就存在的消息，否则每轮都会把
+  // 前几轮的 id 再写一遍，缓存里同一个消息 id 出现多次，撞 React key。
+  const roundBaselineRef = useRef<Set<string>>(new Set())
   // 本轮提交时选的模型 / 模式：流完成时回写 MessageItem 要用，但 stream 的
   // 事件里不带这两项，只能记在提交那一刻。
   const lastPromptRef = useRef<TypeParmas | null>(null)
 
-  const historyMessage = useMemo<BaseMessage[]>(
-    () =>
-      (historyQuery.data?.data ?? []).flatMap((item) =>
-        toHistoryMessages(item)
-      ),
-    [historyQuery.data]
-  )
+  // 摊平后按消息 id 去重：缓存里可能同时有「服务端落库行」和「流结束时本地
+  // append 的行」，两边的 parts 是同一批 lc_run--* id，不去重会撞 React key。
+  const historyMessage = useMemo<BaseMessage[]>(() => {
+    const seen = new Set<string>()
+    const result: BaseMessage[] = []
+    for (const item of historyQuery.data?.data ?? []) {
+      for (const message of toHistoryMessages(item)) {
+        if (message.id) {
+          if (seen.has(message.id)) continue
+          seen.add(message.id)
+        }
+        result.push(message)
+      }
+    }
+    return result
+  }, [historyQuery.data])
 
   const streamLiveMessage = useMemo<BaseMessage[]>(() => {
     return stream.messages.filter((message) => message != null)
@@ -99,6 +112,9 @@ export const useChatMessage = ({
     // parts 要的是后端 message_to_dict() 的形状（{ type: "ai", data: {...} }），
     // 和 toHistoryMessages 反解析的是同一套；直接塞 BaseMessage 实例会被它
     // 的 `isRecord(part.data)` 判空跳过，刷新后消息就没了。
+    const roundMessages = streamLiveMessage.filter(
+      (message) => !message.id || !roundBaselineRef.current.has(message.id)
+    )
     const lastPrompt = lastPromptRef.current
     appendChatMessage({
       id: last.id ?? crypto.randomUUID(),
@@ -106,7 +122,7 @@ export const useChatMessage = ({
       status: "complete",
       model: lastPrompt?.model ?? "",
       mode: lastPrompt?.mode ?? MessageMode.agent,
-      parts: streamLiveMessage
+      parts: roundMessages
         // 工具结果也要写进去，否则刷新后展开 tool_call 是空的。
         .filter(
           (message) =>
@@ -128,6 +144,10 @@ export const useChatMessage = ({
     // 新一轮开始：完成回写用的是这一轮的 model / mode，上一轮的不能留。
     lastPromptRef.current = prompt
     syncedRef.current = null
+    // 记下当前已存在的消息 id，回写时据此只取本轮新增的部分。
+    roundBaselineRef.current = new Set(
+      stream.messages.flatMap((message) => (message.id ? [message.id] : []))
+    )
     void stream.submit({ ...prompt })
 
     // 后端不把 user 消息回显进 SSE，历史又只在进入会话时拉一次，

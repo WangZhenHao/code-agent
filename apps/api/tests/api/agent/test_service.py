@@ -11,7 +11,7 @@
     bash 工具就会砸在"沙箱未就绪"上。
   - `agent_command` 只返回 run_id、不 await 整轮。
 
-外部依赖（DB session / start_sandbox / ThreadSession）都用假对象替换，断言落在
+外部依赖（DB session / start_sandbox / get_session）都用假对象替换，断言落在
 "调了什么、带什么参数、什么顺序"上。
 
 跑法：uv run python -m unittest tests.api.agent.test_service
@@ -94,6 +94,11 @@ class FakeThreadSession:
             yield frame
 
 
+def fake_get_session(thread_id):
+    """替身 `get_session`：每次调用按 id 现造一个，方便断言「开没开订阅」。"""
+    return FakeThreadSession(thread_id)
+
+
 def patched(**targets):
     """批量 patch service 里的外部依赖，用例结束后自动还原。"""
     stack = []
@@ -168,7 +173,7 @@ class StartAgentRunTestCase(unittest.IsolatedAsyncioTestCase):
         self._stack = patched(
             start_sandbox=mock.AsyncMock(return_value=self.sandbox),
             start_preview=mock.Mock(),
-            ThreadSession=FakeThreadSession,
+            get_session=fake_get_session,
         )
         self.addCleanup(stop_all, self._stack)
 
@@ -206,7 +211,7 @@ class AgentCommandTestCase(unittest.IsolatedAsyncioTestCase):
         FakeThreadSession.instances.clear()
         self._stack = patched(
             start_sandbox=mock.AsyncMock(return_value=self.sandbox),
-            ThreadSession=FakeThreadSession,
+            get_session=fake_get_session,
         )
         self.addCleanup(stop_all, self._stack)
 
@@ -263,7 +268,7 @@ class AgentCommandTestCase(unittest.IsolatedAsyncioTestCase):
 class AgentAbortTestCase(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         FakeThreadSession.instances.clear()
-        self._stack = patched(ThreadSession=FakeThreadSession)
+        self._stack = patched(get_session=fake_get_session)
         self.addCleanup(stop_all, self._stack)
 
     async def test_returns_false_without_error_when_nothing_running(self):
@@ -285,7 +290,7 @@ class AgentAbortTestCase(unittest.IsolatedAsyncioTestCase):
 
 
 class AgentStreamEventsTestCase(unittest.IsolatedAsyncioTestCase):
-    """SSE 的错误路径与参数透传。成功路径的真订阅需要 Redis，不在这里。"""
+    """SSE 的错误路径与参数透传。成功路径的真订阅走进程内缓冲，不在这里。"""
 
     class _FakeSessionLocal:
         def __init__(self, session):
@@ -307,7 +312,7 @@ class AgentStreamEventsTestCase(unittest.IsolatedAsyncioTestCase):
         FakeThreadSession.instances.clear()
         stack = patched(
             SessionLocal=self._FakeSessionLocal(FakeSession(ownership_result)),
-            ThreadSession=thread_session,
+            get_session=lambda thread_id: thread_session(thread_id),
         )
         try:
             return [
@@ -334,7 +339,7 @@ class AgentStreamEventsTestCase(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(frames, ["frame-1", "frame-2"])
         run = FakeThreadSession.instances[-1]
-        # SubscribeParams 要 model_dump 成 dict 交给 ThreadSession（since 游标透传）
+        # SubscribeParams 要 model_dump 成 dict 交给会话（since 游标透传）
         self.assertEqual(run.stream_params["since"], 3)
 
     async def test_unexpected_error_becomes_sse_frame(self):

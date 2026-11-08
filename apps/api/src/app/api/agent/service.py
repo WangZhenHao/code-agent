@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.node.state import State
-from app.agents.threading.thread_session import ThreadSession
+from app.agents.threading.thread_session import get_session
 from app.api.agent.schemas import SubscribeParams
 from app.api.chat.schemas import ChatCreateRequest
 from app.api.sandbox.preview import start_preview
@@ -99,7 +99,7 @@ async def start_agent_run(state: State) -> str:
     # 预览在后台确保可用（探测 3000 端口，就绪后写库并推给前端），不等它。
     start_preview(session_id, sandbox)
 
-    return await ThreadSession(session_id).start_run(state)
+    return await get_session(session_id).start_run(state)
 
 
 async def agent_command(
@@ -146,7 +146,7 @@ async def agent_stream_events(
                 yield _error_frame(exc.status_code, str(exc.detail))
                 return
 
-        async for frame in ThreadSession(session_id).stream(params.model_dump()):
+        async for frame in get_session(session_id).stream(params.model_dump()):
             yield frame
 
     except Exception as exc:
@@ -185,4 +185,4 @@ async def agent_abort(
     之后，都不是错误，不该弹窗。
     """
     await _require_owned_session(session, session_id, user_id)
-    return {"aborted": await ThreadSession(session_id).cancel()}
+    return {"aborted": await get_session(session_id).cancel()}
