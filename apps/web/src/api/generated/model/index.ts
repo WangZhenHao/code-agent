@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './abortResponse';
 export * from './audioContentBlock';
 export * from './audioContentBlockExtras';
 export * from './chatCreateRequest';
@@ -12,6 +13,8 @@ export * from './chatCreateResponse';
 export * from './chatDetailResponse';
 export * from './citation';
 export * from './citationExtras';
+export * from './commandResponse';
+export * from './commandResponseResult';
 export * from './fileContentBlock';
 export * from './fileContentBlockExtras';
 export * from './hTTPValidationError';
@@ -25,8 +28,9 @@ export * from './langchainMessageItemMessage';
 export * from './loginRequest';
 export * from './loginResponse';
 export * from './meResponse';
+export * from './messageChatMessageIdGetParams';
+export * from './messageDict';
 export * from './messageItem';
-export * from './messageItemParts';
 export * from './messageListResponse';
 export * from './messageMode';
 export * from './nonStandardAnnotation';
@@ -55,6 +59,7 @@ export * from './sessionListRequest';
 export * from './sessionListResponse';
 export * from './sessionSort';
 export * from './sessionUpdateRequest';
+export * from './subscribeParams';
 export * from './textContentBlock';
 export * from './textContentBlockExtras';
 export * from './toolCall';

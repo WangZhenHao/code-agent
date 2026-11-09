@@ -4,8 +4,22 @@
  * code-agent-api API
  * OpenAPI spec version: 0.1.0
  */
-import type { MessageItemParts } from './messageItemParts';
+import type { AudioContentBlock } from './audioContentBlock';
+import type { FileContentBlock } from './fileContentBlock';
+import type { ImageContentBlock } from './imageContentBlock';
+import type { InvalidToolCall } from './invalidToolCall';
+import type { MessageDict } from './messageDict';
 import type { MessageMode } from './messageMode';
+import type { NonStandardContentBlock } from './nonStandardContentBlock';
+import type { PlainTextContentBlock } from './plainTextContentBlock';
+import type { ReasoningContentBlock } from './reasoningContentBlock';
+import type { ServerToolCall } from './serverToolCall';
+import type { ServerToolCallChunk } from './serverToolCallChunk';
+import type { ServerToolResult } from './serverToolResult';
+import type { TextContentBlock } from './textContentBlock';
+import type { ToolCall } from './toolCall';
+import type { ToolCallChunk } from './toolCallChunk';
+import type { VideoContentBlock } from './videoContentBlock';
 
 /**
  * 一条消息。对应 Messages 表的字段，parts 原样透出。
@@ -19,7 +33,7 @@ export interface MessageItem {
   model: string;
   mode: MessageMode;
   /** 消息内容片段 */
-  parts?: MessageItemParts;
+  parts?: (TextContentBlock | InvalidToolCall | ReasoningContentBlock | NonStandardContentBlock | ImageContentBlock | VideoContentBlock | AudioContentBlock | PlainTextContentBlock | FileContentBlock | ToolCall | ToolCallChunk | ServerToolCall | ServerToolCallChunk | ServerToolResult)[] | MessageDict[] | null;
   /** 这一轮耗时，毫秒 */
   duration?: number | null;
   created_at: string;

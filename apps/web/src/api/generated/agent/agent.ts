@@ -15,11 +15,15 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  HTTPValidationError
+  AbortResponse,
+  ChatCreateRequest,
+  CommandResponse,
+  HTTPValidationError,
+  SubscribeParams
 } from '../model';
 
 import { customInstance } from '../../http';
-import type { ErrorType } from '../../http';
+import type { ErrorType , BodyType } from '../../http';
 
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
@@ -27,16 +31,233 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 /**
- * 中止该会话正在跑的 agent 轮次。
+ * 发起一轮对话或续跑上一轮，立即返回 run_id。
  *
- * **普通 JSON 响应，不是 SSE。** 和上面两个接口不同：那两个是流，这里只是一次
- * 动作确认，前端拿到结果就该马上刷新按钮状态，不需要维持一条长连接。
+ * 入参与旧的 /agents/talking 相同（`ChatCreateRequest`）：
+ * `parts` 非空 ⇒ 落一条 user 消息再跑；`parts` 为空 ⇒ 续跑最后一条 user 消息。
  *
- * 路径参数名 `session_id` 与 `{session_id}` 逐字一致，理由同 retalk 的 docstring：
- * 写成 `id` 的话 FastAPI 会当成查询参数 `?id=`，接口不报错但永远拿不到值。
+ * **普通 JSON 响应，不是 SSE。** 事件不从这里出去，由 /stream 单独订阅——
+ * 这样客户端断线重连不会丢事件，也能多个订阅者同时看。
  *
- * **可以在注入的 session 上用**（不像 retalk 必须自己开）：本函数不是 generator，
- * 依赖的生命周期正常。
+ * 路径参数名必须跟 `{session_id}` 逐字一致。写 `id: str` 的话 FastAPI 找不到
+ * 同名路径参数，会把它当成**查询参数** `?id=`——接口不报错，但 session_id
+ * 永远拿不到值，请求会 404（少参数则是 422）。
+ * @summary Thread Command
+ */
+export const threadCommandAgentsSessionIdCommandsPost = (
+    sessionId: string,
+    chatCreateRequest: BodyType<ChatCreateRequest>,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<CommandResponse>(
+      {url: `/agents/${sessionId}/commands`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: chatCreateRequest, signal
+    },
+      options);
+    }
+
+
+
+
+export const getThreadCommandAgentsSessionIdCommandsPostMutationKey = () => ['threadCommandAgentsSessionIdCommandsPost'] as const;
+
+export const getThreadCommandAgentsSessionIdCommandsPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof threadCommandAgentsSessionIdCommandsPost>>, TError,ThreadCommandAgentsSessionIdCommandsPostMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof threadCommandAgentsSessionIdCommandsPost>>, TError,ThreadCommandAgentsSessionIdCommandsPostMutationVariables, TContext> => {
+
+const mutationKey = getThreadCommandAgentsSessionIdCommandsPostMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof threadCommandAgentsSessionIdCommandsPost>>, ThreadCommandAgentsSessionIdCommandsPostMutationVariables> = (props) => {
+          const {sessionId,data} = props ?? {};
+
+          return  threadCommandAgentsSessionIdCommandsPost(sessionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ThreadCommandAgentsSessionIdCommandsPostMutationResult = NonNullable<Awaited<ReturnType<typeof threadCommandAgentsSessionIdCommandsPost>>>
+    export type ThreadCommandAgentsSessionIdCommandsPostMutationBody = BodyType<ChatCreateRequest>
+    export type ThreadCommandAgentsSessionIdCommandsPostMutationError = ErrorType<HTTPValidationError>
+    export type ThreadCommandAgentsSessionIdCommandsPostMutationVariables = {sessionId: string;data: BodyType<ChatCreateRequest>}
+
+    /**
+ * @summary Thread Command
+ */
+export const useThreadCommandAgentsSessionIdCommandsPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof threadCommandAgentsSessionIdCommandsPost>>, TError,ThreadCommandAgentsSessionIdCommandsPostMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof threadCommandAgentsSessionIdCommandsPost>>,
+        TError,
+        ThreadCommandAgentsSessionIdCommandsPostMutationVariables,
+        TContext
+      > => {
+      return useMutation(getThreadCommandAgentsSessionIdCommandsPostMutationOptions(options), queryClient);
+    }
+    /**
+ * 订阅该线程的事件流（SSE，Agent Streaming Protocol 线格式）。
+ *
+ * body 可省；`{"since": <seq>}` 从上次的游标之后回放。
+ *
+ * **不注入 get_session**：带 yield 的依赖会在响应头发出前退出，而 generator
+ * 要到那时才开跑，拿到的 session 已关闭。service 层自己开（同上一个接口的
+ * 说明）。
+ * @summary Thread Stream
+ */
+export const threadStreamAgentsSessionIdStreamPost = (
+    sessionId: string,
+    subscribeParams?: BodyType<SubscribeParams>,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<unknown>(
+      {url: `/agents/${sessionId}/stream`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: subscribeParams, signal
+    },
+      options);
+    }
+
+
+
+
+export const getThreadStreamAgentsSessionIdStreamPostMutationKey = () => ['threadStreamAgentsSessionIdStreamPost'] as const;
+
+export const getThreadStreamAgentsSessionIdStreamPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof threadStreamAgentsSessionIdStreamPost>>, TError,ThreadStreamAgentsSessionIdStreamPostMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof threadStreamAgentsSessionIdStreamPost>>, TError,ThreadStreamAgentsSessionIdStreamPostMutationVariables, TContext> => {
+
+const mutationKey = getThreadStreamAgentsSessionIdStreamPostMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof threadStreamAgentsSessionIdStreamPost>>, ThreadStreamAgentsSessionIdStreamPostMutationVariables> = (props) => {
+          const {sessionId,data} = props ?? {};
+
+          return  threadStreamAgentsSessionIdStreamPost(sessionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ThreadStreamAgentsSessionIdStreamPostMutationResult = NonNullable<Awaited<ReturnType<typeof threadStreamAgentsSessionIdStreamPost>>>
+    export type ThreadStreamAgentsSessionIdStreamPostMutationBody = BodyType<SubscribeParams> | undefined
+    export type ThreadStreamAgentsSessionIdStreamPostMutationError = ErrorType<HTTPValidationError>
+    export type ThreadStreamAgentsSessionIdStreamPostMutationVariables = {sessionId: string;data?: BodyType<SubscribeParams>}
+
+    /**
+ * @summary Thread Stream
+ */
+export const useThreadStreamAgentsSessionIdStreamPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof threadStreamAgentsSessionIdStreamPost>>, TError,ThreadStreamAgentsSessionIdStreamPostMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof threadStreamAgentsSessionIdStreamPost>>,
+        TError,
+        ThreadStreamAgentsSessionIdStreamPostMutationVariables,
+        TContext
+      > => {
+      return useMutation(getThreadStreamAgentsSessionIdStreamPostMutationOptions(options), queryClient);
+    }
+    /**
+ * 中止该会话正在跑的轮次。
+ *
+ * **普通 JSON 响应，不是 SSE。** 前端拿到结果就该马上刷新按钮状态，不需要
+ * 维持长连接。可以在注入的 session 上用：本函数不是 generator，依赖的生命
+ * 周期正常。
+ * @summary Thread Abort
+ */
+export const threadAbortAgentsSessionIdAbortPost = (
+    sessionId: string,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+
+
+      return customInstance<AbortResponse>(
+      {url: `/agents/${sessionId}/abort`, method: 'POST', signal
+    },
+      options);
+    }
+
+
+
+
+export const getThreadAbortAgentsSessionIdAbortPostMutationKey = () => ['threadAbortAgentsSessionIdAbortPost'] as const;
+
+export const getThreadAbortAgentsSessionIdAbortPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof threadAbortAgentsSessionIdAbortPost>>, TError,ThreadAbortAgentsSessionIdAbortPostMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof threadAbortAgentsSessionIdAbortPost>>, TError,ThreadAbortAgentsSessionIdAbortPostMutationVariables, TContext> => {
+
+const mutationKey = getThreadAbortAgentsSessionIdAbortPostMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof threadAbortAgentsSessionIdAbortPost>>, ThreadAbortAgentsSessionIdAbortPostMutationVariables> = (props) => {
+          const {sessionId} = props ?? {};
+
+          return  threadAbortAgentsSessionIdAbortPost(sessionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ThreadAbortAgentsSessionIdAbortPostMutationResult = NonNullable<Awaited<ReturnType<typeof threadAbortAgentsSessionIdAbortPost>>>
+
+    export type ThreadAbortAgentsSessionIdAbortPostMutationError = ErrorType<HTTPValidationError>
+    export type ThreadAbortAgentsSessionIdAbortPostMutationVariables = {sessionId: string}
+
+    /**
+ * @summary Thread Abort
+ */
+export const useThreadAbortAgentsSessionIdAbortPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof threadAbortAgentsSessionIdAbortPost>>, TError,ThreadAbortAgentsSessionIdAbortPostMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof threadAbortAgentsSessionIdAbortPost>>,
+        TError,
+        ThreadAbortAgentsSessionIdAbortPostMutationVariables,
+        TContext
+      > => {
+      return useMutation(getThreadAbortAgentsSessionIdAbortPostMutationOptions(options), queryClient);
+    }
+    /**
+ * 中止该会话正在跑的轮次（旧路径，保留给已发布的调用方）。
+ *
+ * 新代码用 `POST /threads/{session_id}/abort`，行为完全相同。
  * @summary Abort
  */
 export const abortAgentsAbortSessionIdPost = (
@@ -45,7 +266,7 @@ export const abortAgentsAbortSessionIdPost = (
 ) => {
 
 
-      return customInstance<unknown>(
+      return customInstance<AbortResponse>(
       {url: `/agents/abort/${sessionId}`, method: 'POST', signal
     },
       options);

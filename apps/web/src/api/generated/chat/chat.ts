@@ -29,6 +29,7 @@ import type {
   ChatDetailResponse,
   HTTPValidationError,
   LangchainHistoryResponse,
+  MessageChatMessageIdGetParams,
   MessageListResponse
 } from '../model';
 
@@ -123,17 +124,21 @@ export const useChatCreateChatCreatePost = <TError = ErrorType<void>,
       return useMutation(getChatCreateChatCreatePostMutationOptions(options), queryClient);
     }
     /**
- * 获取会话消息，按时间正序。
+ * 获取会话消息，按时间正序；默认取最新 50 条。
+ *
+ * 先按时间倒序取 limit 条再翻回正序，所以截掉的是**更早**的消息。
  * @summary 获取会话消息
  */
 export const messageChatMessageIdGet = (
     id: string,
+    params?: MessageChatMessageIdGetParams,
  options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
 ) => {
 
 
       return customInstance<MessageListResponse>(
-      {url: `/chat/message/${id}`, method: 'GET', signal
+      {url: `/chat/message/${id}`, method: 'GET',
+        params, signal
     },
       options);
     }
@@ -141,23 +146,25 @@ export const messageChatMessageIdGet = (
 
 
 
-export const getMessageChatMessageIdGetQueryKey = (id: string,) => {
+export const getMessageChatMessageIdGetQueryKey = (id: string,
+    params?: MessageChatMessageIdGetParams,) => {
     return [
-    `/chat/message/${id}`
+    `/chat/message/${id}`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getMessageChatMessageIdGetQueryOptions = <TData = Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError = ErrorType<void | HTTPValidationError>>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getMessageChatMessageIdGetQueryOptions = <TData = Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError = ErrorType<void | HTTPValidationError>>(id: string,
+    params?: MessageChatMessageIdGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getMessageChatMessageIdGetQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getMessageChatMessageIdGetQueryKey(id,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof messageChatMessageIdGet>>> = ({ signal }) => messageChatMessageIdGet(id, requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof messageChatMessageIdGet>>> = ({ signal }) => messageChatMessageIdGet(id,params, requestOptions, signal);
 
 
 
@@ -171,7 +178,8 @@ export type MessageChatMessageIdGetQueryError = ErrorType<void | HTTPValidationE
 
 
 export function useMessageChatMessageIdGet<TData = Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
- id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError, TData>> & Pick<
+ id: string,
+    params: undefined |  MessageChatMessageIdGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof messageChatMessageIdGet>>,
           TError,
@@ -181,7 +189,8 @@ export function useMessageChatMessageIdGet<TData = Awaited<ReturnType<typeof mes
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useMessageChatMessageIdGet<TData = Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError, TData>> & Pick<
+ id: string,
+    params?: MessageChatMessageIdGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof messageChatMessageIdGet>>,
           TError,
@@ -191,7 +200,8 @@ export function useMessageChatMessageIdGet<TData = Awaited<ReturnType<typeof mes
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useMessageChatMessageIdGet<TData = Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ id: string,
+    params?: MessageChatMessageIdGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -199,11 +209,12 @@ export function useMessageChatMessageIdGet<TData = Awaited<ReturnType<typeof mes
  */
 
 export function useMessageChatMessageIdGet<TData = Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ id: string,
+    params?: MessageChatMessageIdGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof messageChatMessageIdGet>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getMessageChatMessageIdGetQueryOptions(id,options)
+  const queryOptions = getMessageChatMessageIdGetQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
