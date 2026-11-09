@@ -35,9 +35,9 @@ async def code_agent(state: State, config: RunnableConfig):
     summarization = TrackingSummarization(
         model=model,
         # Trigger when conversation history reaches 10000 tokens
-        trigger=("tokens", 10000),
+        trigger=("tokens", 30000),
         # Keep the 20 most recent messages intact after summarizing older ones
-        keep=("messages", 10),
+        keep=("messages", 15),
     )
 
     agent = create_agent(
