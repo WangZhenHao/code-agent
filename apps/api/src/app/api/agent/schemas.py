@@ -61,3 +61,36 @@ class AbortResponse(BaseModel):
     """中止结果。false 表示当时没有在跑的 run（已结束，不是错误）。"""
 
     aborted: bool = Field(examples=[True])
+
+
+class ThreadStateResponse(BaseModel):
+    """`GET /threads/{session_id}/state` 的响应，形状对齐 LangGraph SDK 的 `ThreadState`。
+
+    **故意不带 `values.messages`**：checkpoint 里的消息是 agent 的工作上下文，
+    可能已被摘要压缩；用户可见的完整历史由 `GET /chat/message/{id}` 提供。
+    两者混用会把压缩摘要漏进对话列表。
+
+    SDK 的 `isThreadStateActive` 只看两个字段：
+    - `next`：非空数组 ⇒ 图还在跑；
+    - `tasks`：任一 task 带非空 `interrupts` ⇒ 等人输入（也视为活跃）。
+    所以 idle 时必须显式给 `next: []`——字段缺失会被当成「非数组 ⇒ 活跃」。
+    """
+
+    values: dict = Field(
+        default_factory=dict,
+        description="图状态。本实现故意只给空对象，历史走 /chat/message/{id}",
+    )
+    next: list[str] = Field(
+        default_factory=list,
+        description="还有待执行节点的名称；空数组表示本轮已结束",
+        examples=[[], ["codeAgent"]],
+    )
+    tasks: list[dict] = Field(
+        default_factory=list,
+        description="当前任务的 interrupt 快照；本实现暂不产生中断",
+    )
+    created_at: str | None = Field(
+        default=None,
+        description="会话创建时间（ISO 8601）",
+        examples=["2026-11-09T10:00:00+08:00"],
+    )

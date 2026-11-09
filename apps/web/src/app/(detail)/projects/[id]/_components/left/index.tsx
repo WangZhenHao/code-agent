@@ -7,7 +7,10 @@ import { useParams } from "next/navigation"
 
 import { StreamProvider as StreamProviderBase } from "@langchain/react"
 
-import { createAgentTransport } from "@/lib/agent-stream/agent-stream"
+import {
+  createAgentClient,
+  createAgentTransport,
+} from "@/lib/agent-stream/agent-stream"
 
 import ChatPanel from "./chat-pannel"
 
@@ -19,6 +22,7 @@ import ChatPanel from "./chat-pannel"
 const StreamProvider = StreamProviderBase as unknown as ComponentType<{
   threadId: string
   transport: ReturnType<typeof createAgentTransport>
+  client?: ReturnType<typeof createAgentClient>
   optimistic?: boolean
   children: ReactNode
 }>
@@ -30,6 +34,9 @@ const Left = () => {
   // 会话变了就重建 adapter，并靠 key 让 StreamProvider 整棵子树重挂，
   // 否则上一个会话的流状态会留在 context 里。
   const transport = useMemo(() => createAgentTransport(sessionId), [sessionId])
+  // getHistory 被 stub 成空页（见 createAgentClient）：SDK 的历史发现请求
+  // 会绕过 transport 的 paths 打 /threads/{id}/history，后端没有这条路由。
+  const client = useMemo(() => createAgentClient(), [])
 
   return (
     // optimistic 关掉：后端不把 user 消息回显进 messages 通道，开着的话乐观插入的
@@ -38,6 +45,7 @@ const Left = () => {
       key={sessionId}
       threadId={sessionId}
       transport={transport}
+      client={client}
       optimistic={false}
     >
       <div className="flex h-full flex-col">

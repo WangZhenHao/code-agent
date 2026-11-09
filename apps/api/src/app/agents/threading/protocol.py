@@ -335,8 +335,8 @@ def is_text_block_finish(event: Mapping[str, Any]) -> bool:
 
 
 def fragment_tool_call_delta(
-    event: dict[str, Any], seen: dict[str, str] | None = None
-) -> dict[str, Any] | None:
+    event: Mapping[str, Any], seen: dict[str, str] | None = None
+) -> Mapping[str, Any] | None:
     """把累积型的 tool_call_chunk 增量改成只发新增的那一段。
 
     langchain_core 的 v3 兼容桥（`_compat_bridge.chunks_to_events`）对

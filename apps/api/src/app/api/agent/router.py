@@ -14,11 +14,17 @@ from fastapi import APIRouter, Body, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.agent.schemas import AbortResponse, CommandResponse, SubscribeParams
+from app.api.agent.schemas import (
+    AbortResponse,
+    CommandResponse,
+    SubscribeParams,
+    ThreadStateResponse,
+)
 from app.api.agent.service import (
     agent_abort,
     agent_command,
     agent_stream_events,
+    agent_thread_state,
 )
 from app.api.chat.schemas import ChatCreateRequest
 from app.db.models.user import User
@@ -58,7 +64,6 @@ async def thread_command(
     同名路径参数，会把它当成**查询参数** `?id=`——接口不报错，但 session_id
     永远拿不到值，请求会 404（少参数则是 422）。
     """
-    print(req)
     return await agent_command(
         session_id=session_id, user_id=user.id, req=req, session=session
     )
@@ -82,6 +87,23 @@ async def thread_stream(
         agent_stream_events(session_id=session_id, user_id=user.id, params=params),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
+    )
+
+
+@router.get("/{session_id}/state", response_model=ThreadStateResponse)
+async def thread_state(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """hydrate 用的线程状态：线程是否存在 + 本轮是否仍在跑。
+
+    前端 SDK（`@langchain/react`）挂载时经 `transport.getState` 调它，据 `next`
+    决定要不要立即开 SSE：idle 时推迟到首次 submit，避免对已结束的轮次白开流、
+    白重放缓冲。**普通 JSON 响应，不是 SSE。**
+    """
+    return await agent_thread_state(
+        session_id=session_id, user_id=user.id, session=session
     )
 
 

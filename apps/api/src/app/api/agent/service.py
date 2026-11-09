@@ -169,6 +169,38 @@ def _error_frame(code: int, detail: str) -> str:
     return f"event: message\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+async def agent_thread_state(
+    session_id: str,
+    user_id: int,
+    session: AsyncSession,
+) -> dict[str, Any]:
+    """`GET /threads/{session_id}/state`：回答 SDK 的两个问题——线程存不存在、有没有 run 在跑。
+
+    **不返回 `values.messages`**：checkpoint 里的消息是 agent 的工作上下文，可能
+    已被摘要压缩过。用户可见的完整历史由 `GET /chat/message/{id}` 提供，两者混用
+    会把压缩摘要漏进对话列表（详见 schemas.ThreadStateResponse 的说明）。
+
+    `next` 是 SDK 判断活跃的依据，idle 时必须显式给空数组：字段缺失会落到
+    「next 不是数组 ⇒ 视为活跃」的分支，前端就会对一个已结束的线程白开流、
+    白重放整轮缓冲。
+    """
+    created_at = await session.scalar(
+        select(SessionModel.created_at)
+        .where(SessionModel.id == session_id)
+        .where(SessionModel.user_id == user_id)
+    )
+    if created_at is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    return {
+        "values": {},
+        # 节点名只要求非空（SDK 只判 length），给图的入口节点即语义正确。
+        "next": ["classify"] if get_session(session_id).is_running() else [],
+        "tasks": [],
+        "created_at": created_at.isoformat(),
+    }
+
+
 async def agent_abort(
     session_id: str,
     user_id: int,

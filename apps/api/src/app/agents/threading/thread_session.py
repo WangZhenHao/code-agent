@@ -45,12 +45,15 @@ from app.agents.helper.abort_agent import register, signal_abort, unregister
 from app.agents.node.state import State
 from app.agents.threading.protocol import (
     encode_sse,
+    fragment_tool_call_delta,
     is_after_replay_cursor,
     is_message_snapshot,
     is_root_lifecycle,
+    is_text_block_finish,
     matches_subscription,
     normalize_event,
     sanitize_event,
+    synthesize_tools_events,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,8 +62,22 @@ logger = logging.getLogger(__name__)
 # 会按空闲超时掐连接；`: ping` 是 SSE 标准注释行，客户端解析器会忽略。
 _HEARTBEAT_SECONDS = 15
 
-# 回放缓冲上限（条数）。按轮次清空，这里只是兜底，防止一轮超长对话无限增长。
-_BUFFER_MAXLEN = 2000
+# 回放缓冲上限（字节）。按轮次清空，这里只是兜底，防止一轮超长对话无限增长。
+# 用字节而不是条数：单条 `values` 快照就可能几 MB，条数上限拦不住。
+_BUFFER_MAX_BYTES = 8 * 1024 * 1024
+
+# run 结束后缓冲再保留多久（秒）。窗口内才订阅的客户端仍能拿到本轮完整回放
+# （「run 在 commands 返回和 stream 订阅之间就跑完」的场景）；过期后清掉，
+# 避免之后的每次连接都重放一遍已结束的轮次。
+_BUFFER_TTL_SECONDS = 60
+
+# 起新 run 时等旧 run（被 abort）退出的上限（秒）。旧 run 可能正在一个
+# 不可中断的工具调用里，等太久会把这一轮拖住；超时就 cancel。
+_ABORT_GRACE_SECONDS = 30
+
+# 无订阅者且空闲的会话保留多久（秒）后被淘汰。会话的完整历史在数据库里，
+# 这里只有进程内缓冲，淘汰后重新 get_session 即可。
+_SESSION_IDLE_TTL_SECONDS = 10 * 60
 
 
 @dataclass
@@ -76,12 +93,17 @@ class ThreadSession:
 
     def __init__(self, thread_id: str) -> None:
         self._thread_id = thread_id
-        self._buffer: list[dict[str, Any]] = []
+        # 缓冲存「已编码的 SSE 帧 + 事件 + 字节数」三元组：帧在发布时编码一次，
+        # 回放不再逐连接重复 json.dumps（每帧几 MB 时这是实打实的 CPU）。
+        self._buffer: list[tuple[str, dict[str, Any], int]] = []
+        self._buffer_bytes = 0
         # 跨轮单调递增：不能被「清空 buffer」重置，客户端的 since 游标依赖它。
         self._seq = -1
         self._sinks: list[_Sink] = []
         self._run_task: asyncio.Task[None] | None = None
         self._run_id: str | None = None
+        # 当前缓冲来自哪一轮。延迟清理时据此判断缓冲是否已经被新一轮接管。
+        self._buffer_run_id: str | None = None
 
     # ── 事件分发 ───────────────────────────────────────────────────────────
 
@@ -109,13 +131,16 @@ class ThreadSession:
                 }
             )
         )
-        self._buffer.append(event)
-        if len(self._buffer) > _BUFFER_MAXLEN:
-            del self._buffer[: len(self._buffer) - _BUFFER_MAXLEN]
+        frame = encode_sse(event)
+        self._buffer.append((frame, event, len(frame)))
+        self._buffer_bytes += len(frame)
+        while self._buffer and self._buffer_bytes > _BUFFER_MAX_BYTES:
+            _, _, size = self._buffer.pop(0)
+            self._buffer_bytes -= size
 
         for sink in self._sinks:
             if matches_subscription(event, sink.params):
-                sink.queue.put_nowait(encode_sse(event))
+                sink.queue.put_nowait(frame)
 
     def _emit_lifecycle(self, name: str, *, error: str | None = None) -> None:
         data: dict[str, Any] = {"event": name}
@@ -138,19 +163,48 @@ class ThreadSession:
         """
         run_id = str(uuid.uuid4())
 
-        # 同线程已有 run：先让它收手再起新的。不 await——旧 run 可能还要跑完
-        # 当前超步才对 abort 有反应，等它会把 commands 请求拖住。
-        if self._run_task is not None and not self._run_task.done():
+        # 同线程已有 run：先让它收手再起新的，但**不等它**——旧 run 可能还要
+        # 跑完当前超步才对 abort 有反应，等它会把 commands 请求拖住。
+        # 也不能立刻清缓冲：旧任务在注意到 abort 之前还会继续 _emit，它的事件
+        # （包括补发的终止 lifecycle）会写进新一轮的缓冲，前端会把旧 run 的
+        # completed 当成本轮的收尾，isLoading 提前收掉。所以把「等旧 run 退出
+        # → 清缓冲 → 起跑」串进新任务里，见 _run_sequenced。
+        old_task = self._run_task
+        if old_task is not None and not old_task.done():
             signal_abort(self._thread_id)
 
-        # 本轮开始，缓冲区只留本轮的事件（历史由 /chat/message 提供）。
-        self._buffer.clear()
         self._run_id = run_id
-        task = asyncio.create_task(self._run(state, run_id))
+        task = asyncio.create_task(self._run_sequenced(state, run_id, old_task))
         self._run_task = task
         _background_tasks.add(task)
         task.add_done_callback(_background_tasks.discard)
         return run_id
+
+    async def _run_sequenced(
+        self,
+        state: State,
+        run_id: str,
+        old_task: asyncio.Task[None] | None,
+    ) -> None:
+        """等旧 run 退出（有上限）→ 清缓冲 → 开跑。"""
+        if old_task is not None and not old_task.done():
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(old_task), timeout=_ABORT_GRACE_SECONDS
+                )
+            except (TimeoutError, asyncio.CancelledError):
+                # 旧 run 卡在不可中断的调用里：硬取消，别再等了。它剩下的事件
+                # 宁可丢掉，也不能串进新一轮的缓冲。
+                old_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await old_task
+
+        # 本轮开始，缓冲区只留本轮的事件（历史由 /chat/message 提供）。
+        self._buffer.clear()
+        self._buffer_bytes = 0
+        self._buffer_run_id = run_id
+
+        await self._run(state, run_id)
 
     async def _run(self, state: State, run_id: str) -> None:
         """跑图并把 v3 协议事件逐条发出去。"""
@@ -166,6 +220,12 @@ class ThreadSession:
         run_ctx = register(thread_id)
 
         terminal: str | None = None
+        # 每轮独立的缩小器状态，不能挂在 session 上：下一轮的 lc 消息 id
+        # 可能复用同前缀，跨轮残留的基线会让前缀判断永远走回退分支。
+        seen_tool_args: dict[str, str] = {}
+        announced_tool_calls: set[str] = set()
+        finished_tool_calls: set[str] = set()
+
         try:
             graph = await get_graph()
 
@@ -215,7 +275,30 @@ class ThreadSession:
                     # RemoveMessage）不是增量，转发只会把压缩后的摘要漏给前端。
                     if is_message_snapshot(raw_event):
                         continue
-                    self._emit(raw_event)
+                    # text 块的 content-block-finish 重复了 delta 已发过的全文，
+                    # 不转发（tool_call 块必须保留，SDK 用它拿完整参数）。
+                    if is_text_block_finish(raw_event):
+                        continue
+                    # tool_call_chunk 的 block-delta 是累积整块，每帧重发全部参数
+                    # （O(n²)）；改写成只带新增后缀的 tool-call-delta。
+                    shrunk = fragment_tool_call_delta(raw_event, seen_tool_args)
+                    if shrunk is None:
+                        continue
+                    # Python v3 不一定伴随 messages 发 tools 通道事件；从 values
+                    # 快照里合成 tool-started / tool-finished，否则前端工具卡片
+                    # 收不到状态。合成完 values 本身不再转发（见下）。
+                    for synthesized in synthesize_tools_events(
+                        shrunk,
+                        announced=announced_tool_calls,
+                        finished=finished_tool_calls,
+                    ):
+                        self._emit(synthesized)
+                    # values / checkpoints 是整状态快照。hydrate 走
+                    # GET /agents/{id}/state，历史走 /chat/message/{id}，这两路
+                    # 事件对前端没有增量价值，转发只会在缓冲里堆几 MB。
+                    if shrunk.get("method") in {"values", "checkpoints"}:
+                        continue
+                    self._emit(shrunk)
         except Exception as exc:
             logger.exception(
                 "thread run 失败 thread_id=%s run_id=%s", thread_id, run_id
@@ -233,6 +316,24 @@ class ThreadSession:
             if self._run_id == run_id:
                 self._run_id = None
                 self._run_task = None
+                # 终止后延迟清空：给「run 在 commands 返回和 stream 订阅之间就
+                # 跑完」留回放窗口，过期后清掉，避免之后的连接重放已结束的轮次。
+                self._schedule_buffer_clear(run_id)
+
+    def _schedule_buffer_clear(self, run_id: str) -> None:
+        async def clear_later() -> None:
+            await asyncio.sleep(_BUFFER_TTL_SECONDS)
+            # 只清「本 run 留下的」缓冲：期间新一轮开始（_run_id 非空）或已经
+            # 写完并被新一轮接管（_buffer_run_id 变了）都不动，否则会把新一轮
+            # 的回放窗口提前掐掉。
+            if self._run_id is not None or self._buffer_run_id != run_id:
+                return
+            self._buffer.clear()
+            self._buffer_bytes = 0
+
+        task = asyncio.create_task(clear_later())
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
     # ── 订阅 ───────────────────────────────────────────────────────────────
 
@@ -253,12 +354,12 @@ class ThreadSession:
             # 先回放再等增量。这里**不判断有没有 run 在跑**：run 可能在
             # /commands 返回和本订阅建立之间就跑完了，不看缓冲的话客户端
             # 什么都收不到。缓冲每轮开始时清空，回放不会把历史再演一遍。
-            for event in snapshot:
+            for frame, event, _ in snapshot:
                 if not is_after_replay_cursor(event, params):
                     continue
                 if not matches_subscription(event, params):
                     continue
-                yield encode_sse(event)
+                yield frame
 
             # 之后只等增量。空闲时发心跳注释帧，保住中间的网关连接。
             while True:
@@ -273,6 +374,32 @@ class ThreadSession:
         finally:
             with contextlib.suppress(ValueError):
                 self._sinks.remove(sink)
+            # 最后一个订阅者断开且没有 run 在跑：安排空闲淘汰（见 _evict_later）。
+            if not self._sinks and not self.is_running():
+                self._schedule_eviction()
+
+    def _schedule_eviction(self) -> None:
+        async def evict_later() -> None:
+            await asyncio.sleep(_SESSION_IDLE_TTL_SECONDS)
+            # 期间有新订阅或新 run 就作罢；再检查一次引用的还是不是自己，
+            # 避免把 get_session 新建的同 id 会话误删。
+            if (
+                self._sinks
+                or self.is_running()
+                or _sessions.get(self._thread_id) is not self
+            ):
+                return
+            _sessions.pop(self._thread_id, None)
+
+        task = asyncio.create_task(evict_later())
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
+
+    # ── 状态 ───────────────────────────────────────────────────────────────
+
+    def is_running(self) -> bool:
+        """是否有 run 在本线程上跑着。`/state` 接口用它回答 SDK 的 liveness 探测。"""
+        return self._run_task is not None and not self._run_task.done()
 
     # ── 取消 ───────────────────────────────────────────────────────────────
 
@@ -282,8 +409,8 @@ class ThreadSession:
         return self._run_task is not None and not self._run_task.done()
 
 
-# thread_id -> ThreadSession。进程内单例表；会话不主动淘汰（单副本 + 缓冲
-# 按轮次清空，占用有限）。
+# thread_id -> ThreadSession。进程内单例表；空闲且无订阅者的会话会被
+# _schedule_eviction 淘汰（完整历史在数据库里，重建很便宜）。
 _sessions: dict[str, ThreadSession] = {}
 
 # 正在跑的 task 的强引用。asyncio 只弱引用 task，`_run_task` 被新 run 覆盖后
