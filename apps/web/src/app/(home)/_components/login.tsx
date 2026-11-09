@@ -37,8 +37,8 @@ export function Login({
 }) {
   const router = useRouter()
   const authLogin = useUserStore((state) => state.login)
-  const [phone, setPhone] = React.useState("")
-  const [code, setCode] = React.useState("")
+  const [phone, setPhone] = React.useState("18624298323")
+  const [code, setCode] = React.useState("123456")
   const [agreed, setAgreed] = React.useState(false)
   const [countdown, setCountdown] = React.useState(0)
 
