@@ -11,6 +11,7 @@ import { useMessageChatMessageIdGet } from "@/api/generated/chat/chat"
 
 import { useChatMessage } from "../hook/use-chat-message"
 import { useScrollToBottom } from "../hook/use-scroll-to-bottom"
+import { LoadingIndicator } from "./loading-indicator"
 import { MessageList } from "./message"
 import LeftHeader from "./left-header"
 
@@ -81,18 +82,13 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
             </div>
           ) : null}
 
-          {isHistoryLoading ? (
-            <div className="text-sm text-muted-foreground">加载中…</div>
-          ) : null}
+          {isHistoryLoading ? <LoadingIndicator label="加载中" /> : null}
 
           <MessageList messages={historyMessage} />
 
           {isLoading ? <MessageList messages={streamLiveMessage} /> : null}
 
-          {isLoading ? (
-            <div className="text-sm text-muted-foreground">思考中…</div>
-          ) : null}
-
+          {isLoading ? <LoadingIndicator label="思考中" /> : null}
           {error ? (
             <div className="text-sm text-destructive">
               {error instanceof Error
