@@ -10,11 +10,11 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from app.agents.helper.abort_agent import abort_update, run_agent_with_abort
 from app.agents.helper.agent_prompt import generate_system_prompt
 from app.agents.helper.middleware import TrackingSummarization
+from app.agents.llm import get_model
 from app.agents.node.state import State
 from app.agents.tools import create_tools
 from app.agents.tools._common import WORKSPACE
 from app.api.sandbox.client.sandbox import get_sandbox_for_id
-from app.llm import get_model
 
 
 async def code_agent(state: State, config: RunnableConfig):

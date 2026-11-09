@@ -57,12 +57,11 @@ apps/api/
     ├── main.py            # create_app() + main() 启动入口
     ├── settings.py        # 配置（环境变量前缀 CODE_AGENT_）
     ├── api/               # 路由：chat / agent（router + schemas + service 三层）
-    ├── agents/            # LangGraph 编排：graphs / memory / tools
+    ├── agents/            # LangGraph 编排：graphs / memory / tools / llm（LLM 客户端）
     ├── db/
     │   ├── base.py        # Base（含约束命名约定）+ TimestampMixin
     │   ├── session.py     # async engine / SessionLocal / get_session 依赖
     │   └── models/        # 表模型；__init__.py 必须 import 全部模型供 autogenerate 发现
-    └── llm/               # LLM 客户端（注意：与 db/models 不是一回事）
 ```
 
 

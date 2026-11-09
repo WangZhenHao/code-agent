@@ -7,13 +7,13 @@
 ## 目录
 
 - `api/` 下按领域分：`chat/`、`user/`、`agent/`、`sandbox/`、`session/`，每个模块是 `router.py + schemas.py + service.py`
-- `agents/graphs.py`（LangGraph 图）、`agents/node/`、`agents/tools/`、`agents/memory/`、`agents/threading/`、`agents/helper/`、`agents/message_persistence.py`
+- `agents/graphs.py`（LangGraph 图）、`agents/node/`、`agents/tools/`、`agents/memory/`、`agents/threading/`、`agents/helper/`、`agents/llm/`、`agents/message_persistence.py`
 - 另有顶层 `redis.py`、`security.py`
 - 只起后端在仓库根用 `make server`，不是 `make dev-api`。
 
 ## 命名陷阱
 
-`src/app/db/models/` 是数据库表模型；`src/app/llm/` 是 **LLM 客户端**。两处不同物，改之前看清楚路径。
+`src/app/db/models/` 是数据库表模型；`src/app/agents/llm/` 是 **LLM 客户端**。两处不同物，改之前看清楚路径。
 
 ## 必须遵守
 
