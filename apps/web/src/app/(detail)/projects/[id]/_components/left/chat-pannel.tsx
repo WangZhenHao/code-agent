@@ -6,6 +6,7 @@ import { useStreamContext } from "@langchain/react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { Composer, TypeParmas } from "@/app/(home)/_components/composer"
+import { useThreadAbortAgentsSessionIdAbortPost } from "@/api/generated/agent/agent"
 import { useMessageChatMessageIdGet } from "@/api/generated/chat/chat"
 
 import { useChatMessage } from "../hook/use-chat-message"
@@ -21,6 +22,7 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
   const stream = useStreamContext()
   const queryClient = useQueryClient()
   const historyQuery = useMessageChatMessageIdGet(sessionId)
+  const abortMutation = useThreadAbortAgentsSessionIdAbortPost()
 
   const {
     historyMessage,
@@ -51,6 +53,12 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
   const handleSubmit = (prompt: TypeParmas) => {
     if (!submit(prompt)) return
     setPromptValue("")
+  }
+
+  // 中止由后端执行：run 停下来后还会补一条终止 lifecycle，
+  // 前端据此把 isLoading 收回去，所以这里不额外断开 SSE。
+  const handleAbort = () => {
+    abortMutation.mutate({ sessionId })
   }
 
   const isEmpty = historyMessage.length === 0 && streamLiveMessage.length === 0
@@ -103,6 +111,7 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
         prompt={promptValue}
         onPromptChange={setPromptValue}
         onSubmit={handleSubmit}
+        onAbort={handleAbort}
       />
     </div>
   )

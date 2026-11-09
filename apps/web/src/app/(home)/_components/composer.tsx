@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowUpIcon, Loader2Icon, PlusIcon } from "lucide-react"
+import { ArrowUpIcon, Loader2Icon, PlusIcon, SquareIcon } from "lucide-react"
 import React from "react"
 
 import { ModelSelect } from "@/app/(home)/_components/model-select"
@@ -24,6 +24,7 @@ export function Composer({
   prompt,
   onPromptChange,
   onSubmit,
+  onAbort,
   className = "",
   isAutoswitchPrompt = false,
 }: {
@@ -31,6 +32,8 @@ export function Composer({
   prompt: string
   onPromptChange: (prompt: string) => void
   onSubmit?: (prompt: TypeParmas) => void
+  /** 加载中点击按钮时调用；不传则加载中按钮仍保持禁用。 */
+  onAbort?: () => void
   className?: string
   isAutoswitchPrompt?: boolean
 }) {
@@ -104,20 +107,32 @@ export function Composer({
           <ModelSelect />
           <ModeSelect />
 
-          <Button
-            type="submit"
-            size="icon"
-            aria-label="发送"
-            disabled={prompt.trim().length === 0 || loading}
-            aria-busy={loading}
-            className="ml-auto rounded-full bg-foreground text-background hover:bg-foreground/80 disabled:opacity-40"
-          >
-            {loading ? (
-              <Loader2Icon className="animate-spin" />
-            ) : (
-              <ArrowUpIcon />
-            )}
-          </Button>
+          {loading && onAbort ? (
+            <Button
+              type="button"
+              size="icon"
+              aria-label="停止"
+              onClick={onAbort}
+              className="ml-auto rounded-full bg-foreground text-background hover:bg-foreground/80"
+            >
+              <SquareIcon className="fill-current" />
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              size="icon"
+              aria-label="发送"
+              disabled={prompt.trim().length === 0 || loading}
+              aria-busy={loading}
+              className="ml-auto rounded-full bg-foreground text-background hover:bg-foreground/80 disabled:opacity-40"
+            >
+              {loading ? (
+                <Loader2Icon className="animate-spin" />
+              ) : (
+                <ArrowUpIcon />
+              )}
+            </Button>
+          )}
         </InputGroupAddon>
       </InputGroup>
     </form>
