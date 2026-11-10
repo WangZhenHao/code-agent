@@ -11,8 +11,10 @@ import { useMessageChatMessageIdGet } from "@/api/generated/chat/chat"
 
 import { useChatMessage } from "../hook/use-chat-message"
 import { useScrollToBottom } from "../hook/use-scroll-to-bottom"
+import { useTodos } from "../hook/use-todos"
 import { LoadingIndicator } from "./loading-indicator"
 import { MessageList } from "./message"
+import { TodoPanel } from "./todo-panel"
 import LeftHeader from "./left-header"
 
 /**
@@ -34,6 +36,7 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
     error,
     submit,
   } = useChatMessage({ sessionId, stream, queryClient, historyQuery })
+  const { todos } = useTodos({ stream, historyMessage })
   const [promptValue, setPromptValue] = useState("")
   const { scrollRef, contentRef, handleScroll, scrollToBottom } =
     useScrollToBottom()
@@ -102,6 +105,9 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
           ) : null}
         </div>
       </div>
+
+      {/* 滚动区之外：用户往上翻历史时也要能看到当前进度。 */}
+      <TodoPanel todos={todos} />
 
       <Composer
         className="my-2 shrink-0"

@@ -28,8 +28,10 @@ export const System = ({
   toolResults: Map<string, ToolMessage>
   streaming?: boolean
 }) => {
+  // `write_todos` 是 Agent 内部的任务清单工具，真正的进度由上面的 todo 面板
+  // 展示；混进下面这排真实工具调用里只会让用户以为它又是一个普通操作。
   const toolCalls = LangchainAIMessage.isInstance(message)
-    ? (message.tool_calls ?? [])
+    ? (message.tool_calls ?? []).filter((call) => call.name !== "write_todos")
     : []
   const reasoning = LangchainAIMessage.isInstance(message)
     ? message.contentBlocks
