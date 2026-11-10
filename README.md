@@ -43,10 +43,10 @@ docker build -f deploy/api/sandbox-image/Dockerfile \
 # 不导入的话 kubelet 会命中节点里那份旧镜像（事件里显示 "already present on
 # machine"），新构建的内容根本不生效。节点名用 `kubectl get nodes` 查。
 docker save code-agent/sandbox-base:latest \
-  | docker exec -i jizao-k-preview-control-plane ctr -n k8s.io images import -
+  | docker exec -i xxx-name-space ctr -n k8s.io images import -
 
 # 核对节点里确实是刚构建的那份（digest 应与 `docker images --digests` 一致）
-docker exec jizao-k-preview-control-plane \
+docker exec xxx-name-space \
   ctr -n k8s.io images ls | grep sandbox-base
 
 # 1.4 部署沙箱模板与预热池（WarmPool replicas 改成 1 才会预热，默认是 0）
