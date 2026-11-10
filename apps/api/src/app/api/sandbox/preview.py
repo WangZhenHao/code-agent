@@ -3,7 +3,7 @@
 启动入口是 `start_preview(session_id, sandbox)` —— 同步函数，起一个后台任务
 就返回，调用方（`start_agent_run`）不必等 Next 首次编译完成的十几秒。
 
-就绪的判据是 `localhost:3000` 返回 200，而不是「命令跑完了」：`npm run dev` 用
+就绪的判据是 `localhost:3000` 返回 200，而不是「命令跑完了」：`pnpm run dev` 用
 nohup 丢到后台，命令本身立刻返回，那不代表服务可用。
 
 推送走 `publish_devbox_event`（进程内），method 是 `web.server_status_changed`，
@@ -39,7 +39,9 @@ DEV_PORT = 3000
 # 后台起 dev server。运行时 /execute 用 shlex.split 不经 shell，所以显式 `sh -c`，
 # 末尾 `&` 让 shell 立刻返回、不阻塞到超时。每次起 run 都跑一遍是幂等的（nohup
 # 重启），保证沙箱被回收重建后预览仍然可用。
-PREVIEW_COMMAND = "sh -c 'cd /workspace && nohup npm run dev -- --port 3000 > /tmp/next.log 2>&1 &'"
+PREVIEW_COMMAND = (
+    "sh -c 'cd /workspace && nohup pnpm run dev --port 3000 > /tmp/next.log 2>&1 &'"
+)
 
 PROBE_COMMAND = (
     f"sh -c 'curl -s -o /dev/null -w %{{http_code}} localhost:{DEV_PORT}/ 2>/dev/null'"

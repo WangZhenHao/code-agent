@@ -36,6 +36,11 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends nodejs \
  && rm -rf /var/lib/apt/lists/*
 
+# pnpm：模板里很多前端项目用 pnpm，预装好省得沙箱里每次现装。
+# 用 npm 全局装（root 的 prefix 在 /usr，装完落在 /usr/bin/pnpm），不用 corepack ——
+# corepack 的 pnpm shim 首次运行要联网 prepare，而 Node 已计划移除 corepack。
+RUN npm install -g pnpm@12
+
 # 模板进 /workspace，归 1000（官方运行时的容器用户）。
 # 目标目录由 COPY 创建并随 --chown 归 1000，不存在「已存在目录属主不动」那个坑
 # （那是之前 WORKDIR + --chown 组合踩过的，这里没有 WORKDIR 预建目录）。
@@ -59,6 +64,7 @@ ARG NPM_REGISTRY=https://registry.npmmirror.com
 USER 1000
 ENV HOME=/home/node
 RUN npm config set registry "${NPM_REGISTRY}" \
+ && pnpm config set registry "${NPM_REGISTRY}" \
  && cd /workspace \
  && npm ci --no-audit --no-fund \
  && rm -rf "${HOME}/.npm/_cacache"

@@ -115,7 +115,8 @@ def generate_system_prompt(cwd: str, mode: MessageMode, project_context: str) ->
           - nuxt dev
 
           假定开发服务器已由外部管理。**
-        3. **生成的 Web 项目使用 npm 进行包管理。运行 "npm install" 安装依赖，"npm install <package>" 添加包，"npm run <script>" 运行 package 脚本。
+        3. **生成的 Web 项目使用 pnpm 进行包管理。运行 "pnpm install" 安装依赖，"pnpm add <package>" 添加包，"pnpm run <script>" 运行 package 脚本。
+          一次安装多个包时调用 bash 工具请传 timeout: 600（默认 300 不够时会被断开）；不要接 `| tail` 这类等命令结束才输出的管道。
         """)
 
     # 技能包列表从 public/skills/ 目录现读，而不是写死在这里：加一个技能包
