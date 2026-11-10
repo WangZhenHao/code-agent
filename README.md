@@ -39,6 +39,16 @@ deploy/api/agent-sandbox-router/install.sh
 docker build -f deploy/api/sandbox-image/Dockerfile \
   -t code-agent/sandbox-base:latest .
 
+# docker build 只写进 Docker 的镜像库，不会同步到集群节点的 containerd。
+# 不导入的话 kubelet 会命中节点里那份旧镜像（事件里显示 "already present on
+# machine"），新构建的内容根本不生效。节点名用 `kubectl get nodes` 查。
+docker save code-agent/sandbox-base:latest \
+  | docker exec -i jizao-k-preview-control-plane ctr -n k8s.io images import -
+
+# 核对节点里确实是刚构建的那份（digest 应与 `docker images --digests` 一致）
+docker exec jizao-k-preview-control-plane \
+  ctr -n k8s.io images ls | grep sandbox-base
+
 # 1.4 部署沙箱模板与预热池（WarmPool replicas 改成 1 才会预热，默认是 0）
 # 编辑 deploy/api/sandbox-warmpool/index.yaml，把 spec.replicas 改为 1
 kubectl apply -f deploy/api/sandbox-image/index.yaml
