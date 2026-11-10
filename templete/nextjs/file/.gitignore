@@ -34,3 +34,6 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# pnpm store (镜像里指向 /workspace/.pnpm-store)
+.pnpm-store

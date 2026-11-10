@@ -71,7 +71,7 @@ spec:
             # 该值会作为 X-Sandbox-Port 头交给 router。
             - containerPort: 8888
           # /workspace 既是 agent 的工作根（tools/_common.py 的 WORKSPACE、
-          # 镜像里的 SANDBOX_BASE_DIR），也是 Next dev server 的 cwd（npm run dev），
+          # 镜像里的 SANDBOX_BASE_DIR），也是 Next dev server 的 cwd（pnpm run dev），
           # 更是 Ingress 转发到 3000 端口那个应用的源码所在 —— 三者同一个目录，
           # 所以卷必须挂在 /workspace 上，挂别处等于没持久化。
           #

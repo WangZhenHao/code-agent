@@ -73,7 +73,7 @@ SB=<沙箱ID>   # 例如 python-sandbox-warmpool-sjzj4
 curl -s -o /dev/null -w '%{http_code}\n' http://$SB.localtest.me/    # 期望 200
 ```
 
-沙箱内需要先起 dev server(`commands.run("sh -c 'cd /workspace && nohup npm run dev > /tmp/next.log 2>&1 &'")`),
+沙箱内需要先起 dev server(`commands.run("sh -c 'cd /workspace && nohup pnpm run dev > /tmp/next.log 2>&1 &'")`),
 否则 3000 端口没人听,router 会返回 502。
 
 ## 坑 2:k8s.orb.local 的 IPv6 让 Chrome 转圈

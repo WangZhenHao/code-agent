@@ -57,7 +57,7 @@ def main() -> int:
         # 所以显式 `sh -c`，末尾 `&` 让 shell 立刻返回、不阻塞到超时。
         print("→ 启动 Next dev server…", flush=True)
         sandbox.commands.run(
-            "sh -c 'cd /workspace && nohup npm run dev > /tmp/next.log 2>&1 &'"
+            "sh -c 'cd /workspace && nohup pnpm run dev > /tmp/next.log 2>&1 &'"
         )
 
         # 等它就绪。首次启动要编译，通常十几秒。

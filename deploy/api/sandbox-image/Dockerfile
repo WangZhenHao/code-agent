@@ -50,23 +50,32 @@ COPY --chown=1000:1000 templete/nextjs/file/ /workspace/
 # EACCES（「cache folder contains root-owned files」）。给它一个真正的 home。
 RUN mkdir -p /home/node && chown -R 1000:0 /home/node
 
-# 以 1000 装依赖，node_modules 与 npm 缓存自然归它所有，不用事后 chown -R
-# （后者会在层里复制一份完整的 node_modules，~500MB）。npm ci 严格按 lockfile
-# 还原，package.json 与锁文件不一致会直接失败 —— 这是构建可复现性的来源。
+# 以 1000 装依赖，node_modules 与包管理缓存自然归它所有，不用事后 chown -R
+# （后者会在层里复制一份完整的 node_modules，~500MB）。pnpm 按 pnpm-lock.yaml
+# 严格还原，package.json 与锁文件不一致会直接失败 —— 这是构建可复现性的来源。
 #
-# npm registry 换源：默认 npmmirror（国内加速）。内网/私有源部署时用它覆盖：
+# 必须是 pnpm 装的，不能用 npm ci：运行期预览跑 `pnpm run dev`，pnpm 11+ 默认
+# verifyDepsBeforeRun=install，发现 node_modules 不是 pnpm 布局（缺 pnpm-lock.yaml /
+# .modules.yaml）会先整包重装一遍 —— 就是「镜像明明预装了依赖，启动沙箱还在下载」。
+#
+# registry 换源：默认 npmmirror（国内加速）。内网/私有源部署时用它覆盖：
 #   docker build --build-arg NPM_REGISTRY=https://npm.corp.internal/ ...
 # 写进 node 用户的 ~/.npmrc（下面 HOME=/home/node 就是它），而不是只给 docker
 # build 用 —— 沙箱运行期用户也是 1000、HOME 也是 /home/node，所以运行期
-# `npm install` 同样走这个源，不必每次 extra 一个 --registry。
+# `pnpm add` 同样走这个源，不必每次 extra 一个 --registry。
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 
 USER 1000
 ENV HOME=/home/node
+# store 放 /workspace 而不是 $HOME：卷（PVC 挂 /workspace）会随沙箱暂停/恢复保留，
+# store 跟着走，运行期 pnpm add 才能命中缓存；放容器可写层的话 Pod 一删就没了。
+# 构建时它会被 initContainer 的 `cp -a /workspace/.` 一起播种进卷（cp -a 保留符号
+# 链接，pnpm 的 node_modules 链接结构不受影响）。
 RUN npm config set registry "${NPM_REGISTRY}" \
  && pnpm config set registry "${NPM_REGISTRY}" \
+ && pnpm config set store-dir /workspace/.pnpm-store \
  && cd /workspace \
- && npm ci --no-audit --no-fund \
+ && pnpm install --frozen-lockfile \
  && rm -rf "${HOME}/.npm/_cacache"
 
 # 官方运行时 get_base_dir() 读这个：/execute 的 cwd 与文件 API 的根都指向 /workspace。
