@@ -86,7 +86,9 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
 
           <MessageList messages={historyMessage} />
 
-          {isLoading ? <MessageList messages={streamLiveMessage} /> : null}
+          {isLoading ? (
+            <MessageList messages={streamLiveMessage} streaming />
+          ) : null}
 
           {isLoading ? <LoadingIndicator label="思考中" /> : null}
           {error ? (

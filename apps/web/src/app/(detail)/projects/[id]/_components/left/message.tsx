@@ -18,14 +18,24 @@ import { User } from "./user"
 
 const renderMessage = (
   message: BaseMessage,
-  toolResults: Map<string, ToolMessage>
+  toolResults: Map<string, ToolMessage>,
+  streaming: boolean
 ) => {
   if (message.type === "human") return <User message={message} />
   if (message.type !== "ai") return null
-  return <System message={message} toolResults={toolResults} />
+  return (
+    <System message={message} toolResults={toolResults} streaming={streaming} />
+  )
 }
 
-export const MessageList = ({ messages }: { messages: BaseMessage[] }) => {
+export const MessageList = ({
+  messages,
+  streaming = false,
+}: {
+  messages: BaseMessage[]
+  /** 这份列表是否还在流式输出：只有最后一条算「进行中」，思考过程据此展开。 */
+  streaming?: boolean
+}) => {
   // 工具结果按 tool_call_id 索引：tool_calls 只带参数，输出来自另一条 ToolMessage。
   // 历史和 SSE 的列表形状一致，都走这里。
   const toolResults = useMemo(() => {
@@ -41,7 +51,11 @@ export const MessageList = ({ messages }: { messages: BaseMessage[] }) => {
     <>
       {messages.map((message, index) => (
         <Fragment key={message.id ?? `message-${index}`}>
-          {renderMessage(message, toolResults)}
+          {renderMessage(
+            message,
+            toolResults,
+            streaming && index === messages.length - 1
+          )}
         </Fragment>
       ))}
     </>
