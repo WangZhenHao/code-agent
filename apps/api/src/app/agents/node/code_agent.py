@@ -6,6 +6,7 @@ from langchain.agents import create_agent
 from langchain.messages import HumanMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
+from langgraph.types import GraphOutput
 
 from app.agents.helper.abort_agent import abort_update, run_agent_with_abort
 from app.agents.helper.agent_prompt import generate_system_prompt
@@ -72,9 +73,14 @@ async def code_agent(state: State, config: RunnableConfig):
     if aborted:
         return abort_update(state, summarization)
 
+    # ainvoke(version="v2") 返回的是 GraphOutput 包装（最终状态在 .value 里），
+    # 不是裸 dict。先拆出来，下面统一按 dict 读——GraphOutput 只在 __getitem__
+    # 上留了兼容层，`.get()` 没有，直接调用会 AttributeError。
+    output = result.value if isinstance(result, GraphOutput) else result
+
     # 本轮消息（落库 + 前端展示用）从中间件取：它记下了压缩前的完整快照，
     # 详见 TrackingSummarization.current_round_messages。
-    currentRoundMessages = summarization.current_round_messages(result["messages"])
+    currentRoundMessages = summarization.current_round_messages(output["messages"])
 
     # 外层 messages 走「替换」而不是「追加」。
     #
@@ -86,14 +92,16 @@ async def code_agent(state: State, config: RunnableConfig):
     #
     # 这里把删除标记重新带上，让外层的 reducer 也走短路分支，老历史才真正被摘要替换。
     if summarization.triggered:
-        messages_update = [RemoveMessage(id=REMOVE_ALL_MESSAGES), *result["messages"]]
+        messages_update = [RemoveMessage(id=REMOVE_ALL_MESSAGES), *output["messages"]]
     else:
-        messages_update = result["messages"]
+        messages_update = output["messages"]
 
     return {
         "messages": messages_update,
         "currentRoundMessages": currentRoundMessages,
         # 子 agent 的 todo 清单镜像进外层 State（LastValue，写即覆盖），
         # 只用于收尾回读；实时展示靠 TodoTrackingMiddleware 推的 custom:todos。
-        "todos": result.get("todos") or [],
+        # 子 agent 没调 write_todos 时字段缺失，.get 兜住（PlanningState 的
+        # todos 标了 NotRequired）。
+        "todos": output.get("todos") or [],
     }
