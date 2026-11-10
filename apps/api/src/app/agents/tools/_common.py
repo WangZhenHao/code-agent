@@ -158,6 +158,23 @@ def truncate(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
     return f"{text[:limit]}\n\n... [输出被截断，省略 {dropped} 字符。请缩小范围后重试]"
 
 
+def _is_timeout(exc: BaseException) -> bool:
+    """判断异常链上是否有超时。
+
+    SDK 把底层 requests 的异常包在 SandboxRequestError 里再抛，异常链顶层的
+    类型和 message 都认不出来，得顺着 __cause__ 走到底。按类型名而不是
+    import requests 判断：那是 SDK 的传递依赖，工具层不该直接依赖它。
+    """
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if "Timeout" in type(cur).__name__ or "timeout" in str(cur).lower():
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
 def run_shell_raw(
     sandbox: SandboxLike, script: str, timeout: int = 120
 ) -> tuple[str, str, int]:
@@ -174,6 +191,13 @@ def run_shell_raw(
     try:
         result = sandbox.commands.run(shell_command(full), timeout=timeout)
     except Exception as exc:  # noqa: BLE001 - 沙箱侧异常类型太杂，统一转成工具层错误
+        if _is_timeout(exc):
+            # 超时只断开了这次等待：/execute 在沙箱里没有跟着被杀。
+            # 说清"可能还在跑"，模型才不会把整条安装命令从头再来一遍。
+            raise SandboxToolError(
+                f"命令等待超时（{timeout}s），但它在沙箱里可能仍在后台执行。"
+                "请先检查结果（ls 目录、ps aux | grep 进程）再决定是否重跑"
+            ) from exc
         raise SandboxToolError(f"命令执行失败：{exc}") from exc
 
     return (

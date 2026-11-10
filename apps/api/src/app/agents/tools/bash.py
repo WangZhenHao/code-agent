@@ -15,7 +15,7 @@ from langchain_core.tools import BaseTool, tool
 from app.agents.tools._common import SandboxLike, run_shell, safe_call
 from app.agents.tools.guard import check_readonly_command
 
-DEFAULT_TIMEOUT = 120
+DEFAULT_TIMEOUT = 300
 MAX_TIMEOUT = 600
 
 DESCRIPTION = """在沙箱的 /workspace 目录下执行 bash 命令。
@@ -27,7 +27,11 @@ DESCRIPTION = """在沙箱的 /workspace 目录下执行 bash 命令。
 - 命令在 /workspace 下执行，完整 shell 语法可用（管道、&&、$VAR、通配符）。
 - 退出码非 0 不会报错，会把它附在输出末尾，你据此判断下一步。
 - 单次输出超过 30000 字符会被截断，请用更精确的命令或 head/tail 缩小范围。
-- 需要交互的命令（vim、npm init 的问答）会挂起直到超时，请改用非交互参数。"""
+- 需要交互的命令（vim、pnpm add 的问答）会挂起直到超时，请改用非交互参数。
+- 安装依赖、构建这类长命令请显式传 timeout: 600。超时只断开本次等待，
+  命令**不会**被杀、可能在沙箱后台继续跑——重跑前先用 ls / ps aux 确认，
+  别把同一条安装命令从头再执行一遍。
+- 长命令不要接 `| tail` 这类要等命令结束才输出的管道，那会让你全程看不到进度。"""
 
 # 只读版本的描述。与 guard 的白名单逐条对齐——描述了做不到的事，
 # 模型就会反复试然后卡在拒因里。
@@ -45,6 +49,7 @@ mkdir / tee ...）、`sed -i`、重定向（`>` / `>>`）、命令替换（`$()`
 行为说明：
 - 命令在 /workspace 下执行，退出码非 0 不会报错，会附在输出末尾。
 - 单次输出超过 30000 字符会被截断，请用 head/tail 或更精确的命令缩小范围。
+- 超时只断开本次等待，命令可能在沙箱后台继续跑；先用查看类命令确认再决定是否重跑。
 - 被拒绝时不要换等价写法重试：本模式确实不给写权限，需要改动请在计划里写清楚。"""
 
 # 拒因提示。模型看不到系统提示里可能缺白名单，所以拒因里补一句去哪看。
