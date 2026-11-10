@@ -19,5 +19,4 @@ def plan_agent(state: State) -> dict:
         "messages": [
             {"role": "assistant", "content": "[planAgent] 占位：待接入规划 prompt"}
         ],
-        "plan": [],
     }

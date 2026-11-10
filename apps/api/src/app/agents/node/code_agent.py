@@ -9,7 +9,10 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from app.agents.helper.abort_agent import abort_update, run_agent_with_abort
 from app.agents.helper.agent_prompt import generate_system_prompt
-from app.agents.helper.middleware import TrackingSummarization
+from app.agents.helper.middleware import (
+    TodoTrackingMiddleware,
+    TrackingSummarization,
+)
 from app.agents.llm import get_model
 from app.agents.node.state import State
 from app.agents.tools import create_tools
@@ -40,11 +43,16 @@ async def code_agent(state: State, config: RunnableConfig):
         keep=("messages", 15),
     )
 
+    # TodoListMiddleware 的 state_schema 是 PlanningState（AgentState + todos），
+    # 与 create_agent 默认的 AgentState 泛型不兼容，静态检查会报 list-item；
+    # 运行期 create_agent 按字段合并各中间件的 state_schema，并无冲突。
+    todo_middleware = typing.cast("typing.Any", TodoTrackingMiddleware())
+
     agent = create_agent(
         model=model,
         tools=tools,
         system_prompt=system_prompt,
-        middleware=[summarization],
+        middleware=[summarization, todo_middleware],
     )
 
     input = state["input"]
@@ -85,4 +93,7 @@ async def code_agent(state: State, config: RunnableConfig):
     return {
         "messages": messages_update,
         "currentRoundMessages": currentRoundMessages,
+        # 子 agent 的 todo 清单镜像进外层 State（LastValue，写即覆盖），
+        # 只用于收尾回读；实时展示靠 TodoTrackingMiddleware 推的 custom:todos。
+        "todos": result.get("todos") or [],
     }

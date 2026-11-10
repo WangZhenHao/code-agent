@@ -8,7 +8,14 @@
 它的第一个使用者。
 """
 
-from langchain.agents.middleware import SummarizationMiddleware
+from typing import Any
+
+from langchain.agents.middleware import (
+    SummarizationMiddleware,
+    TodoListMiddleware,
+)
+from langchain_core.messages import ToolMessage
+from langgraph.types import Command
 
 
 class TrackingSummarization(SummarizationMiddleware):
@@ -98,4 +105,54 @@ class TrackingSummarization(SummarizationMiddleware):
         result = await super().abefore_model(state, runtime)
         if result is not None:
             self.triggered = True
+        return result
+
+
+def _todos_from_result(result: ToolMessage | Command[Any]) -> list | None:
+    """从 write_todos 的返回里取最新清单；不是 Command 或没带 todos 时返回 None。"""
+    if not isinstance(result, Command):
+        return None
+    update = result.update if isinstance(result.update, dict) else {}
+    todos = update.get("todos")
+    return todos if isinstance(todos, list) else None
+
+
+class TodoTrackingMiddleware(TodoListMiddleware):
+    """在 TodoListMiddleware 之上，把每次 write_todos 的结果实时推给前端。
+
+    为什么要在中间件里顺手推而不是事后从消息里读：write_todos 写的是**子 agent
+    自己的** state（PlanningState.todos），那个 state 不进外层图、也不进 SSE；
+    而 `request.runtime.stream_writer` 是子 agent 工具里唯一能直接写外层事件流的
+    入口。tool_call 的 args 同样带着完整清单，但它要等整条消息收尾才完整，
+    显示会滞后一到两个超步。
+
+    事件形状 `{"name": "todos", "payload": {"todos": [...]}}`（= langgraph 协议的
+    custom 事件，`normalize_event` 原样透传），前端用 `useExtension(stream, "todos")`
+    读最新值。**要让它在 SSE 里真正出现，图入口的 astream_events 必须注册
+    `CustomTransformer`**（见 threading/thread_session.py）——v3 只按已注册
+    transformer 声明的模式取流，没挂 custom transformer 时 stream_writer 是空操作。
+    """
+
+    async def awrap_tool_call(self, request, handler):
+        result = await handler(request)
+        if request.tool_call.get("name") != "write_todos":
+            return result
+        todos = _todos_from_result(result)
+        if todos is not None:
+            request.runtime.stream_writer(
+                {"name": "todos", "payload": {"todos": todos}}
+            )
+        return result
+
+    def wrap_tool_call(self, request, handler):
+        # 节点当前走 ainvoke，实际生效的是上面那个；同步版本同样覆写，
+        # 理由同 TrackingSummarization.abefore_model。
+        result = handler(request)
+        if request.tool_call.get("name") != "write_todos":
+            return result
+        todos = _todos_from_result(result)
+        if todos is not None:
+            request.runtime.stream_writer(
+                {"name": "todos", "payload": {"todos": todos}}
+            )
         return result

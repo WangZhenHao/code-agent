@@ -40,6 +40,7 @@ from langchain.agents.middleware.internal_call_transformer import (
     InternalCallTransformer,
 )
 from langchain_core._api import LangChainBetaWarning
+from langgraph.stream.transformers import CustomTransformer
 
 from app.agents.helper.abort_agent import register, signal_abort, unregister
 from app.agents.node.state import State
@@ -258,7 +259,11 @@ class ThreadSession:
                     # 摘要中间件发起的模型调用带 `lc_internal_call` 标记。父图的流
                     # 拿不到子图的 mux，要显式传这个 transformer 才能把内部调用的
                     # token 从事件日志里剔掉。
-                    transformers=(InternalCallTransformer,),
+                    #
+                    # CustomTransformer 必须显式注册：v3 只按已注册 transformer
+                    # 声明的要求取流模式，而自定义数据（todos 等）只有在 `custom`
+                    # 模式被取时才会从 stream_writer 出来——不注册的话那是个空操作。
+                    transformers=(InternalCallTransformer, CustomTransformer),
                 )
                 async for raw_event in run:
                     # 只认**根**命名空间的终态。子图（codeAgent）跑完也会发一条

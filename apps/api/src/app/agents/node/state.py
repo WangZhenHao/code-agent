@@ -54,6 +54,11 @@ class State(TypedDict):
     # 读取一律用 state.get("aborted")：第一轮进图时它不存在，同 mode 的坑。
     aborted: NotRequired[bool]
 
+    # 本轮子任务清单（write_todos 的产物）。同样是不挂 reducer 的普通字段，
+    # 写即覆盖。它是子 agent 自己 state 在外层图的镜像：实时展示走 custom:todos
+    # 事件，这里只在本轮收尾（finish / 续跑）时回读。
+    todos: NotRequired[list]
+
     # classify 判定出的走向，同时也是路由函数读的依据。
     mode: MessageMode
 
