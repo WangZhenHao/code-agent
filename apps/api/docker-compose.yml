@@ -1,0 +1,53 @@
+# 本地开发依赖：PostgreSQL（LangGraph checkpointer）+ Redis（会话/缓存）
+#
+# 账号、密码、端口都直接写在本文件里，不从 .env 读取，避免两处配置漂移。
+#
+# 注意宿主机端口是 5433 / 6380，不是标准的 5432 / 6379——
+# 避免和机器上其他项目的 postgres / redis 撞端口。
+# 容器内仍是标准端口，服务间用服务名互连，不受影响。
+# 改这里的密码/端口时，记得同步改 .env.example 里的 CODE_AGENT_DATABASE_URL / CODE_AGENT_REDIS_URL。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: code-agent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: code_agent
+      POSTGRES_PASSWORD: change-me-in-local
+      POSTGRES_DB: code_agent
+      # 显式指定，避免不同宿主机 locale 导致的排序差异
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U code_agent -d code_agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: code-agent-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "change-me-in-local", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    environment:
+      # 用环境变量传密码，避免出现在 docker inspect / ps 的命令行里
+      REDISCLI_AUTH: change-me-in-local
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  postgres-data:
+  redis-data:

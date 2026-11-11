@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Kubernetes Dashboard 官方后台管理。清单取自上游 release，不在仓库里 vendored，
+# 与 deploy/api/agent-sandbox 同一套做法：版本的唯一真相是下面 URL 里的 tag。
+resources:
+  - https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+  # 管理员账号（ServiceAccount + ClusterRoleBinding），登录用的 token 从这里签发。
+  - admin-user.yaml
+
+# 官方清单把 kubernetes-dashboard Service 做成 ClusterIP:8443，集群外够不着。
+# 用 patch 改成 NodePort，OrbStack 会把 NodePort 映射到 localhost，浏览器直接开。
+# selector 靠标签匹配，不依赖名字，上游改名也不会打空。
+patches:
+  - target:
+      kind: Service
+      name: kubernetes-dashboard
+      namespace: kubernetes-dashboard
+    patch: |
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30443

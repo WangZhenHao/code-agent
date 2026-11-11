@@ -1,0 +1,380 @@
+"""协议层纯函数测试：不连库、不连 Redis、不起图。
+
+覆盖 `fragment_tool_call_delta`：langchain_core v3 兼容桥对 tool_call_chunk 发的
+是累积的全量 args（10KB 文件 → 55 帧、累积 250KB+）。这里把它改写成 JS SDK 会
+**拼接**的 tool-call-delta，只发新增片段；参数内容仍然实时可见。
+
+跑法：uv run python -m unittest tests.agents.threading.test_protocol
+"""
+
+from __future__ import annotations
+
+import unittest
+
+from app.agents.threading.protocol import (
+    fragment_tool_call_delta,
+    is_message_snapshot,
+    redact_tool_args,
+    redact_tool_event,
+)
+
+_NAMESPACE = ["codeAgent:test"]
+
+
+def _messages_event(payload: dict, *, as_tuple: bool = False) -> dict:
+    data = (payload, {}) if as_tuple else payload
+    return {
+        "type": "event",
+        "method": "messages",
+        "params": {"namespace": _NAMESPACE, "data": data},
+        "seq": 831,
+    }
+
+
+def _tool_call_delta(args: str, *, index: int = 1, block_index: int = 0) -> dict:
+    return {
+        "event": "content-block-delta",
+        "index": index,
+        "delta": {
+            "type": "block-delta",
+            "fields": {
+                "type": "tool_call_chunk",
+                "id": "call_716e",
+                "name": "write_file",
+                "args": args,
+                "index": block_index,
+            },
+        },
+    }
+
+
+class FragmentToolCallDeltaTest(unittest.TestCase):
+    def test_first_delta_sends_whole_args(self) -> None:
+        seen: dict[str, str] = {}
+        kept = fragment_tool_call_delta(_messages_event(_tool_call_delta('{"a"')), seen)
+
+        self.assertIsNotNone(kept)
+        delta = kept["params"]["data"]["delta"]
+        self.assertEqual(delta, {"type": "tool-call-delta", "args": '{"a"'})
+
+    def test_growth_sends_only_suffix(self) -> None:
+        seen: dict[str, str] = {}
+        fragment_tool_call_delta(_messages_event(_tool_call_delta('{"a"')), seen)
+        kept = fragment_tool_call_delta(
+            _messages_event(_tool_call_delta('{"a": 1}')), seen
+        )
+
+        self.assertEqual(
+            kept["params"]["data"]["delta"],
+            {"type": "tool-call-delta", "args": ": 1}"},
+        )
+
+    def test_concat_reassembles_full_args(self) -> None:
+        seen: dict[str, str] = {}
+        snapshots = ['{"cont', '{"content": "import', '{"content": "import x"}']
+        assembled = ""
+        for snapshot in snapshots:
+            kept = fragment_tool_call_delta(
+                _messages_event(_tool_call_delta(snapshot)), seen
+            )
+            if kept is not None:
+                assembled += kept["params"]["data"]["delta"]["args"]
+        self.assertEqual(assembled, snapshots[-1])
+
+    def test_identical_snapshot_dropped(self) -> None:
+        seen: dict[str, str] = {}
+        payload = _tool_call_delta('{"content": "abc"}')
+        self.assertIsNotNone(fragment_tool_call_delta(_messages_event(payload), seen))
+        self.assertIsNone(fragment_tool_call_delta(_messages_event(payload), seen))
+
+    def test_non_prefix_falls_back_to_full_block(self) -> None:
+        seen: dict[str, str] = {}
+        fragment_tool_call_delta(
+            _messages_event(_tool_call_delta('{"path": "a"}')), seen
+        )
+        replaced = _tool_call_delta('{"path": "b"}')
+        kept = fragment_tool_call_delta(_messages_event(replaced), seen)
+
+        # 退回原事件：SDK 对 block-delta 整体覆盖，状态仍然正确。
+        self.assertIs(kept["params"]["data"]["delta"]["type"], "block-delta")
+        self.assertEqual(
+            kept["params"]["data"]["delta"]["fields"]["args"], '{"path": "b"}'
+        )
+
+    def test_blocks_are_tracked_independently(self) -> None:
+        seen: dict[str, str] = {}
+        first = _tool_call_delta('{"a"', index=1, block_index=0)
+        second = _tool_call_delta('{"a"', index=1, block_index=0)
+        # 同一条消息里连续两个工具调用：payload id/index 都一样，只有 fields.id 不同。
+        second["delta"]["fields"]["id"] = "call_other"
+
+        fragment_tool_call_delta(_messages_event(first), seen)
+        kept = fragment_tool_call_delta(_messages_event(second), seen)
+        # 另一个调用没发过，首帧要发全量而不是空片段。
+        self.assertEqual(kept["params"]["data"]["delta"]["args"], '{"a"')
+
+    def test_tuple_payload_supported(self) -> None:
+        seen: dict[str, str] = {}
+        payload = _tool_call_delta('{"a"')
+        self.assertIsNotNone(
+            fragment_tool_call_delta(_messages_event(payload, as_tuple=True), seen)
+        )
+        grown = fragment_tool_call_delta(
+            _messages_event(_tool_call_delta('{"a": 1}'), as_tuple=True), seen
+        )
+        data = grown["params"]["data"]
+        self.assertIsInstance(data, tuple)
+        self.assertEqual(data[0]["delta"], {"type": "tool-call-delta", "args": ": 1}"})
+        self.assertEqual(data[1], {})
+
+    def test_without_seen_untouched(self) -> None:
+        event = _messages_event(_tool_call_delta('{"a"'))
+        self.assertIs(fragment_tool_call_delta(event), event)
+
+    def test_does_not_mutate_input(self) -> None:
+        seen: dict[str, str] = {}
+        payload = _tool_call_delta('{"path": "a"}')
+        event = _messages_event(payload)
+        fragment_tool_call_delta(event, seen)
+        self.assertEqual(event["params"]["data"]["delta"]["type"], "block-delta")
+        self.assertEqual(
+            event["params"]["data"]["delta"]["fields"]["args"], '{"path": "a"}'
+        )
+
+    def test_tool_call_finish_untouched(self) -> None:
+        payload = {
+            "event": "content-block-finish",
+            "index": 1,
+            "content": {
+                "type": "tool_call",
+                "id": "call_716e",
+                "name": "write_file",
+                "args": {"path": "a.tsx"},
+            },
+        }
+        event = _messages_event(payload)
+        self.assertIs(fragment_tool_call_delta(event, {}), event)
+
+    def test_text_delta_untouched(self) -> None:
+        payload = {
+            "event": "content-block-delta",
+            "index": 0,
+            "delta": {"type": "text-delta", "text": "好的"},
+        }
+        event = _messages_event(payload)
+        self.assertIs(fragment_tool_call_delta(event, {}), event)
+
+    def test_non_messages_event_untouched(self) -> None:
+        event = {
+            "type": "event",
+            "method": "tools",
+            "params": {"namespace": [], "data": {"event": "tool-started"}},
+            "seq": 72,
+        }
+        self.assertIs(fragment_tool_call_delta(event, {}), event)
+
+
+class MessageSnapshotTest(unittest.TestCase):
+    """摘要中间件塞进 `messages` 状态的消息会以整条快照的形式被推出来，必须丢掉。"""
+
+    def test_summarization_human_message_dropped(self) -> None:
+        payload = {
+            "content": "Here is a summary of the conversation to date:\n\n## SESSION INTENT",
+            "additional_kwargs": {"lc_source": "summarization"},
+            "response_metadata": {},
+            "type": "human",
+            "name": None,
+            "id": "9d840443-f1a8-4edb-83e0-3f3da83fbd92",
+        }
+        self.assertTrue(is_message_snapshot(_messages_event(payload)))
+        self.assertTrue(is_message_snapshot(_messages_event(payload, as_tuple=True)))
+
+    def test_remove_message_dropped(self) -> None:
+        payload = {
+            "content": "",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "remove",
+            "name": None,
+            "id": "__remove_all__",
+        }
+        self.assertTrue(is_message_snapshot(_messages_event(payload)))
+
+    def test_list_payload_supported(self) -> None:
+        payload = {
+            "content": "Here is a summary of the conversation to date:",
+            "additional_kwargs": {"lc_source": "summarization"},
+            "response_metadata": {},
+            "type": "human",
+            "name": None,
+            "id": "1f155d42",
+        }
+        event = _messages_event([payload, {}])
+        self.assertTrue(is_message_snapshot(event))
+
+    def test_base_message_object_dropped(self) -> None:
+        """过滤发生在 sanitize 之前，data 还是 BaseMessage 对象而不是 dict。"""
+        from langchain_core.messages import HumanMessage, RemoveMessage
+
+        summary = HumanMessage(
+            content="Here is a summary of the conversation to date:",
+            additional_kwargs={"lc_source": "summarization"},
+        )
+        self.assertTrue(is_message_snapshot(_messages_event(summary)))
+        self.assertTrue(is_message_snapshot(_messages_event((summary, {}))))
+        self.assertTrue(
+            is_message_snapshot(_messages_event(RemoveMessage(id="__remove_all__")))
+        )
+
+    def test_delta_events_kept(self) -> None:
+        payload = {
+            "event": "content-block-delta",
+            "index": 0,
+            "delta": {"type": "text-delta", "text": "好的"},
+        }
+        self.assertFalse(is_message_snapshot(_messages_event(payload)))
+        self.assertFalse(is_message_snapshot(_messages_event(payload, as_tuple=True)))
+
+    def test_non_messages_untouched(self) -> None:
+        event = {
+            "type": "event",
+            "method": "tools",
+            "params": {"namespace": [], "data": {"event": "tool-started"}},
+            "seq": 72,
+        }
+        self.assertFalse(is_message_snapshot(event))
+
+
+class RedactToolArgsTest(unittest.TestCase):
+    def test_short_fields_untouched(self) -> None:
+        args = {"file_path": "/workspace/app/page.tsx", "content": "export default 1"}
+        self.assertEqual(redact_tool_args(args), args)
+
+    def test_long_content_replaced(self) -> None:
+        content = "x" * 5000
+        redacted = redact_tool_args({"file_path": "/a.tsx", "content": content})
+
+        self.assertEqual(redacted["file_path"], "/a.tsx")
+        self.assertNotIn("x" * 100, redacted["content"])
+        self.assertIn("5000 字符", redacted["content"])
+
+    def test_input_not_mutated(self) -> None:
+        args = {"content": "x" * 5000}
+        redact_tool_args(args)
+        self.assertEqual(len(args["content"]), 5000)
+
+    def test_non_dict_passthrough(self) -> None:
+        self.assertEqual(redact_tool_args("plain"), "plain")
+        self.assertIsNone(redact_tool_args(None))
+
+    def test_tool_started_input_redacted(self) -> None:
+        event = {
+            "type": "event",
+            "method": "tools",
+            "params": {
+                "namespace": [],
+                "data": {
+                    "event": "tool-started",
+                    "tool_call_id": "call_1",
+                    "tool_name": "write_file",
+                    "input": {"file_path": "/a.tsx", "content": "y" * 3000},
+                },
+            },
+        }
+        data = redact_tool_event(event)["params"]["data"]
+        self.assertEqual(data["input"]["file_path"], "/a.tsx")
+        self.assertIn("3000 字符", data["input"]["content"])
+
+    def test_tool_call_block_args_redacted(self) -> None:
+        event = _messages_event(
+            {
+                "event": "content-block-finish",
+                "index": 1,
+                "content": {
+                    "type": "tool_call",
+                    "id": "call_2",
+                    "name": "edit_file",
+                    "args": {"file_path": "/a.tsx", "content": "z" * 4000},
+                },
+            }
+        )
+        content = redact_tool_event(event)["params"]["data"]["content"]
+        self.assertEqual(content["args"]["file_path"], "/a.tsx")
+        self.assertIn("4000 字符", content["args"]["content"])
+
+    def test_other_events_untouched(self) -> None:
+        event = _messages_event(
+            {
+                "event": "content-block-delta",
+                "index": 0,
+                "delta": {"type": "text-delta"},
+            }
+        )
+        self.assertIs(redact_tool_event(event), event)
+
+
+class ToolArgsStreamRedactionTest(unittest.TestCase):
+    """content 长字段在增量帧里也要被截住（finish 帧之外的第二条泄漏路径）。"""
+
+    def _emit(
+        self, snapshots: list[str], seen: dict[str, str], suppressed: dict[str, bool]
+    ) -> str:
+        """按 v3 的累积语义逐帧喂快照，返回客户端拼出来的 args。"""
+        assembled = ""
+        for snapshot in snapshots:
+            kept = fragment_tool_call_delta(
+                _messages_event(_tool_call_delta(snapshot)), seen, suppressed
+            )
+            if kept is not None:
+                assembled += kept["params"]["data"]["delta"]["args"]
+        return assembled
+
+    def test_long_content_not_streamed(self) -> None:
+        body = "x" * 5000
+        # 快照必须是逐帧累积的前缀：content 值中途不闭合，最后一帧才收尾。
+        snapshots = [
+            '{"file_path": "a.tsx", "content": "' + body[:1000],
+            '{"file_path": "a.tsx", "content": "' + body[:3000],
+            '{"file_path": "a.tsx", "content": "' + body + '"}',
+        ]
+        seen: dict[str, str] = {}
+        suppressed: dict[str, bool] = {}
+        assembled = self._emit(snapshots, seen, suppressed)
+
+        self.assertNotIn("x" * 400, assembled)
+        self.assertIn("未在流式输出中传输", assembled)
+        self.assertTrue(assembled.startswith('{"file_path": "a.tsx", "content": "'))
+
+    def test_short_content_still_streamed(self) -> None:
+        seen: dict[str, str] = {}
+        suppressed: dict[str, bool] = {}
+        assembled = self._emit(
+            [
+                '{"file_path": "a.txt", "content": "hello',
+                '{"file_path": "a.txt", "content": "hello world"}',
+            ],
+            seen,
+            suppressed,
+        )
+        self.assertIn("hello world", assembled)
+        self.assertNotIn("未在流式输出中传输", assembled)
+
+    def test_args_after_content_still_flow(self) -> None:
+        """content 收尾之后的字段（edit_file 的 old_string）不能一起被吞。"""
+        seen: dict[str, str] = {}
+        suppressed: dict[str, bool] = {}
+        big = "y" * 3000
+        assembled = self._emit(
+            [
+                '{"content": "' + big,
+                '{"content": "' + big + '", "old_string": "OLD"}',
+            ],
+            seen,
+            suppressed,
+        )
+        self.assertIn("OLD", assembled)
+        self.assertIn("未在流式输出中传输", assembled)
+
+
+if __name__ == "__main__":
+    unittest.main()

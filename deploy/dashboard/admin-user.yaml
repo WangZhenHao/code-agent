@@ -1,0 +1,43 @@
+# 管理员账号。Dashboard 默认不给任何登录方式能看全集群，必须显式建一个带
+# cluster-admin 的 ServiceAccount，再签发它的 token 去登录。
+#
+# 这是**开发集群**的用法。生产环境请改成只读 ClusterRole（见 README），
+# 别把 cluster-admin 的 token 到处发。
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-user
+  namespace: kubernetes-dashboard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-user
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: admin-user
+    namespace: kubernetes-dashboard
+---
+# 永久不过期的登录 token。
+#
+# v1.24 起 ServiceAccount 默认不再自动建永久 token，`kubectl create token` 走
+# TokenRequest API，签出来的 JWT 带 exp（默认 1h，上限受 apiserver 的
+# --service-account-max-token-expiration 限制），**改不长、也没法改成永久**。
+#
+# 要永久 token 只有走这条老路：显式建一个 type=kubernetes.io/service-account-token
+# 的 Secret。token controller 会把 ServiceAccount 的 JWT 填进 .data.token ——这个
+# JWT 里**没有 exp 字段**，所以不会过期，除非删了 ServiceAccount 或这个 Secret。
+#
+# 它是「永久」也意味着「泄露了就永久有效」，生产集群请优先用短期 token 或 OIDC。
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-user-token
+  namespace: kubernetes-dashboard
+  annotations:
+    kubernetes.io/service-account.name: admin-user
+type: kubernetes.io/service-account-token

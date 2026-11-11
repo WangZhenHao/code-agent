@@ -1,0 +1,97 @@
+[project]
+name = "code-agent-api"
+version = "0.1.0"
+description = "code-agent 后端：FastAPI + LangGraph，SSE 流式输出"
+readme = "README.md"
+authors = [
+    { name = "Poet", email = "zhenhaowang@dimleap.ai" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.0",
+    "apscheduler>=3.11.0",
+    "asyncpg>=0.31.0",
+    "cuid2>=2.0.1",
+    "fastapi[standard]>=0.141.1",
+    "greenlet>=3.5.6",
+    "k8s-agent-sandbox>=1.0.4",
+    "langchain-anthropic",
+    "langchain-deepseek>=1.1.1",
+    "langchain-moonshot>=0.1.0",
+    "langchain[openai]>=1.4.2",
+    "langgraph>=1.2.12",
+    "langgraph-checkpoint-postgres>=3.1.2",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.15.0",
+    "pyjwt>=2.15.0",
+    "redis>=8.1.0",
+    "sqlalchemy>=2.0.54",
+]
+
+[project.scripts]
+code-agent-api = "app.main:main"
+
+[build-system]
+requires = ["uv_build>=0.11.29,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "app"
+module-root = "src"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19",
+    "ruff>=0.17",
+]
+
+# ---------------------------------------------------------------- ruff
+# 格式化 + lint 由 ruff 一个工具包办（替代 black / isort / flake8 / pyupgrade）。
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+extend-exclude = ["public"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+ignore = [
+    # 中文注释与 docstring 里长句很多，强断行只会更难读
+    "E501",
+    # FastAPI 的 Depends()/Query() 就得写在默认值里
+    "B008",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic 模板产物：导入顺序与老式 typing 写法是生成器带出来的
+"alembic/versions/*" = ["I", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# ---------------------------------------------------------------- mypy
+# 基线：先让现有标注过检查，不追求 --strict（tests 尚未标注）。
+[tool.mypy]
+files = ["src"]
+python_version = "3.12"
+mypy_path = "src"
+explicit_package_bases = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "apscheduler.*"
+ignore_missing_imports = true

@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API: debug (no reload)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "app.main",
+      "cwd": "${workspaceFolder}/apps/api",
+      "python": "${workspaceFolder}/apps/api/.venv/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "CODE_AGENT_DEBUG": "false"
+      }
+    }
+  ]
+}
