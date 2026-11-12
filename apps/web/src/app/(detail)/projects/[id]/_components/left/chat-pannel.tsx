@@ -82,7 +82,9 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
             </div>
           ) : null}
 
-          {isHistoryLoading ? <LoadingIndicator label="加载中" /> : null}
+          {!isLoading && isHistoryLoading ? (
+            <LoadingIndicator label="加载中" className="justify-center" />
+          ) : null}
 
           <MessageList messages={historyMessage} sessionId={sessionId} />
 
