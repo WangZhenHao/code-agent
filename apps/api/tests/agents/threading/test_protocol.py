@@ -49,6 +49,10 @@ def _tool_call_delta(args: str, *, index: int = 1, block_index: int = 0) -> dict
 
 
 class FragmentToolCallDeltaTest(unittest.TestCase):
+    # tool-call-delta 帧暂时不输出（见 _protocol/deltas.py），恢复输出后去掉 skip。
+    _OFF = unittest.skip("tool-call-delta 输出暂时关闭")
+
+    @_OFF
     def test_first_delta_sends_whole_args(self) -> None:
         seen: dict[str, str] = {}
         kept = fragment_tool_call_delta(_messages_event(_tool_call_delta('{"a"')), seen)
@@ -57,6 +61,7 @@ class FragmentToolCallDeltaTest(unittest.TestCase):
         delta = kept["params"]["data"]["delta"]
         self.assertEqual(delta, {"type": "tool-call-delta", "args": '{"a"'})
 
+    @_OFF
     def test_growth_sends_only_suffix(self) -> None:
         seen: dict[str, str] = {}
         fragment_tool_call_delta(_messages_event(_tool_call_delta('{"a"')), seen)
@@ -69,6 +74,7 @@ class FragmentToolCallDeltaTest(unittest.TestCase):
             {"type": "tool-call-delta", "args": ": 1}"},
         )
 
+    @_OFF
     def test_concat_reassembles_full_args(self) -> None:
         seen: dict[str, str] = {}
         snapshots = ['{"cont', '{"content": "import', '{"content": "import x"}']
@@ -81,6 +87,7 @@ class FragmentToolCallDeltaTest(unittest.TestCase):
                 assembled += kept["params"]["data"]["delta"]["args"]
         self.assertEqual(assembled, snapshots[-1])
 
+    @_OFF
     def test_identical_snapshot_dropped(self) -> None:
         seen: dict[str, str] = {}
         payload = _tool_call_delta('{"content": "abc"}')
@@ -101,6 +108,7 @@ class FragmentToolCallDeltaTest(unittest.TestCase):
             kept["params"]["data"]["delta"]["fields"]["args"], '{"path": "b"}'
         )
 
+    @_OFF
     def test_blocks_are_tracked_independently(self) -> None:
         seen: dict[str, str] = {}
         first = _tool_call_delta('{"a"', index=1, block_index=0)
@@ -113,6 +121,7 @@ class FragmentToolCallDeltaTest(unittest.TestCase):
         # 另一个调用没发过，首帧要发全量而不是空片段。
         self.assertEqual(kept["params"]["data"]["delta"]["args"], '{"a"')
 
+    @_OFF
     def test_tuple_payload_supported(self) -> None:
         seen: dict[str, str] = {}
         payload = _tool_call_delta('{"a"')
@@ -313,6 +322,7 @@ class RedactToolArgsTest(unittest.TestCase):
         self.assertIs(redact_tool_event(event), event)
 
 
+@unittest.skip("tool-call-delta 输出暂时关闭（见 _protocol/deltas.py）")
 class ToolArgsStreamRedactionTest(unittest.TestCase):
     """content 长字段在增量帧里也要被截住（finish 帧之外的第二条泄漏路径）。"""
 

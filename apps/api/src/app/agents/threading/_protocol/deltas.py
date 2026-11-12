@@ -34,7 +34,7 @@ def _content_close_index(args: str, start: int) -> int | None:
     return None
 
 
-def _redacted_delta(
+def _redacted_delta(  # noqa: F401 —— 调用点在下方注释块里，恢复输出时用
     raw: str, previous: str, key: str, suppressed: dict[str, bool]
 ) -> str | None:
     """算出（已脱敏视角的）新增片段；None 表示这一帧不发。
@@ -103,18 +103,24 @@ def fragment_tool_call_delta(
         return event
     data = params.get("data")
     # v3 下 messages 的 data 可能是 (payload, metadata) 元组，发布前还没 unwrap。
-    if isinstance(data, tuple):
-        is_tuple = True
+    if isinstance(data, tuple):  # noqa: SIM108 —— 保留分支形状，方便恢复被注释的行
+        # is_tuple = True
         payload = data[0] if data else None
-        rest = tuple(data[1:])
+        # rest = tuple(data[1:])
     else:
-        is_tuple = False
+        # is_tuple = False
         payload = data
-        rest = ()
+        # rest = ()
     if not is_record(payload) or payload.get("event") != "content-block-delta":
         return event
     delta = payload.get("delta")
-    if not is_record(delta) or delta.get("type") != "block-delta":
+    if not is_record(delta):
+        return event
+    # langchain_core 1.7.6 的兼容桥原生就发 tool-call-delta（只带 args 增量），
+    # 不走 block-delta，所以上面那段改写碰不到它；要关掉输出就拦在这里。
+    if delta.get("type") == "tool-call-delta":
+        return None
+    if delta.get("type") != "block-delta":
         return event
     fields = delta.get("fields")
     if not is_record(fields) or fields.get("type") != "tool_call_chunk":
@@ -136,15 +142,18 @@ def fragment_tool_call_delta(
         seen[block_key] = args
         return event
 
-    state = suppressed if suppressed is not None else {}
-    suffix = _redacted_delta(args, previous, block_key, state)
+    # state = suppressed if suppressed is not None else {}
+    # suffix = _redacted_delta(args, previous, block_key, state)
     seen[block_key] = args
-    if suffix is None:
-        return None
+    # if suffix is None:
+    #     return None
 
-    fragment = {
-        **payload,
-        "delta": {"type": "tool-call-delta", "args": suffix},
-    }
-    fragment_data = (fragment, *rest) if is_tuple else fragment
-    return {**event, "params": {**params, "data": fragment_data}}
+    # 暂不向前端输出 tool-call-delta 帧（只保留基线推进，避免每帧退回全量）。
+    # 恢复时把下面三行取消注释即可。
+    # fragment = {
+    #     **payload,
+    #     "delta": {"type": "tool-call-delta", "args": suffix},
+    # }
+    # fragment_data = (fragment, *rest) if is_tuple else fragment
+    # return {**event, "params": {**params, "data": fragment_data}}
+    return None
