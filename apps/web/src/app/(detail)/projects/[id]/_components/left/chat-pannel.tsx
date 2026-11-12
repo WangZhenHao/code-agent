@@ -12,7 +12,7 @@ import { useMessageChatMessageIdGet } from "@/api/generated/chat/chat"
 import { useChatMessage } from "../hook/use-chat-message"
 import { useScrollToBottom } from "../hook/use-scroll-to-bottom"
 import { LoadingIndicator } from "./loading-indicator"
-import { MessageList } from "./message"
+import { MessageList } from "./message-list"
 import LeftHeader from "./left-header"
 
 /**

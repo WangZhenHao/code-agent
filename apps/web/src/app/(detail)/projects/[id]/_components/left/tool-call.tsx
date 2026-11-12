@@ -34,7 +34,8 @@ import { ToolDiffBlock } from "./tool-diff-block"
  * 而是按 `tool_call_id` 查 `GET /agents/{id}/tools/{tool_call_id}`。
  * 只在展开时请求，避免一屏几十个卡片同时拉取。
  *
- * 还没有工具名的调用就是仍在执行中：这时显示 loading 且不可展开——
+ * 还没有目标的调用就是仍在执行中：`name` 是工具分类，调用一开始就有，
+ * 但 args 要等流结束才到，所以 target 为空才是「参数未到、不可展开」——
  * 此时库里还没有结果，展开只会看到空壳。
  */
 export const ToolCall = ({
@@ -42,18 +43,21 @@ export const ToolCall = ({
   toolCallId,
   name,
   args,
+  streaming = false,
 }: {
   sessionId: string
   toolCallId?: string
-  /** 工具名，流式传输中尚未到达时为空字符串，表示仍在调用 */
+  /** 工具名，与后端 `@tool` 注册的一致 */
   name: string
   args: Record<string, unknown>
+  streaming?: boolean
 }) => {
   const [open, setOpen] = useState(false)
-  const running = !name
   const meta = TOOL_META[name]
   const Icon = meta?.icon ?? WrenchIcon
   const target = meta ? meta.target(args) : name
+  // args 未到时 target 为空串：仍在调用中
+  const running = !target && streaming
   const expanded = open && !running
 
   const toolCallQuery = useThreadToolCallAgentsSessionIdToolsToolCallIdGet(

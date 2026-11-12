@@ -50,6 +50,7 @@ export const System = ({
               toolCallId={call.id}
               name={call.name ?? ""}
               args={call.args}
+              streaming={streaming}
             />
           ))}
         </ul>
