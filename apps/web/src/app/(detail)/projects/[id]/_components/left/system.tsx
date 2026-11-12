@@ -48,7 +48,7 @@ export const System = ({
               key={call.id ?? `${message.id ?? "tool"}-${index}`}
               sessionId={sessionId}
               toolCallId={call.id}
-              name={call.name ?? "tool"}
+              name={call.name ?? ""}
               args={call.args}
             />
           ))}

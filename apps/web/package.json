@@ -21,6 +21,7 @@
     "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.3.2",
+    "diff": "^9.0.0",
     "langchain": "^1.5.19",
     "lucide-react": "^1.47.0",
     "motion": "^14.6.0",
