@@ -9,6 +9,11 @@
 """
 
 from langchain.agents.middleware import SummarizationMiddleware
+from langchain.messages import trim_messages
+
+# 裁剪结果为空时的兜底条数：宁可给摘要模型一段没有开头边界的原始消息，也不能
+# 让它两手空空。
+_TRIM_FALLBACK_COUNT = 15
 
 
 class TrackingSummarization(SummarizationMiddleware):
@@ -83,6 +88,34 @@ class TrackingSummarization(SummarizationMiddleware):
             if _is_round_message(m):
                 merged.setdefault(m.id, m)  # 已有则不覆盖，保持首次出现顺序
         return list(merged.values())
+
+    def _trim_messages_for_summary(self, messages):
+        """为摘要模型准备输入窗口，**不要** `start_on="human"`。
+
+        父类实现固定传 `start_on="human"`：裁剪后窗口必须以 HumanMessage 开头。
+        code-agent 的一轮全是 AI tool_call + ToolMessage，被压缩段落的尾部常有
+        几千 token 没有 HumanMessage，`start_on` 会把整个窗口裁空；父类随后
+        `_create_summary` 见到空列表，不调模型，直接写死
+        "Previous conversation was too long to summarize."——老历史就是这样被
+        换成一句废话的（见 2026-11 的 rhvnobd77int 事故）。
+
+        去掉 `start_on` 后窗口可能从半轮中间开始，摘要开头少一个「用户要什么」的
+        锚点，但至少材料是真的；空结果兜底取最后若干条，保证永远不空手。
+        """
+        try:
+            if self.trim_tokens_to_summarize is None:
+                return messages
+            trimmed = trim_messages(
+                messages,
+                max_tokens=self.trim_tokens_to_summarize,
+                token_counter=self.token_counter,
+                strategy="last",
+                allow_partial=True,
+                include_system=True,
+            )
+        except Exception:
+            return messages[-_TRIM_FALLBACK_COUNT:]
+        return trimmed or messages[-_TRIM_FALLBACK_COUNT:]
 
     def before_model(self, state, runtime):
         self._remember(state["messages"])

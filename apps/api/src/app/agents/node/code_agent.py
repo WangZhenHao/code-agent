@@ -4,6 +4,7 @@ import logging
 import typing
 
 from langchain.agents import create_agent
+from langchain.agents.middleware import ClearToolUsesEdit, ContextEditingMiddleware
 from langchain.messages import HumanMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
@@ -36,12 +37,27 @@ async def code_agent(state: State, config: RunnableConfig):
         cwd=WORKSPACE, mode=state["mode"], project_context=""
     )
 
+    # 上下文编辑必须先于摘要：它把旧工具输出换成占位符，日常靠它把上下文压在
+    # 几万 token 以内，摘要只在真的长对话里兜底。编辑走 wrap_model_call、摘要走
+    # before_model，摘要永远先执行——所以摘要的 trigger 必须远高于编辑的 trigger，
+    # 否则摘要会把整段历史直接压掉，编辑根本没机会跑（曾配 30000，就是这个错）。
+    #
+    # 清掉的是**旧**工具输出（保留最近 3 条）：完整内容在 tool_calls 表里，前端按
+    # tool_call_id 查，落库也只存 id（见 message_persistence._part_for_storage），
+    # 清空不影响任何展示。AI tool_call 与 ToolMessage 的配对不动，避免 provider
+    # 报孤立 tool_call 的 400。
+    context_editing = ContextEditingMiddleware(
+        edits=[ClearToolUsesEdit(trigger=12_000, keep=3)],
+    )
+
     summarization = TrackingSummarization(
         model=model,
-        # Trigger when conversation history reaches 10000 tokens
-        trigger=("tokens", 30000),
-        # Keep the 20 most recent messages intact after summarizing older ones
-        keep=("messages", 15),
+        # 日常由 context_editing 控住体积，摘要退居兜底，所以门槛拉高。
+        trigger=("tokens", 50_000),
+        # 压缩后按 token 保留最近 20000 token，不用消息条数：code-agent 一轮就有
+        # 几十上百条 tool_call/ToolMessage，按条数保留（曾用 15 条）会让压缩在
+        # 同一轮里反复触发，每次都在截短的窗口上再摘要，信息越压越少。
+        keep=("tokens", 20_000),
     )
 
     agent = create_agent(
@@ -50,7 +66,7 @@ async def code_agent(state: State, config: RunnableConfig):
         system_prompt=system_prompt,
         # ToolRecorder 必须在工具执行链上：结果落 tool_calls 表，SSE 只推
         # tool_call_id，前端按 id 查询（见 helper/tool_recorder.py）。
-        middleware=[summarization, ToolRecorder(session_id)],
+        middleware=[context_editing, summarization, ToolRecorder(session_id)],
     )
 
     input = state["input"]
