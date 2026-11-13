@@ -15,7 +15,7 @@ const Preview = ({
 }) => {
   if (url && enabled) {
     return (
-      <div className="min-h-0 flex-1 overflow-hidden rounded-t-lg border-t bg-background">
+      <div className="min-h-0 flex-1 overflow-hidden border-t bg-background">
         <iframe src={url} title="预览" className="size-full border-0" />
       </div>
     )
