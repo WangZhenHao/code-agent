@@ -21,17 +21,34 @@ from app.db.session import SessionLocal
 logger = logging.getLogger(__name__)
 
 
-def _part_for_storage(msg) -> dict:
-    """`message_to_dict()` 之后，把工具消息的正文从落库副本里去掉。
+# 工具参数里体积大、且 `tool_calls` 表已完整保存的字段：write_file 的正文、
+# edit_file 的新旧文本。落库副本只留「哪个工具、动了哪个文件」，正文去表里查。
+_BULKY_ARG_KEYS = ("content", "old_string", "new_string")
 
-    工具输出已落 `tool_calls` 表（ToolRecorder），前端按 `tool_call_id` 查询。
-    `messages.parts` 里再存一份完整输出，历史接口就会把同样的内容重新吐一遍。
-    保留 `type / id / tool_call_id` 就够 `mapStoredMessageToChatMessage`
-    （前端）重建一条空的 ToolMessage、拿到配对用的 id。
+
+def _strip_call_args(args: dict) -> dict:
+    """去掉工具参数里的大字段，保留 `file_path` / `command` 这类展示用键。"""
+    return {k: v for k, v in args.items() if k not in _BULKY_ARG_KEYS}
+
+
+def _part_for_storage(msg) -> dict:
+    """`message_to_dict()` 之后，把工具调用的正文从落库副本里去掉。
+
+    工具的**输出**已落 `tool_calls` 表（ToolRecorder），前端按 `tool_call_id` 查询；
+    `write_file` / `edit_file` 的**输入**（文件正文）同样在表的 `input` 里。`messages.parts`
+    里再存一份，历史接口就会把几十 KB 的源码重新吐一遍。
+
+    - tool 消息保留 `type / id / tool_call_id` 就够 `mapStoredMessageToChatMessage`
+      （前端）重建一条空的 ToolMessage、拿到配对用的 id。
+    - ai 消息的 tool_call 参数有两个副本（`content[]` 的 tool_call 块 + `tool_calls[]`），
+      必须一起剥，否则前端仍能从另一处拿到全文。
     """
     part = message_to_dict(msg)
-    if part.get("type") == "tool" and isinstance(part.get("data"), dict):
-        part = {
+    if not isinstance(part.get("data"), dict):
+        return part
+
+    if part.get("type") == "tool":
+        return {
             **part,
             "data": {
                 "type": "tool",
@@ -39,6 +56,30 @@ def _part_for_storage(msg) -> dict:
                 "tool_call_id": part["data"].get("tool_call_id"),
             },
         }
+
+    if part.get("type") != "ai":
+        return part
+
+    data = part["data"]
+    tool_calls = data.get("tool_calls")
+    if isinstance(tool_calls, list):
+        data["tool_calls"] = [
+            {**call, "args": _strip_call_args(call["args"])}
+            if isinstance(call, dict) and isinstance(call.get("args"), dict)
+            else call
+            for call in tool_calls
+        ]
+
+    content = data.get("content")
+    if isinstance(content, list):
+        data["content"] = [
+            {**block, "args": _strip_call_args(block["args"])}
+            if isinstance(block, dict)
+            and block.get("type") == "tool_call"
+            and isinstance(block.get("args"), dict)
+            else block
+            for block in content
+        ]
     return part
 
 
