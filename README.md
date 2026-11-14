@@ -1,6 +1,17 @@
 # code-agent
 
-对话式代码 Agent：一次会话 = 一个沙箱，Agent 在 k8s 沙箱内读写代码、执行命令，结果流式推给前端。
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+[中文](README.md) | [English](README.en.md)
+
+![概览 1](docs/img/1.png)
+
+![概览 2](docs/img/2.png)
+
+
+欢迎使用 码灵编程 —— 一个开源的 AI 开发者工作台，让你为每一次提示自由选择偏好的大模型。你可以在浏览器里构建全栈 Web 应用，支持主流模型提供商（OpenAI、Anthropic、Gemini、Kimi、xAI、DeepSeek 等），任何提供商来扩展。默认启用的是 DeepSeek、Anthropic、OpenAI；其余提供商在设置中启用并配置。
+
+
 
 ## 架构
 
@@ -132,6 +143,11 @@ curl http://localhost:8000/health
 # Web 前端（浏览器打开）
 open http://localhost:3000
 ```
+
+## 许可证
+
+本项目采用 [MIT License](LICENSE) 开源。
+
 
 
 
