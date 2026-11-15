@@ -40,6 +40,12 @@ jobs:
           cd ../admin && pnpm install --frozen-lockfile
           cd ../api && uv sync --locked
 
+      # 测试不连外部服务，但 app.settings 在导入时就实例化 Settings()，必填字段
+      # 缺失会让 import 阶段直接抛 ValidationError。这里用仓库里的示例值兜底，
+      # 真实 .env 只在本地存在且被 gitignore。
+      - name: Prepare env file
+        run: cp apps/api/.env.example apps/api/.env
+
       - name: fmt-check
         run: make fmt-check
 
