@@ -7,6 +7,7 @@ import { useWs, useWsEvent } from "@/components/providers/ws-provider"
 import Header from "./header"
 import Preview from "./preview"
 import PreviewOptions from "./preview-options"
+import { useProjectDetailStore } from "@/store/project-detail"
 
 /** 续期间隔。后端 ttl 30 分钟、回收器 5 分钟扫一次，5 分钟一拍留足余量。 */
 const KEEPALIVE_MS = 2 * 60 * 1000
@@ -32,15 +33,18 @@ const Right = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   // 上一拍心跳还没回来时跳过本轮，避免冷启动/断网时堆请求
   const heartbeatInFlight = useRef(false)
+  const { updateField } = useProjectDetailStore()
 
   // 入参收 unknown 再自己收窄：推送和应答都是外部数据，只有一个来源时断言
   // 会被 lint 判成多余，索性把这个边界收在一处。
   const applySnapshot = useCallback((snapshot: unknown) => {
     if (!snapshot || typeof snapshot !== "object") return
     const s = snapshot as Record<string, unknown>
+    const previewUrl = typeof s.preview_url === "string" ? s.preview_url : null
     setPreviewEnabled(s.preview_enabled === true)
-    setPreviewUrl(typeof s.preview_url === "string" ? s.preview_url : null)
-  }, [])
+    setPreviewUrl(previewUrl)
+    updateField({ preview_url: previewUrl })
+  }, [updateField])
 
   useWsEvent("web.server_status_changed", (params) => {
     applySnapshot(params.preview)
@@ -63,7 +67,10 @@ const Right = () => {
     const timer = setInterval(() => {
       if (heartbeatInFlight.current) return
       heartbeatInFlight.current = true
-      call<{ devbox_id: string; extended: boolean }>("web.preview_heartbeat", {})
+      call<{ devbox_id: string; extended: boolean }>(
+        "web.preview_heartbeat",
+        {}
+      )
         .catch((error: unknown) => {
           console.warn("web.preview_heartbeat 请求失败", error)
         })
