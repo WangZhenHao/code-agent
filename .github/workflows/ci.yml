@@ -40,10 +40,25 @@ jobs:
           cd ../admin && pnpm install --frozen-lockfile
           cd ../api && uv sync --locked
 
+      # 各 app 的 .env 只在本地存在且被 gitignore，CI 上统一用仓库里的示例值兜底。
+      # api 是硬需求：app.settings 在导入时就实例化 Settings()，必填字段缺失会让
+      # 测试在 import 阶段直接抛 ValidationError。
+      # web 的变量代码里有默认值兜底，复制与否行为一致，这里只是为了和本地对齐。
+      # admin 没有 .env.example（VITE_API_BASE_URL 没被实际读取），无需处理。
+      - name: Prepare env file
+        run: |
+          cp apps/api/.env.example apps/api/.env
+          cp apps/web/.env.example apps/web/.env
+
       - name: fmt-check
         run: make fmt-check
 
+      # 测试应当是离线的，但「偷偷连库」在本地不会报错：异常被后台任务的 except
+      # 吞掉，测试照样绿，等到 CI 没有数据库才暴露（test_preview 就这么挂过一次）。
+      # 指向一个必然不可达的端口，让依赖数据库的测试稳定地红掉，而不是碰本机有没有库。
       - name: test
+        env:
+          CODE_AGENT_DATABASE_URL: postgresql+asyncpg://ci:ci@127.0.0.1:59999/ci
         run: make test
 
       - name: build

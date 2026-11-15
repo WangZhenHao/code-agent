@@ -43,8 +43,10 @@ PREVIEW_COMMAND = (
     "sh -c 'cd /workspace && nohup pnpm run dev --port 3000 > /tmp/next.log 2>&1 &'"
 )
 
+# -L 跟随重定向：项目模板的首页可能直接 redirect（比如 / → /chat），根路径回 307
+# 并不代表没起来。跟随后的最终状态码才是判据；重定向成环由 curl 报错，同样算未就绪。
 PROBE_COMMAND = (
-    f"sh -c 'curl -s -o /dev/null -w %{{http_code}} localhost:{DEV_PORT}/ 2>/dev/null'"
+    f"sh -c 'curl -sL -o /dev/null -w %{{http_code}} localhost:{DEV_PORT}/ 2>/dev/null'"
 )
 
 # 首次编译通常十几秒，给足余量。

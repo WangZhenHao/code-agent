@@ -8,6 +8,9 @@
 
 `_ensure` 直接 await，不经过 `start_preview`：后者只是 create_task 的壳。
 
+`_current_preview` 必须在 setUp 里 patch 掉——它直连 SessionLocal，CI 没有数据库，
+不 patch 的话 `_probe` 成功路径会去连库，异常被 `_ensure` 吞掉后测试静默断言失败。
+
 跑法：uv run python -m unittest tests.api.sandbox.test_preview
 """
 
@@ -28,9 +31,12 @@ class PreviewTestCase(unittest.IsolatedAsyncioTestCase):
         self.sandbox = mock.Mock()
         self._persist = mock.AsyncMock()
         self._publish = mock.Mock()
+        # 库里还没有预览记录是常态；具体分支在用例里改 return_value。
+        self._current = mock.AsyncMock(return_value=(None, None))
         stack = [
             mock.patch.object(preview, "persist_preview", self._persist),
             mock.patch.object(preview, "_publish", self._publish),
+            mock.patch.object(preview, "_current_preview", self._current),
             mock.patch.object(
                 preview, "sandbox_url", lambda s: "http://abc.localtest.me/"
             ),
@@ -55,6 +61,18 @@ class PreviewTestCase(unittest.IsolatedAsyncioTestCase):
         self._publish.assert_called_once_with(
             SID, PreviewStatus.running, "http://abc.localtest.me/"
         )
+
+    async def test_already_pushed_does_not_write_again(self):
+        # 库里已经是同一 URL 的 running：状态没变，前端拿到过，重写会白闪一下。
+        self._current.return_value = (
+            PreviewStatus.running.value,
+            "http://abc.localtest.me/",
+        )
+        with mock.patch.object(preview, "_probe", return_value=True):
+            await preview._ensure(SID, self.sandbox)
+
+        self._persist.assert_not_awaited()
+        self._publish.assert_not_called()
 
     async def test_not_running_goes_building_then_running(self):
         with (

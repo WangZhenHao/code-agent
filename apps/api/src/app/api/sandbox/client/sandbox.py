@@ -1,10 +1,12 @@
-"""沙箱客户端单例。
+"""沙箱客户端单例（懒加载）。
 
-模块级变量，全局共用一份 SandboxClient：它持有到 router 的 port-forward
-连接，重复创建会各起一条隧道、白白占资源，所以进程内只建这一个。
+全局共用一份 SandboxClient：它持有到 router 的 port-forward 连接，重复创建
+会各起一条隧道、白白占资源，所以进程内只建这一个。
 
-注意 SandboxClient() 在构造时就建立连接，所以 import 本模块即产生副作用
-（连 router），这正是"单例变量"的代价——想改成懒加载得换回工厂函数。
+但**不**在 import 时创建：SandboxClient() 构造时会读 kubeconfig、建 k8s 客户端，
+import 阶段就连外部资源会把这个模块的所有下游（agent 图、路由、测试）都绑上
+集群可用性——CI 里没有 kubeconfig，离线测试在 import 时就会抛 ConfigException。
+所以改成首次调用 get_sandbox_client() 时才建，之后复用（同 checkpointer.py）。
 """
 
 import logging
@@ -52,12 +54,25 @@ SANDBOX_ID_LABEL = "code-agent/sandbox-id"
 _LABEL_VALUE_RE = re.compile(r"^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$")
 
 
-sandbox_client: SandboxClient = SandboxClient(
-    connection_config=SandboxLocalTunnelConnectionConfig(
-        router_namespace=ROUTER_NAMESPACE,
-        server_port=SERVER_PORT,
-    )
-)
+# 懒单例，跟 checkpointer.py 的 _saver 是同一个思路：import 不建连，首次使用才建。
+_sandbox_client: SandboxClient | None = None
+
+
+def get_sandbox_client() -> SandboxClient:
+    """返回进程内唯一的 SandboxClient，首次调用时创建。
+
+    SandboxClient() 构造即读 kubeconfig / 建 k8s 客户端，所以不能在 import 时做——
+    否则 import 本模块的所有代码都被绑上"集群可用"这个前提，离线测试会直接挂。
+    """
+    global _sandbox_client
+    if _sandbox_client is None:
+        _sandbox_client = SandboxClient(
+            connection_config=SandboxLocalTunnelConnectionConfig(
+                router_namespace=ROUTER_NAMESPACE,
+                server_port=SERVER_PORT,
+            )
+        )
+    return _sandbox_client
 
 
 def sandbox_url(sandbox, domain: str | None = None) -> str:
@@ -90,7 +105,7 @@ def create_sandbox_for_id(sandbox_id: str, *, ready_timeout: int = 180):
     要"复用已有"先用 get_sandbox_for_id 探一下。
     """
     _validate_sandbox_id(sandbox_id)
-    return sandbox_client.create_sandbox(
+    return get_sandbox_client().create_sandbox(
         warmpool=WARMPOOL,
         namespace=SANDBOX_NAMESPACE,
         sandbox_ready_timeout=ready_timeout,
@@ -106,13 +121,15 @@ def get_sandbox_for_id(sandbox_id: str):
     claim 名后缀是随机 hex 无时序含义，这里只保证"能拿回一个可用句柄"。
     """
     _validate_sandbox_id(sandbox_id)
-    claim_names = sandbox_client.list_all_sandboxes(
+    claim_names = get_sandbox_client().list_all_sandboxes(
         namespace=SANDBOX_NAMESPACE,
         label_selector=f"{SANDBOX_ID_LABEL}={sandbox_id}",
     )
     if not claim_names:
         return None
-    return sandbox_client.get_sandbox(claim_names[-1], namespace=SANDBOX_NAMESPACE)
+    return get_sandbox_client().get_sandbox(
+        claim_names[-1], namespace=SANDBOX_NAMESPACE
+    )
 
 
 # Sandbox CR 的 spec.operatingMode 取值。Running/Suspended 是 CRD schema 里的全部枚举，
@@ -128,7 +145,9 @@ def _get_operating_mode(sandbox) -> str | None:
 
     不缓存：暂停/恢复正是这个字段在变，缓存等于把"刚 patch 完"读成旧值。
     """
-    obj = sandbox_client.k8s_helper.get_sandbox(sandbox.sandbox_id, SANDBOX_NAMESPACE)
+    obj = get_sandbox_client().k8s_helper.get_sandbox(
+        sandbox.sandbox_id, SANDBOX_NAMESPACE
+    )
     if not obj:
         return None
     return (obj.get("spec") or {}).get("operatingMode")
@@ -140,7 +159,7 @@ def _patch_operating_mode(sandbox, mode: str) -> None:
     用 sandbox_id 而非 claim_name 定位：warmpool 场景下 claim 是新建的、Sandbox 名
     继承自池，两者不等（sandbox_url 里同样的理由）。
     """
-    sandbox_client.k8s_helper.custom_objects_api.patch_namespaced_custom_object(
+    get_sandbox_client().k8s_helper.custom_objects_api.patch_namespaced_custom_object(
         group=SANDBOX_API_GROUP,
         version=SANDBOX_API_VERSION,
         namespace=SANDBOX_NAMESPACE,
@@ -179,7 +198,7 @@ def resume_sandbox(sandbox, *, ready_timeout: int = 180) -> bool:
 
     logger.info("沙箱处于暂停态，恢复中 sandbox_id=%s", sandbox.sandbox_id)
     _patch_operating_mode(sandbox, OPERATING_MODE_RUNNING)
-    sandbox_client.k8s_helper.wait_for_sandbox_ready(
+    get_sandbox_client().k8s_helper.wait_for_sandbox_ready(
         sandbox.sandbox_id, SANDBOX_NAMESPACE, ready_timeout
     )
     return True
@@ -198,4 +217,4 @@ def delete_sandbox(sandbox) -> None:
     delete_sandbox 内部会 terminate 句柄并摘掉客户端里的追踪记录；
     namespace 必须与建沙箱时一致（默认 default）。
     """
-    sandbox_client.delete_sandbox(sandbox.claim_name, SANDBOX_NAMESPACE)
+    get_sandbox_client().delete_sandbox(sandbox.claim_name, SANDBOX_NAMESPACE)
