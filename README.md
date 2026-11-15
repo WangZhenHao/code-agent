@@ -144,6 +144,10 @@ curl http://localhost:8000/health
 open http://localhost:3000
 ```
 
+## CI
+
+向 master 提 PR 时会自动跑 `make fmt-check`、`make test`、`make build`（见 `.github/workflows/ci.yml`），任一失败即卡住合并。
+
 ## 许可证
 
 本项目采用 [MIT License](LICENSE) 开源。
