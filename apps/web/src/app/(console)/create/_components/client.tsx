@@ -2,13 +2,13 @@
 
 import { useChatCreateChatCreatePost } from "@/api/generated/chat/chat"
 import { Composer } from "@/app/(home)/_components/composer"
-import { useState } from "react"
 import { useRouter } from "next/navigation"
 import type { ChatCreateChatCreatePostMutationVariables } from "@/api/generated/chat/chat"
+import { useAgentChatStore } from "@/store/agent-chat"
 
 const Client = () => {
   const router = useRouter()
-  const [prompt, setPrompt] = useState("")
+  const { prompt, setPrompt } = useAgentChatStore((state) => state)
   const { mutate, isPending, error } = useChatCreateChatCreatePost()
   const handleSumbit = (
     params: ChatCreateChatCreatePostMutationVariables["data"]
@@ -19,6 +19,7 @@ const Client = () => {
         onSuccess: (res) => {
           // create 接口会新建或复用会话，拿到 id 后直接进项目详情页
           router.push(`/projects/${res.id}`)
+          setPrompt("")
         },
       }
     )

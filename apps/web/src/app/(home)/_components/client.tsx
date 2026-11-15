@@ -6,9 +6,19 @@ import { Composer } from "./composer"
 import { SiteHeader } from "./site-header"
 import { CapabilitySection } from "./capability-section"
 import SectionRow from "./section-row"
+import { useAgentChatStore } from "@/store/agent-chat"
+import { useUserStore } from "@/store/user"
+import { LoginDialog, type LoginDialogRef } from "./login"
 
 export function Client() {
-  const [prompt, setPrompt] = React.useState("")
+  const loginRef = React.useRef<LoginDialogRef>(null)
+  const { prompt, setPrompt } = useAgentChatStore((state) => state)
+  const { user } = useUserStore((state) => state)
+  const onSubmitHandle = () => {
+    if (!user) {
+      loginRef.current?.open()
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#FBFAF5]">
@@ -17,7 +27,7 @@ export function Client() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_0%,var(--color-muted)_0%,transparent_60%)]"
       />
 
-      <SiteHeader />
+      <SiteHeader onLogin={onSubmitHandle} />
 
       <main className="relative flex flex-1 flex-col items-center px-4 pb-24 sm:px-6">
         <section className="mt-16 flex w-full max-w-3xl flex-col items-center text-center">
@@ -33,12 +43,14 @@ export function Client() {
             prompt={prompt}
             onPromptChange={setPrompt}
             isAutoswitchPrompt
+            onSubmit={onSubmitHandle}
           />
         </section>
 
         <SectionRow setPrompt={setPrompt} />
 
         <CapabilitySection />
+        <LoginDialog ref={loginRef} />
       </main>
     </div>
   )

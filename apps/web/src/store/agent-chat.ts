@@ -12,8 +12,10 @@ interface AgentChatState {
   mode: MessageMode
   /** 传给后端 ChatCreateRequest.model 的模型标识 */
   model: string
+  prompt: string
   setMode: (mode: MessageMode) => void
   setModel: (model: string) => void
+  setPrompt: (prompt: string) => void
 }
 
 /**
@@ -27,12 +29,18 @@ export const useAgentChatStore = create<AgentChatState>()(
     (set) => ({
       mode: DEFAULT_MODE,
       model: DEFAULT_MODEL,
+      prompt: "",
       setMode: (mode) => set({ mode }),
       setModel: (model) => set({ model }),
+      setPrompt: (prompt) => set({ prompt }),
     }),
     {
       name: "code-agent-agent-chat",
-      partialize: (state) => ({ mode: state.mode, model: state.model }),
+      partialize: (state) => ({
+        mode: state.mode,
+        model: state.model,
+        prompt: state.prompt,
+      }),
     }
   )
 )
