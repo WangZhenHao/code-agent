@@ -40,11 +40,15 @@ jobs:
           cd ../admin && pnpm install --frozen-lockfile
           cd ../api && uv sync --locked
 
-      # 测试不连外部服务，但 app.settings 在导入时就实例化 Settings()，必填字段
-      # 缺失会让 import 阶段直接抛 ValidationError。这里用仓库里的示例值兜底，
-      # 真实 .env 只在本地存在且被 gitignore。
+      # 各 app 的 .env 只在本地存在且被 gitignore，CI 上统一用仓库里的示例值兜底。
+      # api 是硬需求：app.settings 在导入时就实例化 Settings()，必填字段缺失会让
+      # 测试在 import 阶段直接抛 ValidationError。
+      # web 的变量代码里有默认值兜底，复制与否行为一致，这里只是为了和本地对齐。
+      # admin 没有 .env.example（VITE_API_BASE_URL 没被实际读取），无需处理。
       - name: Prepare env file
-        run: cp apps/api/.env.example apps/api/.env
+        run: |
+          cp apps/api/.env.example apps/api/.env
+          cp apps/web/.env.example apps/web/.env
 
       - name: fmt-check
         run: make fmt-check
