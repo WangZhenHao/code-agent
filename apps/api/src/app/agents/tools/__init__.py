@@ -13,10 +13,10 @@ read_skill 是个例外：它读的是 API 主机上的技能包目录（public/
 所以这里用工厂函数而不是模块级常量：
 
     from app.agents.llm import get_model
-    from app.api.sandbox.client import sandbox_client, SANDBOX_NAMESPACE, WARMPOOL
+    from app.api.sandbox.client import get_sandbox_client, SANDBOX_NAMESPACE, WARMPOOL
     from app.agents.tools import create_tools
 
-    sandbox = sandbox_client.create_sandbox(
+    sandbox = get_sandbox_client().create_sandbox(
         warmpool=WARMPOOL, namespace=SANDBOX_NAMESPACE
     )
     try:
