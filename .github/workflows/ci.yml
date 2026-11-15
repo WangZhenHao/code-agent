@@ -53,7 +53,12 @@ jobs:
       - name: fmt-check
         run: make fmt-check
 
+      # 测试应当是离线的，但「偷偷连库」在本地不会报错：异常被后台任务的 except
+      # 吞掉，测试照样绿，等到 CI 没有数据库才暴露（test_preview 就这么挂过一次）。
+      # 指向一个必然不可达的端口，让依赖数据库的测试稳定地红掉，而不是碰本机有没有库。
       - name: test
+        env:
+          CODE_AGENT_DATABASE_URL: postgresql+asyncpg://ci:ci@127.0.0.1:59999/ci
         run: make test
 
       - name: build
