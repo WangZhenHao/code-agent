@@ -37,14 +37,18 @@ const Right = () => {
 
   // 入参收 unknown 再自己收窄：推送和应答都是外部数据，只有一个来源时断言
   // 会被 lint 判成多余，索性把这个边界收在一处。
-  const applySnapshot = useCallback((snapshot: unknown) => {
-    if (!snapshot || typeof snapshot !== "object") return
-    const s = snapshot as Record<string, unknown>
-    const previewUrl = typeof s.preview_url === "string" ? s.preview_url : null
-    setPreviewEnabled(s.preview_enabled === true)
-    setPreviewUrl(previewUrl)
-    updateField({ preview_url: previewUrl })
-  }, [updateField])
+  const applySnapshot = useCallback(
+    (snapshot: unknown) => {
+      if (!snapshot || typeof snapshot !== "object") return
+      const s = snapshot as Record<string, unknown>
+      const previewUrl =
+        typeof s.preview_url === "string" ? s.preview_url : null
+      setPreviewEnabled(s.preview_enabled === true)
+      setPreviewUrl(previewUrl)
+      updateField({ preview_url: previewUrl })
+    },
+    [updateField]
+  )
 
   useWsEvent("web.server_status_changed", (params) => {
     applySnapshot(params.preview)
