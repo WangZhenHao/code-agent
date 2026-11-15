@@ -12,7 +12,10 @@ const LeftHeader = ({ className = "" }: { className?: string }) => {
     >
       <div className="flex flex-1 items-center">
         {/* 不能用 router.back()：预览 iframe 的导航会混进联合历史，后退会先退回 iframe 的上一页 */}
-        <div className="cursor-pointer" onClick={() => router.push("/projects")}>
+        <div
+          className="cursor-pointer"
+          onClick={() => router.push("/projects")}
+        >
           <ChevronLeft />
         </div>
         <div className="pl-3">标题</div>
