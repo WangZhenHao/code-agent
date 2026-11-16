@@ -37,6 +37,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Orval 生成产物，不参与 lint
     "src/api/generated/**",
+    // WS 契约生成产物（make gen-ws）
+    "src/lib/ws/generated/**",
   ]),
 ])
 

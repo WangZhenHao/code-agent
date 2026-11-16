@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "code-agent 后端：FastAPI + LangGraph，SSE 流式输出"
 readme = "README.md"
 authors = [
-    { name = "Poet", email = "zhenhaowang@dimleap.ai" }
+    { name = "Poet", email = "1471047476@qq.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
@@ -82,7 +82,7 @@ docstring-code-format = true
 # ---------------------------------------------------------------- mypy
 # 基线：先让现有标注过检查，不追求 --strict（tests 尚未标注）。
 [tool.mypy]
-files = ["src"]
+files = ["src", "scripts"]
 python_version = "3.12"
 mypy_path = "src"
 explicit_package_bases = true

@@ -4,6 +4,8 @@
 仍是进程内字典占位，进程重启即丢。落地时换成真实查询，函数签名保持不变。
 """
 
+import asyncio
+import logging
 import typing
 
 from fastapi import HTTPException, status
@@ -11,6 +13,8 @@ from langchain_core.runnables import RunnableConfig
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.helper.create_mate import TitleOutput, create_message
+from app.agents.llm.client import get_model
 from app.api.chat.schemas import (
     ChatCreateRequest,
     ChatCreateResponse,
@@ -20,7 +24,16 @@ from app.api.chat.schemas import (
     MessageItem,
     MessageListResponse,
 )
+from app.api.ws.core import events
+from app.api.ws.schemas import ProjectUpdateParams
 from app.db.models.session import Messages, Session, SessionStatus
+from app.db.session import SessionLocal
+
+logger = logging.getLogger(__name__)
+
+# 后台任务只被 create_task 持有的话，事件循环之外没人引用它，GC 可能在跑完前
+# 把它回收掉。用一个模块级 set 兜住，跑完再从 set 里摘掉。
+_meta_tasks: set[asyncio.Task[None]] = set()
 
 
 async def chat_detail(
@@ -122,6 +135,7 @@ async def create_chat(
     # 会绕成环。放函数里规避。
     from app.api.agent.service import agent_command
 
+    _start_project_mate(chat.id, req)
     await agent_command(session_id=chat.id, user_id=user_id, req=req, session=session)
 
     return ChatCreateResponse(
@@ -131,6 +145,61 @@ async def create_chat(
         created_at=chat.created_at,
         description=chat.description,
     )
+
+
+def _start_project_mate(session_id: str, req: ChatCreateRequest) -> None:
+    """不阻塞建会话：起一个后台任务就返回。
+
+    标题/描述是锦上添花，模型慢或报错都不该让建会话失败——所以异常在
+    `_create_project_mate` 里自己吞掉，这里只负责启动和保引用。
+    """
+    task = asyncio.create_task(_create_project_mate(session_id, req))
+    _meta_tasks.add(task)
+    task.add_done_callback(_meta_tasks.discard)
+
+
+async def _create_project_mate(session_id: str, req: ChatCreateRequest) -> None:
+    """根据用户的第一条消息生成标题/描述，落库后推给前端。
+
+    后台任务拿不到调用方，异常只能记日志；请求注入的 session 在响应返回后就
+    关了，必须自己开一个 `SessionLocal()` 写库。
+    """
+    try:
+        text = "\n".join(
+            str(block.get("text") or "")
+            for block in req.parts
+            if block.get("type") == "text"
+        ).strip()
+        if not text:
+            return
+
+        # ainvoke 而非 invoke：同步调用会把这个事件循环线程整段卡在 HTTP 往返上，
+        # 同进程里所有 SSE / WS 连接都得跟着等。
+        # with_structured_output 的类型标注是 dict | BaseModel，实际按 schema 返回
+        # TitleOutput 实例；用 cast 收窄，省得下面三处都过不了 mypy。
+        result = typing.cast(
+            TitleOutput,
+            await get_model(req.model)
+            .with_structured_output(TitleOutput)
+            .ainvoke(create_message(text)),
+        )
+
+        async with SessionLocal() as session:
+            chat = await session.get(Session, session_id)
+            if chat is None:
+                return
+            chat.title = result.title
+            chat.description = result.description
+            await session.commit()
+
+        # 推送是尽力而为：没人连着返回 0，不影响已落库的结果。
+        events.publish(
+            session_id,
+            events.PROJECT_UPDATE,
+            ProjectUpdateParams(title=result.title, description=result.description),
+        )
+    except Exception:
+        logger.exception("生成会话标题失败 session_id=%s", session_id)
 
 
 def _message_item(m: object) -> LangchainMessageItem:

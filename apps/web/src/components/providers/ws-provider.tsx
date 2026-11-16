@@ -17,6 +17,7 @@ import type { ReactNode } from "react"
 
 import { createWsClient } from "@/lib/ws/client"
 import type { WsClient } from "@/lib/ws/client"
+import type { WsPushEvent, WsPushParams } from "@/lib/ws/generated/contract"
 
 const WsContext = createContext<WsClient | null>(null)
 
@@ -62,10 +63,13 @@ export function useWs() {
 /**
  * 订阅后端推送。`handler` 放进 ref，调用方不必 useCallback 包裹：
  * 组件重渲染不会退订重订，连接上的订阅表只有一条。
+ *
+ * `event` 限定成生成物里的 `WsPushEvent`，`params` 按事件名自动收窄成
+ * `WsPushParams[E]`——事件名拼错、字段改名都是编译期错误，不用等联调。
  */
-export function useWsEvent(
-  method: string,
-  handler: (params: Record<string, unknown>) => void
+export function useWsEvent<E extends WsPushEvent>(
+  event: E,
+  handler: (params: WsPushParams[E]) => void
 ) {
   const client = useWsClient()
   const handlerRef = useRef(handler)
@@ -77,7 +81,12 @@ export function useWsEvent(
   })
 
   useEffect(
-    () => client.subscribe(method, (params) => handlerRef.current(params)),
-    [client, method]
+    () =>
+      // 客户端只认 Record<string, unknown>（它不该知道任何业务事件），
+      // 收窄放在这一处，边界之外全是类型安全的。
+      client.subscribe(event, (params) =>
+        handlerRef.current(params as WsPushParams[E])
+      ),
+    [client, event]
   )
 }

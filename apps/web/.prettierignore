@@ -13,6 +13,7 @@ bun.lock
 
 # 生成 / 自动重写文件
 src/api/generated/
+src/lib/ws/generated/
 AGENTS.md
 next-env.d.ts
 *.tsbuildinfo

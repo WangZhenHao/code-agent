@@ -69,6 +69,35 @@ class JsonRpcError(Exception):
         self.data = data
 
 
+# ── 业务形状 ──────────────────────────────────────────────────────────────
+# 请求应答和推送共用同一份定义：``web.preview_status`` 的 result 与
+# ``web.server_status_changed`` 的 params.preview 必须是同一个形状，分两份写迟早漂移。
+# 放这里而不是 methods/*.py：events.py 也要 import，而 methods/*.py 反过来
+# import registry，放那边会绕出环。
+
+
+class PreviewStatusResult(BaseModel):
+    """预览状态。字段集与 ``preview_payload`` 一致。"""
+
+    status: str
+    preview_url: str | None = None
+    preview_enabled: bool = False
+
+
+class ServerStatusChangedParams(BaseModel):
+    """``web.server_status_changed`` 的 params。包一层 preview 是线上既有形状，
+    前端读 ``params.preview``，不能为了复用模型而拉平。"""
+
+    preview: PreviewStatusResult
+
+
+class ProjectUpdateParams(BaseModel):
+    """``web.project_update`` 的 params：建会话后异步生成的标题/描述。"""
+
+    title: str
+    description: str
+
+
 def dumps(envelope: dict[str, Any]) -> str:
     """统一序列化。ensure_ascii=False 让中文原样发出（省带宽、日志可读）；
     紧凑分隔符让一帧尽量短——WS 每帧都过一遍网络。"""

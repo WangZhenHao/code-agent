@@ -49,5 +49,6 @@ make test / build
 ## 跨 app 约定（最容易漏）
 
 - **改了后端接口（路径/字段）必须跑 `make gen-api`**，重新生成 `apps/web/src/api/generated/`；不要手改这个目录。
+- **WS 推送事件没有 OpenAPI，走另一条生成线**：事件登记在 `apps/api/src/app/api/ws/core/events.py`，改了要跑 `make gen-ws`，重新生成 `apps/web/src/lib/ws/generated/contract.ts` 和 `ws.md` 的事件表。不要手改这两处；`make lint` 里的 `gen-ws-check` 会拦下漂移。
 - orval 生成不了 SSE 接口（`/agents/talking/*`、`/agents/retalk/*` 在 `apps/web/orval.config.ts` 里被主动剔除），这两个是手写的 fetch。
 - Python 命令一律 `uv run`，不要用系统 python。
