@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "code-agent 后端：FastAPI + LangGraph，SSE 流式输出"
 readme = "README.md"
 authors = [
-    { name = "Poet", email = "zhenhaowang@dimleap.ai" }
+    { name = "Poet", email = "1471047476@qq.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
