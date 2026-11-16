@@ -35,5 +35,5 @@ async def preview_status(
     from app.api.sandbox.preview import preview_params, resolve_devbox
 
     # 重查一次库（而不是用握手时的结果）：连接期间会话可能被删，快照要"现在"的真值。
-    row = await resolve_devbox(ctx.devbox_id, ctx.user.id)
+    row = await resolve_devbox(ctx.session_id, ctx.user.id)
     return PreviewStatusResult(**preview_params(row))

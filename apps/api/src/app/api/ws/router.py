@@ -1,4 +1,4 @@
-"""WebSocket 接口：`/ws/devbox/{devbox_id}`。
+"""WebSocket 接口：`/ws/devbox/{session_id}`。
 
 ════════════════════════════════════════════════════════════════════════════
 ws 路由**不进 OpenAPI**（`/openapi.json` 里看不到），所以协议写在这里，
@@ -6,9 +6,9 @@ ws 路由**不进 OpenAPI**（`/openapi.json` 里看不到），所以协议写�
 
 ## 地址
 
-    ws(s)://<host>/ws/devbox/{devbox_id}?token=<access_token>
+    ws(s)://<host>/ws/devbox/{session_id}?token=<access_token>
 
-`devbox_id` 就是会话 id（sessions.id）。令牌也可以放 `Authorization: Bearer`
+`session_id` 就是会话 id（sessions.id）。令牌也可以放 `Authorization: Bearer`
 请求头（非浏览器客户端），query 只是浏览器唯一可用的通道。
 
 ## 线格式：JSON-RPC 2.0
@@ -55,7 +55,7 @@ ws 路由**不进 OpenAPI**（`/openapi.json` 里看不到），所以协议写�
                                上次预览失败时，后台拉起沙箱 + dev server。
                                应答是触发前的快照，后续变化走推送。
     web.preview_heartbeat  {} → 续期（把 preview_time 刷成当前时刻），返回
-                               {devbox_id, extended}。extended=false 表示沙箱
+                               {session_id, extended}。extended=false 表示沙箱
                                已不在跑，不会复活。
 
 ## 后端推送（无 id，前端按 method 分发）
@@ -93,11 +93,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ws", tags=["ws"])
 
 
-@router.websocket("/devbox/{devbox_id}")
-async def devbox_ws(websocket: WebSocket, devbox_id: str) -> None:
+@router.websocket("/devbox/{session_id}")
+async def devbox_ws(websocket: WebSocket, session_id: str) -> None:
     """建立 devbox 的 JSON-RPC 长连接。协议见模块 docstring。
 
-    路径参数名必须与 `{devbox_id}` 逐字一致——写错会静默降级成查询参数。
+    路径参数名必须与 `{session_id}` 逐字一致——写错会静默降级成查询参数。
     """
     # 先 accept：不 accept 就没法带关闭码（见 ws/core/auth.py 的说明）。
     await websocket.accept()
@@ -106,13 +106,13 @@ async def devbox_ws(websocket: WebSocket, devbox_id: str) -> None:
         if not origin_allowed(websocket):
             raise WsAuthError(CLOSE_FORBIDDEN, "Origin 不被允许")
         user = await authenticate_ws(websocket)
-        await resolve_devbox(devbox_id, user.id)
+        await resolve_devbox(session_id, user.id)
     except WsAuthError as exc:
         await websocket.close(code=exc.code, reason=exc.reason)
         return
     except Exception:
         # 鉴权阶段的意外（DB 挂了等）不能让连接悬着：1011 是规范里的内部错误码。
-        logger.exception("WS 握手后校验失败 devbox=%s", devbox_id)
+        logger.exception("WS 握手后校验失败 devbox=%s", session_id)
         await websocket.close(code=1011, reason="internal error")
         return
 
@@ -124,7 +124,7 @@ async def devbox_ws(websocket: WebSocket, devbox_id: str) -> None:
     ctx = ConnectionContext(
         connection=connection,
         user=user,
-        devbox_id=devbox_id,
+        session_id=session_id,
         max_inflight=config.MAX_INFLIGHT,
         max_bytes=config.MAX_MESSAGE_BYTES,
     )

@@ -59,7 +59,7 @@ const Right = () => {
     const timer = setInterval(() => {
       if (heartbeatInFlight.current) return
       heartbeatInFlight.current = true
-      call<{ devbox_id: string; extended: boolean }>(
+      call<{ session_id: string; extended: boolean }>(
         "web.preview_heartbeat",
         {}
       )

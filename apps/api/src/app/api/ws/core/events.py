@@ -5,7 +5,7 @@
 `scripts/gen_ws_contract.py` 读这份表，生成前端的 TS 类型和 ws.md 的表格。
 
 为什么 params 必须是 pydantic 模型而不是裸 dict：`hub.publish_devbox_event`
-的签名是 `(devbox_id, method: str, params: dict)`，事件名拼错、字段改名都能
+的签名是 `(session_id, method: str, params: dict)`，事件名拼错、字段改名都能
 静默通过。过一层注册表后，`publish()` 的入参有类型，改形状不跟前端/文档同步
 会在 `make gen-ws-check` 和 mypy 处暴露。
 
@@ -53,7 +53,7 @@ def registered() -> dict[str, EventSpec]:
     return dict(_EVENTS)
 
 
-def publish(devbox_id: str, event: str, params: BaseModel) -> int:
+def publish(session_id: str, event: str, params: BaseModel) -> int:
     """把一条事件推给该 devbox（= 会话 id）的所有连接，返回推给了几个。
 
     比直接调 `hub.publish_devbox_event` 多两件事：
@@ -70,7 +70,7 @@ def publish(devbox_id: str, event: str, params: BaseModel) -> int:
             f"事件 {event} 的 params 应为 {spec.params_model.__name__}，"
             f"实际是 {type(params).__name__}"
         )
-    return hub.publish_devbox_event(devbox_id, event, params.model_dump(mode="json"))
+    return hub.publish_devbox_event(session_id, event, params.model_dump(mode="json"))
 
 
 _register(

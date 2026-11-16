@@ -19,7 +19,7 @@ const LeftHeader = ({ className = "" }: { className?: string }) => {
         >
           <ChevronLeft />
         </div>
-        <div className="pl-3">{projectInfo?.title || "项目标题"}</div>
+        <div className="pl-3">{projectInfo?.title || ""}</div>
       </div>
     </div>
   )

@@ -74,7 +74,7 @@ def preview_payload(status: str, preview_url: str | None) -> dict[str, Any]:
     }
 
 
-async def resolve_devbox(devbox_id: str, user_id: int) -> Session:
+async def resolve_devbox(session_id: str, user_id: int) -> Session:
     """确认会话存在、未删除、且归当前用户。
 
     三种失败共用 4404（对齐 HTTP 层「归属错一律 404」）：区分开等于告诉攻击者
@@ -83,7 +83,7 @@ async def resolve_devbox(devbox_id: str, user_id: int) -> Session:
     async with SessionLocal() as session:
         row = await session.scalar(
             select(Session).where(
-                Session.id == devbox_id,
+                Session.id == session_id,
                 Session.user_id == user_id,
                 Session.status != SessionStatus.delete,
             )

@@ -50,7 +50,7 @@ async def _boom(ctx, params) -> dict:
     raise RuntimeError("secret details / internal path")
 
 
-CTX = SimpleNamespace(user=SimpleNamespace(id=7), devbox_id="d1")
+CTX = SimpleNamespace(user=SimpleNamespace(id=7), session_id="d1")
 
 
 def call(payload) -> dict | None:

@@ -2,7 +2,7 @@
 
 三层结构：
 
-- `ConnectionContext` —— handler 看到的全部东西（user / devbox_id / notify）。handler
+- `ConnectionContext` —— handler 看到的全部东西（user / session_id / notify）。handler
   不该摸到 WebSocket，否则协议层一改就要动业务代码。
 - `Connection` —— 出站队列 + 唯一 writer + 心跳。所有写操作都进队列，由 writer
   一个协程串行发出。
@@ -45,13 +45,13 @@ class ConnectionContext:
         *,
         connection: Connection,
         user: User,
-        devbox_id: str,
+        session_id: str,
         max_inflight: int,
         max_bytes: int,
     ) -> None:
         self.connection = connection
         self.user = user
-        self.devbox_id = devbox_id
+        self.session_id = session_id
         self.max_inflight = max_inflight
         self.max_bytes = max_bytes
 
@@ -119,7 +119,7 @@ class Connection:
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.exception("WS 帧处理异常 devbox=%s", ctx.devbox_id)
+            logger.exception("WS 帧处理异常 devbox=%s", ctx.session_id)
             with contextlib.suppress(Exception):
                 await self.send(
                     schemas.dumps(
@@ -131,7 +131,7 @@ class Connection:
 
     async def serve(self, ctx: ConnectionContext, dispatch=default_dispatch) -> None:
         """读循环，直到客户端断开或协议错误。调用方负责 accept / 鉴权 / 关连接。"""
-        hub.subscribe(ctx.devbox_id, ctx)
+        hub.subscribe(ctx.session_id, ctx)
         writer = asyncio.create_task(self._writer())
         # 心跳只服务代理保活，间隔 <= 0 时整个协程都不起（见 config.HEARTBEAT_SECONDS）。
         heartbeat = (
@@ -183,10 +183,10 @@ class Connection:
         except WebSocketDisconnect:
             pass
         except Exception:
-            logger.exception("WS 读循环异常 devbox=%s", ctx.devbox_id)
+            logger.exception("WS 读循环异常 devbox=%s", ctx.session_id)
         finally:
             self._closed.set()
-            hub.unsubscribe(ctx.devbox_id, ctx)
+            hub.unsubscribe(ctx.session_id, ctx)
             for task in inflight:
                 task.cancel()
             writer.cancel()
