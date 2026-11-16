@@ -5,7 +5,7 @@ UV   ?= uv
 PY   := apps/api
 
 .DEFAULT_GOAL := help
-.PHONY: help install dev dev-web dev-admin server gen-api db-up db-migrate db-revision db-check lint lint-fix build test typecheck fmt fmt-check clean
+.PHONY: help install dev dev-web dev-admin server gen-api gen-ws gen-ws-check db-up db-migrate db-revision db-check lint lint-fix build test typecheck fmt fmt-check clean
 
 help: ## 显示所有命令
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -27,8 +27,14 @@ dev-admin: ## 只起 React SPA 管理台
 server: ## 只起 FastAPI（热重载）
 	cd $(PY) && $(UV) run code-agent-api
 
-gen-api: ## 从后端 OpenAPI 生成前端 API 类型与 hooks（需先起 dev-api）
+gen-api: ## 从后端 OpenAPI 生成前端 API 类型与 hooks（需先起 api）
 	cd apps/web && $(PNPM) gen:api
+
+gen-ws: ## 从 WS 推送事件注册表生成前端类型 + ws.md 事件表
+	cd $(PY) && $(UV) run python scripts/gen_ws_contract.py
+
+gen-ws-check: ## 校验 WS 生成物是否与注册表一致
+	cd $(PY) && $(UV) run python scripts/gen_ws_contract.py --check
 
 db-up: ## 起本地 Postgres(5433) + Redis(6380)
 	cd $(PY) && docker-compose up -d
@@ -49,6 +55,7 @@ lint: ## 前后端 lint（eslint + prettier 一致性 + ruff + mypy）
 	cd apps/web && $(PNPM) format:check
 	cd apps/admin && $(PNPM) format:check
 	cd $(PY) && $(UV) run ruff check . && $(UV) run ruff format --check . && $(UV) run mypy
+	$(MAKE) gen-ws-check
 
 lint-fix: ## lint 自动修复（eslint --fix + ruff check --fix）
 	cd apps/web && $(PNPM) lint:fix

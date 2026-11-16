@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { useWs, useWsEvent } from "@/components/providers/ws-provider"
+import type { WsPushParams } from "@/lib/ws/generated/contract"
 
 import Header from "./header"
 import Preview from "./preview"
@@ -12,21 +13,8 @@ import { useProjectDetailStore } from "@/store/project-detail"
 /** 续期间隔。后端 ttl 30 分钟、回收器 5 分钟扫一次，5 分钟一拍留足余量。 */
 const KEEPALIVE_MS = 2 * 60 * 1000
 
-interface PreviewSnapshot {
-  status?: string
-  preview_url?: string | null
-  preview_enabled?: boolean
-}
+type PreviewSnapshot = WsPushParams["web.server_status_changed"]["preview"]
 
-/**
- * 预览面板。数据来源有两个：
- *   - 推送 `web.server_status_changed`（params.preview 与应答同形状）
- *   - 主动请求 `web.sandbox_status`：进入页面时拉一次快照，后端顺带把沙箱和 dev
- *     server 拉起来；推送是尽力而为，丢了不会重发，所以还需要这第一次查询
- *
- * 是否可用只看 `preview_enabled`：`status` 的取值（idle/building/running/failed）
- * 是后端内部状态，前端不该逐个认，后端已经把它折算成布尔了。
- */
 const Right = () => {
   const { call } = useWs()
   const [previewEnabled, setPreviewEnabled] = useState(false)
@@ -35,23 +23,23 @@ const Right = () => {
   const heartbeatInFlight = useRef(false)
   const { updateField } = useProjectDetailStore()
 
-  // 入参收 unknown 再自己收窄：推送和应答都是外部数据，只有一个来源时断言
-  // 会被 lint 判成多余，索性把这个边界收在一处。
   const applySnapshot = useCallback(
-    (snapshot: unknown) => {
-      if (!snapshot || typeof snapshot !== "object") return
-      const s = snapshot as Record<string, unknown>
-      const previewUrl =
-        typeof s.preview_url === "string" ? s.preview_url : null
-      setPreviewEnabled(s.preview_enabled === true)
-      setPreviewUrl(previewUrl)
-      updateField({ preview_url: previewUrl })
+    ({ preview_url, preview_enabled }: PreviewSnapshot) => {
+      setPreviewEnabled(preview_enabled)
+      setPreviewUrl(preview_url)
+      updateField({ preview_url })
     },
     [updateField]
   )
 
   useWsEvent("web.server_status_changed", (params) => {
     applySnapshot(params.preview)
+  })
+
+  // 标题/描述是建会话之后模型异步生成、落库后才推过来的：create_chat 的响应里
+  // 还是空串，所以只能靠这条推送补进 store，header 从 store 读。
+  useWsEvent("web.project_update", ({ title, description }) => {
+    updateField({ title, description })
   })
 
   const refresh = useCallback(async () => {

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 from app.api.ws.core.registry import rpc_method
+from app.api.ws.schemas import PreviewStatusResult
 
 if TYPE_CHECKING:
     from app.api.ws.core.connection import ConnectionContext
@@ -22,14 +23,6 @@ class PreviewStatusParams(BaseModel):
     （worktree_name 等）时校验直接生效，不用先收 dict 再手工判断。"""
 
     model_config = ConfigDict(extra="forbid")
-
-
-class PreviewStatusResult(BaseModel):
-    """预览状态。字段集与 `preview_payload` 一致。"""
-
-    status: str
-    preview_url: str | None = None
-    preview_enabled: bool = False
 
 
 @rpc_method("web.preview_status", params_model=PreviewStatusParams)

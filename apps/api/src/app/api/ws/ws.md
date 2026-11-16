@@ -235,18 +235,17 @@ hub.publish_devbox_event(
 `apps/api/src/app/api/sandbox/service.py::_persist_preview` 每次写预览状态后推一条：
 
 ```python
-from app.api.ws.core import hub as ws_hub
-from app.api.sandbox.preview import preview_params
+from app.api.ws.core import events
+from app.api.ws.schemas import PreviewStatusResult, ServerStatusChangedParams
 
 try:
-    ws_hub.publish_devbox_event(
+    events.publish(
         id,  # 这个 session 的所有连接
-        "web.server_status_changed",  # 前端按这个字符串分发
-        {
-            "status": "ready" if preview_status == PreviewStatus.running else "idle",
-            "preview_enable": "",
-            "preview": preview_params(row),  # 和 web.preview_status 应答同一形状
-        },
+        events.SERVER_STATUS_CHANGED,  # 前端按这个字符串分发
+        ServerStatusChangedParams(
+            # 和 web.preview_status 应答同一形状
+            preview=PreviewStatusResult(**preview_params(row))
+        ),
     )
 except Exception:
     logger.warning("预览状态推送失败 id=%s", id, exc_info=True)
@@ -260,16 +259,16 @@ except Exception:
 
 ### 案例 7：在异步路由里推
 
-`publish_devbox_event` 虽然是同步的，但内部只做「入队」，不阻塞，直接在 async
-函数里调即可：
+`events.publish` 是同步的，但内部只做「入队」，不阻塞，直接在 async 函数里调即可：
 
 ```python
-from app.api.ws.core import hub
+from app.api.ws.core import events
+from app.api.ws.schemas import ProjectUpdateParams
 
 @router.post("/something")
 async def do_something(...):
     result = await some_work()
-    hub.publish_devbox_event(session_id, "work.done", {"result": result})
+    events.publish(session_id, events.PROJECT_UPDATE, ProjectUpdateParams(...))
     return result
 ```
 
@@ -283,7 +282,7 @@ import asyncio
 loop = asyncio.get_running_loop()  # 进线程前先拿到
 await asyncio.to_thread(run_blocking_work)
 loop.call_soon_threadsafe(
-    hub.publish_devbox_event, session_id, "work.done", {"ok": True}
+    events.publish, session_id, events.PROJECT_UPDATE, ProjectUpdateParams(...)
 )
 ```
 
@@ -374,15 +373,23 @@ ws.onmessage = (e) => {
 
 **推送事件清单**
 
+下面这段表格由 `apps/api/scripts/gen_ws_contract.py` 生成（`make gen-ws`），
+改事件请在 `apps/api/src/app/api/ws/core/events.py` 登记，不要手改表体。
+
+<!-- gen:push-events -->
 | method | 何时发 | params |
 | --- | --- | --- |
-| `web.server_status_changed` | 预览状态变化（起沙箱、探测成功/失败） | `{"preview": {"status", "preview_url", "preview_enabled"}}` |
-| `web.project_update` | 新建会话后异步生成出标题/描述，已落库 | `{"title": str, "description": str \| None}` |
+| `web.server_status_changed` | 预览状态变化（起沙箱、探测成功/失败） | `{ preview: { status: string preview_url: string \| null preview_enabled: boolean } }` |
+| `web.project_update` | 建会话后异步生成的标题/描述，已落库 | `{ title: string description: string }` |
+<!-- gen:push-events:end -->
 
 `web.project_update` 是建会话的响应发出之后才到的（模型往返要几百毫秒到几秒），
 前端收到后就地更新标题栏；连接断开时这条会丢，重连后拉一次会话详情即可补齐。
-- 加新方法或推送时，在 `apps/api/src/app/api/ws/router.py` 模块 docstring 的
-  「已注册方法」一节登记——ws 路由不进 OpenAPI，那份 docstring 是唯一文档
+- **加新推送事件**：在 `apps/api/src/app/api/ws/core/events.py` 登记（params 用
+  `ws/schemas.py` 里的 pydantic 模型），调用点用 `events.publish(devbox_id, 常量, 模型实例)`，
+  再跑 `make gen-ws`——TS 类型和上面的事件表都由它生成，手写不会漂。
+- **加新的请求方法**：在 `apps/api/src/app/api/ws/router.py` 模块 docstring 的
+  「已注册方法」一节登记——ws 路由不进 OpenAPI，那份 docstring 是请求方法唯一的文档
 
 ---
 

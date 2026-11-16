@@ -32,6 +32,7 @@ src/
 
 - **API 类型和 hooks 一律由 orval 生成**（`orval.config.ts`，tags-split → `src/api/generated/`，react-query + axios）。不要手写接口类型；后端改了就跑 `make gen-api`（需先起 api，读 `http://localhost:8000/openapi.json`）。
 - SSE 接口生成不出来，被 `SSE_PATHS` 主动剔除，走 `src/lib/agent-stream/` 手写 fetch。
+- **WebSocket 也不进 OpenAPI**，协议见 `apps/api/src/app/api/ws/ws.md`。客户端是单连接封装 `src/lib/ws/client.ts`（每个会话一条，`useWsEvent` / `useWs().call` 消费）。推送事件名和 params 形状从 `src/lib/ws/generated/contract.ts`（`make gen-ws` 生成，勿手改）import，不要写裸字符串。
 - 样式：Tailwind + shadcn。新增 UI 组件用 `shadcn` skill、放 `components/ui/`；业务组件放 `components/custom/`。
 - 状态：zustand（`src/store/`），注意流式输出时的增量更新。
 - lint 是 eslint（flat config，`eslint.config.mjs`，`make lint` 里跑 `pnpm lint`），带 `recommendedTypeChecked` 类型感知规则；格式化是 prettier（`.prettierrc`）。

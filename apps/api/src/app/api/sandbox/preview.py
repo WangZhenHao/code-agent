@@ -6,8 +6,8 @@
 就绪的判据是 `localhost:3000` 返回 200，而不是「命令跑完了」：`pnpm run dev` 用
 nohup 丢到后台，命令本身立刻返回，那不代表服务可用。
 
-推送走 `publish_devbox_event`（进程内），method 是 `web.server_status_changed`，
-`params.preview` 与 `web.preview_status` 应答同形状（`preview_payload`）。
+推送走 `ws.core.events.publish`（进程内），事件是 `events.SERVER_STATUS_CHANGED`，
+`params.preview` 与 `web.preview_status` 应答同形状（`PreviewStatusResult`）。
 
 另外承载 WS 层「读预览状态」的两个纯函数：`resolve_devbox`（归属校验）与
 `preview_params`（Session 行 → 预览对象）。放这里是因为它们和推送共用同一份
@@ -26,8 +26,12 @@ from sqlalchemy import func, select, update
 
 from app.api.sandbox.client import sandbox_url
 from app.api.sandbox.service import persist_preview
-from app.api.ws.core import hub
+from app.api.ws.core import events
 from app.api.ws.core.auth import CLOSE_NOT_FOUND, WsAuthError
+from app.api.ws.schemas import (
+    PreviewStatusResult,
+    ServerStatusChangedParams,
+)
 from app.db.models.session import PreviewStatus, Session, SessionStatus
 from app.db.session import SessionLocal
 
@@ -204,10 +208,12 @@ async def _current_preview(session_id: str) -> tuple[str | None, str | None]:
 
 def _publish(session_id: str, status: PreviewStatus, url: str | None) -> None:
     try:
-        hub.publish_devbox_event(
+        events.publish(
             session_id,
-            "web.server_status_changed",
-            {"preview": preview_payload(status.value, url)},
+            events.SERVER_STATUS_CHANGED,
+            ServerStatusChangedParams(
+                preview=PreviewStatusResult(**preview_payload(status.value, url))
+            ),
         )
     except Exception:
         # 推送是尽力而为：没人连着返回 0，序列化失败也只影响显示。

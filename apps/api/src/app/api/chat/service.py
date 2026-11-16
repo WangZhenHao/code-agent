@@ -24,7 +24,8 @@ from app.api.chat.schemas import (
     MessageItem,
     MessageListResponse,
 )
-from app.api.ws.core import hub
+from app.api.ws.core import events
+from app.api.ws.schemas import ProjectUpdateParams
 from app.db.models.session import Messages, Session, SessionStatus
 from app.db.session import SessionLocal
 
@@ -192,10 +193,10 @@ async def _create_project_mate(session_id: str, req: ChatCreateRequest) -> None:
             await session.commit()
 
         # 推送是尽力而为：没人连着返回 0，不影响已落库的结果。
-        hub.publish_devbox_event(
+        events.publish(
             session_id,
-            "web.project_update",
-            {"title": result.title, "description": result.description},
+            events.PROJECT_UPDATE,
+            ProjectUpdateParams(title=result.title, description=result.description),
         )
     except Exception:
         logger.exception("生成会话标题失败 session_id=%s", session_id)
