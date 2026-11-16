@@ -57,6 +57,11 @@ ws 路由**不进 OpenAPI**（`/openapi.json` 里看不到），所以协议写�
     web.preview_heartbeat  {} → 续期（把 preview_time 刷成当前时刻），返回
                                {devbox_id, extended}。extended=false 表示沙箱
                                已不在跑，不会复活。
+
+## 后端推送（无 id，前端按 method 分发）
+
+    web.server_status_changed  {"preview": {...}}   预览状态变化
+    web.project_update         {"title", "description"}  建会话后异步生成的标题
 """
 
 from __future__ import annotations

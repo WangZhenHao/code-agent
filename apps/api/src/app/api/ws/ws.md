@@ -368,9 +368,19 @@ ws.onmessage = (e) => {
 ## 方法命名约定
 
 - 统一 `web.` 前缀 + 下划线：`web.preview_status`、`web.sandbox_status`、
-  `web.preview_heartbeat`、`web.server_status_changed`
+  `web.preview_heartbeat`、`web.server_status_changed`、`web.project_update`
 - 请求和推送共用同一命名空间，方法名不重复即可：请求 `web.preview_status`
   （前端主动问），推送 `web.server_status_changed`（沿用 Coze 的名字）
+
+**推送事件清单**
+
+| method | 何时发 | params |
+| --- | --- | --- |
+| `web.server_status_changed` | 预览状态变化（起沙箱、探测成功/失败） | `{"preview": {"status", "preview_url", "preview_enabled"}}` |
+| `web.project_update` | 新建会话后异步生成出标题/描述，已落库 | `{"title": str, "description": str \| None}` |
+
+`web.project_update` 是建会话的响应发出之后才到的（模型往返要几百毫秒到几秒），
+前端收到后就地更新标题栏；连接断开时这条会丢，重连后拉一次会话详情即可补齐。
 - 加新方法或推送时，在 `apps/api/src/app/api/ws/router.py` 模块 docstring 的
   「已注册方法」一节登记——ws 路由不进 OpenAPI，那份 docstring 是唯一文档
 
