@@ -43,7 +43,7 @@ class PreviewHeartbeatResult(BaseModel):
     决定要不要重新发一次 `web.sandbox_status`。
     """
 
-    devbox_id: str
+    session_id: str
     extended: bool = False
 
 
@@ -59,13 +59,13 @@ async def sandbox_status(
         resolve_devbox,
     )
 
-    row = await resolve_devbox(ctx.devbox_id, ctx.user.id)
+    row = await resolve_devbox(ctx.session_id, ctx.user.id)
 
     # 没跑过（preview_time 为 NULL）或上次预览失败时补一次启动。注意调用放在
     # 取快照之前但不等它：返回的 status 仍是库里当前值（通常是 idle），随后的
     # building / running 由推送补齐。
     if row.preview_time is None or row.preview_status == "failed":
-        ensure_sandbox_and_preview(ctx.devbox_id)
+        ensure_sandbox_and_preview(ctx.session_id)
 
     return SandboxStatusResult(**preview_params(row))
 
@@ -77,6 +77,6 @@ async def preview_heartbeat(
     from app.api.sandbox.preview import resolve_devbox, touch_preview
 
     # 行数据用不上，但这次查询就是归属校验（不属于你的 devbox 直接 4404）。
-    await resolve_devbox(ctx.devbox_id, ctx.user.id)
-    extended = await touch_preview(ctx.devbox_id)
-    return PreviewHeartbeatResult(devbox_id=ctx.devbox_id, extended=extended)
+    await resolve_devbox(ctx.session_id, ctx.user.id)
+    extended = await touch_preview(ctx.session_id)
+    return PreviewHeartbeatResult(session_id=ctx.session_id, extended=extended)

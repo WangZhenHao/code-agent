@@ -204,7 +204,7 @@ wscat -c "ws://localhost:8000/ws/devbox/<session_id>?token=<jwt>"
 |---|---|
 | 4401 | 没有令牌 / 令牌无效 / 过期 / 用户不存在 → 重新登录 |
 | 4403 | Origin 不在允许列表 |
-| 4404 | `devbox_id` 不存在、已删除、或不属于当前用户 |
+| 4404 | `session_id` 不存在、已删除、或不属于当前用户 |
 
 ---
 
@@ -309,7 +309,7 @@ class FileStatResult(BaseModel):
 
 @rpc_method("file.stat", params_model=FileStatParams)
 async def file_stat(ctx, params: FileStatParams) -> FileStatResult:
-    # ctx.user / ctx.devbox_id 可用；也能用 ctx.notify(...) 推消息
+    # ctx.user / ctx.session_id 可用；也能用 ctx.notify(...) 推消息
     return FileStatResult(path=params.path, size=0)
 ```
 
@@ -386,7 +386,7 @@ ws.onmessage = (e) => {
 `web.project_update` 是建会话的响应发出之后才到的（模型往返要几百毫秒到几秒），
 前端收到后就地更新标题栏；连接断开时这条会丢，重连后拉一次会话详情即可补齐。
 - **加新推送事件**：在 `apps/api/src/app/api/ws/core/events.py` 登记（params 用
-  `ws/schemas.py` 里的 pydantic 模型），调用点用 `events.publish(devbox_id, 常量, 模型实例)`，
+  `ws/schemas.py` 里的 pydantic 模型），调用点用 `events.publish(session_id, 常量, 模型实例)`，
   再跑 `make gen-ws`——TS 类型和上面的事件表都由它生成，手写不会漂。
 - **加新的请求方法**：在 `apps/api/src/app/api/ws/router.py` 模块 docstring 的
   「已注册方法」一节登记——ws 路由不进 OpenAPI，那份 docstring 是请求方法唯一的文档
@@ -397,7 +397,7 @@ ws.onmessage = (e) => {
 
 | 现象 | 原因 |
 |---|---|
-| 前端收不到推送 | 没连上，或连的 `devbox_id` 和推送时传的 `session_id` 不一致。`publish_devbox_event` 返回 0 就是没人在线 |
+| 前端收不到推送 | 没连上，或连的 `session_id` 和推送时传的 `session_id` 不一致。`publish_devbox_event` 返回 0 就是没人在线 |
 | 多副本部署偶发收不到 | `hub` 是**进程内**的：`start_sandbox` 在 A 副本、WS 连接在 B 副本时，B 上的客户端收不到。单副本没问题；要跨副本就把 `hub.py` 内部换成 Redis Pub/Sub，调用方不用改 |
 | 推送丢了 | 出站队列满时会丢弃通知（客户端不读）。状态类消息丢得起——前端重连后发一次 `web.preview_status` 就能补齐 |
 | 前端发完请求拿不到应答 | 可能漏了 `id`（成了通知），或 `id` 用了字符串/数字混用导致 `pending` 对不上 |
