@@ -1,8 +1,6 @@
 "use client"
 
-import { useState } from "react"
-
-import { AppWindow, ExternalLink } from "lucide-react"
+import { ExternalLink, type LucideIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,6 +12,12 @@ import {
 import { useProjectDetailStore } from "@/store/project-detail"
 
 /** 预览面板顶栏：标签切换 + 新建标签 + 右侧工具区（主题、面板、协作、部署）。 */
+export type TabItem = {
+  value: string
+  label: string
+  icon: LucideIcon
+}
+
 const Header = ({
   tab,
   setTab,
@@ -21,7 +25,7 @@ const Header = ({
 }: {
   tab: string
   setTab: (tab: string) => void
-  tabList: { value: string; label: string }[]
+  tabList: TabItem[]
 }) => {
   const projectInfo = useProjectDetailStore((state) => state.info)
   const opendHandle = () => {
@@ -34,13 +38,16 @@ const Header = ({
       <div className="flex min-w-0 items-center gap-1">
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList variant="line">
-            <TabsTrigger
-              value="preview"
-              className="data-active:bg-muted dark:data-active:bg-muted"
-            >
-              <AppWindow data-icon="inline-start" />
-              预览
-            </TabsTrigger>
+            {tabList.map(({ value, label, icon: Icon }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="cursor-pointer data-active:bg-muted dark:data-active:bg-muted"
+              >
+                <Icon data-icon="inline-start" />
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
       </div>

@@ -81,7 +81,7 @@ const Row = ({ node, style, dragHandle }: NodeRendererProps<FileNode>) => {
       ref={dragHandle}
       onClick={() => node.toggle()}
       className={cn(
-        "flex cursor-pointer items-center gap-1.5 rounded-md pr-2 text-sm text-foreground select-none h-full",
+        "flex h-full cursor-pointer items-center gap-1.5 rounded-md pr-2 text-sm text-foreground select-none",
         "hover:bg-muted",
         node.isSelected && "bg-muted"
       )}
@@ -137,7 +137,7 @@ const IconAction = ({
 
 /** 左侧文件树：顶栏工具栏 + 可搜索的虚拟滚动目录树。 */
 const Filetree = () => {
-  const [searching, setSearching] = useState(false)
+  const [searching] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const treeRef = useRef<HTMLDivElement>(null)
   // usehooks-ts 的 ref 类型不接受 null（React 19 的 useRef 初值含 null），这里收窄一下
@@ -146,18 +146,20 @@ const Filetree = () => {
   })
 
   return (
-    <div className="mr-2 flex h-full shrink-0 flex-col overflow-hidden rounded-md border border-border bg-background shadow-xs" style={{ width: '398px' }}>
+    <div
+      className="mr-2 flex h-full shrink-0 flex-col overflow-hidden rounded-md border border-border bg-background shadow-xs"
+      style={{ width: "398px" }}
+    >
       <div className="flex items-center justify-between px-2 pt-2">
-        <div className="flex-1 bg-muted rounded-sm flex justify-center">
+        <div className="flex flex-1 justify-center rounded-sm bg-muted">
           <IconAction label="文件" icon={Folder} />
         </div>
-        <div className="flex-1 flex justify-center">
+        <div className="flex flex-1 justify-center">
           <IconAction label="搜索" icon={Search} />
         </div>
-        <div className="flex-1 flex justify-center">
+        <div className="flex flex-1 justify-center">
           <IconAction label="分支" icon={GitBranch} />
         </div>
-        
       </div>
 
       <div className="flex h-8 shrink-0 items-center justify-between gap-2 px-2">
