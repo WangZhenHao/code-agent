@@ -26,3 +26,14 @@ https://code.coze.cn/api/ideserver_api/sandbox/init_sandbox?msToken=kaGejykT7-hx
 
 接收：
 {"jsonrpc":"2.0","id":6,"result":{"worktree_name":"","branch":"main","status":"running","preview_enabled":true,"preview_url":"https://8fbbe450-0c99-44c3-ac15-1daca69c9b8a-5000.dev.coze.site","running_previews":1,"max_previews":5,"sub_id":null,"project_type":null}}
+
+## 关于文件ws
+发送：
+{"jsonrpc":"2.0","id":73,"method":"file.read","params":{"path":".gitignore"}}
+接受：
+{"jsonrpc":"2.0","id":73,"result":{"content":"xxxx","encoding":"utf-8","size":1664,"mtime":1783492844348,"ctime":1794882020957,"totalLine":165}}
+
+发送：
+{"jsonrpc":"2.0","id":15,"method":"file.stat","params":{"path":"src"}}
+接受：
+{"jsonrpc":"2.0","id":15,"result":{"path":"src","size":4096,"mtime":1784889347088,"ctime":1794882021102,"isDirectory":true,"isFile":false,"isSymbolicLink":false,"permissions":"755","children":[{"name":"data","isDirectory":true,"size":4096,"mtime":1784889387577},{"name":"lib","isDirectory":true,"size":4096,"mtime":1784889625547},{"name":"components","isDirectory":true,"size":4096,"mtime":1794819237556},{"name":"store","isDirectory":true,"size":4096,"mtime":1784169391327},{"name":"hooks","isDirectory":true,"size":4096,"mtime":1783492844345},{"name":"server.ts","isDirectory":false,"size":978,"mtime":1783492844344},{"name":"app","isDirectory":true,"size":4096,"mtime":1784889635900}]}}

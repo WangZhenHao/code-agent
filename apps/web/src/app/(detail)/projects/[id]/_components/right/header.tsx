@@ -14,8 +14,15 @@ import {
 import { useProjectDetailStore } from "@/store/project-detail"
 
 /** 预览面板顶栏：标签切换 + 新建标签 + 右侧工具区（主题、面板、协作、部署）。 */
-const Header = () => {
-  const [tab, setTab] = useState("preview")
+const Header = ({
+  tab,
+  setTab,
+  tabList,
+}: {
+  tab: string
+  setTab: (tab: string) => void
+  tabList: { value: string; label: string }[]
+}) => {
   const projectInfo = useProjectDetailStore((state) => state.info)
   const opendHandle = () => {
     if (projectInfo?.preview_url) {
