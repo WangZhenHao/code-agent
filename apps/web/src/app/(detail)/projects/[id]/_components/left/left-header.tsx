@@ -2,11 +2,20 @@
 
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Folder } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { useProjectDetailStore } from "@/store/project-detail"
+import { useProjectOperateStore } from "@/store/project-operate"
 
 const LeftHeader = ({ className = "" }: { className?: string }) => {
   const router = useRouter()
   const projectInfo = useProjectDetailStore((state) => state.info)
+  const toggleCodeFileTree = useProjectOperateStore(
+    (state) => state.toggleCodeFileTree
+  )
   return (
     <div
       className={`flex h-14 shrink-0 items-center px-0 py-3 text-foreground ${className}`}
@@ -25,7 +34,17 @@ const LeftHeader = ({ className = "" }: { className?: string }) => {
           </div>
         </div>
         <div className="flex items-center gap-2 pr-3">
-          <Folder className="cursor-pointer" size={18} />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Folder
+                className="cursor-pointer"
+                size={18}
+                aria-label="文件树"
+                onClick={toggleCodeFileTree}
+              />
+            </TooltipTrigger>
+            <TooltipContent>文件树</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </div>

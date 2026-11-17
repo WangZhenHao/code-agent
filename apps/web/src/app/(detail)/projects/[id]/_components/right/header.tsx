@@ -1,6 +1,6 @@
 "use client"
 
-import { ExternalLink, type LucideIcon } from "lucide-react"
+import { ExternalLink, FileCode, type LucideIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -38,7 +38,7 @@ const Header = ({
       <div className="flex min-w-0 items-center gap-1">
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList variant="line">
-            {tabList.map(({ value, label, icon: Icon }) => (
+            {tabList.map(({ value, label, icon: Icon = FileCode }) => (
               <TabsTrigger
                 key={value}
                 value={value}

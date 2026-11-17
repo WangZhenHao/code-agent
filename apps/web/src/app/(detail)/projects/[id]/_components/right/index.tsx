@@ -1,14 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo } from "react"
 
-import { AppWindow, FileCode } from "lucide-react"
 import Header, { type TabItem } from "./header"
 import Preview from "./preview"
 import CodeEditor from "./code-editor"
 import Filetree from "./file-tree"
+import {
+  PREVIEW_TAB,
+  useProjectOperateHydrated,
+  useProjectOperateStore,
+} from "@/store/project-operate"
 
-// 先写死演示数据，等文件树接上接口再由选中节点驱动
+/** 演示数据：文件树接上接口后删掉，内容改从接口拉 */
 const MOCK_FILE = {
   path: "app/config.ts",
   content: `// 配置文件
@@ -19,16 +23,27 @@ export const config = {
 }
 
 const Right = () => {
-  const [currentTab, setCurrentTab] = useState("preview")
-  const [tabList] = useState<TabItem[]>([
-    { value: "preview", label: "预览", icon: AppWindow },
-    { value: "codeEditor", label: MOCK_FILE.path, icon: FileCode },
-  ])
+  const isHydrated = useProjectOperateHydrated()
+  const currentTab = useProjectOperateStore(
+    (state) => state.operation.currentTab
+  )
+  const tabList = useProjectOperateStore((state) => state.operation.tabList)
+  const showCodeFileTree = useProjectOperateStore(
+    (state) => state.operation.showCodeFileTree
+  )
+  const updateField = useProjectOperateStore((state) => state.updateField)
+
+  // 固定「预览」+ operation.tabList 里追加的文件 tab
+  const tabs = useMemo<TabItem[]>(() => [PREVIEW_TAB, ...tabList], [tabList])
+
+  const setTabHandle = (tab: string) => {
+    updateField({ currentTab: tab })
+  }
 
   const renderPanel = () => {
-    if (currentTab === "preview") {
-      return <Preview />
-    } else if (currentTab === "codeEditor") {
+    if (!isHydrated) return null
+    if (currentTab === "preview") return <Preview />
+    if (currentTab === "codeEditor") {
       return <CodeEditor path={MOCK_FILE.path} content={MOCK_FILE.content} />
     }
     return null
@@ -36,9 +51,9 @@ const Right = () => {
 
   return (
     <div className="flex flex-1 py-2 pr-2">
-      <Filetree />
+      {isHydrated && showCodeFileTree && <Filetree />}
       <div className="flex flex-1 flex-col">
-        <Header tabList={tabList} tab={currentTab} setTab={setCurrentTab} />
+        <Header tabList={tabs} tab={currentTab} setTab={setTabHandle} />
         {renderPanel()}
       </div>
     </div>
