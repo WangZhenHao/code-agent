@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, type RefObject } from "react"
+import { useMemo, useRef, useState, type RefObject } from "react"
 
 import {
   FilePlus,
@@ -11,6 +11,7 @@ import {
   Download,
   Copy,
   GitBranch,
+  RefreshCw,
 } from "lucide-react"
 import {
   DefaultFolderIcon,
@@ -22,59 +23,23 @@ import { useResizeObserver } from "usehooks-ts"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useFileTree, type FileNode } from "./use-file-tree"
 
-type FileNode = {
-  id: string
-  name: string
-  type: "folder" | "file"
-  children?: FileNode[]
-}
-
-const folder = (name: string, children: FileNode[] = []): FileNode => ({
-  id: name,
-  name,
-  type: "folder",
-  children,
-})
-
-const file = (name: string): FileNode => ({ id: name, name, type: "file" })
-
-// 暂时写死一份目录结构，接口就绪后换成后端返回（树形或展平后 assemble）
-const mockTree: FileNode[] = [
-  folder(".codegraph", [file("index.json")]),
-  folder(".next"),
-  folder("dist"),
-  folder("public", [file("favicon.ico")]),
-  folder("scripts", [file("build.sh")]),
-  folder("src", [
-    folder("app", [folder("(home)"), folder("layout.tsx")]),
-    folder("components", []),
-    folder("lib", []),
-    file("proxy.ts"),
-  ]),
-  file(".babelrc"),
-  file(".coze"),
-  file(".gitignore"),
-  file(".npmrc"),
-  file("AGENTS.md"),
-  file("components.json"),
-  file("DESIGN.md"),
-  file("eslint.config.mjs"),
-  file("next-env.d.ts"),
-  file("next.config.ts"),
-  file("package.json"),
-  file("pnpm-lock.yaml"),
-  file("postcss.config.mjs"),
-]
-
-const Row = ({ node, style, dragHandle }: NodeRendererProps<FileNode>) => {
+const Row = ({
+  node,
+  style,
+  dragHandle,
+  loadingPaths,
+}: NodeRendererProps<FileNode> & { loadingPaths: ReadonlySet<string> }) => {
   const { data, isOpen, isLeaf } = node
+  const loading = loadingPaths.has(data.id)
   return (
     <div
       style={style}
@@ -86,13 +51,17 @@ const Row = ({ node, style, dragHandle }: NodeRendererProps<FileNode>) => {
         node.isSelected && "bg-muted"
       )}
     >
-      <ChevronRight
-        className={cn(
-          "size-3.5 shrink-0 text-muted-foreground transition-transform",
-          isLeaf && "invisible",
-          isOpen && "rotate-90"
-        )}
-      />
+      {loading ? (
+        <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
+      ) : (
+        <ChevronRight
+          className={cn(
+            "size-3.5 shrink-0 text-muted-foreground transition-transform",
+            isLeaf && "invisible",
+            isOpen && "rotate-90"
+          )}
+        />
+      )}
       {data.type === "folder" ? (
         isOpen ? (
           <DefaultFolderOpenedIcon className="size-4 shrink-0" />
@@ -112,11 +81,13 @@ const IconAction = ({
   label,
   icon: Icon,
   active,
+  disabled,
   onClick,
 }: {
   label: string
   icon: typeof Folder
   active?: boolean
+  disabled?: boolean
   onClick?: () => void
 }) => (
   <Tooltip>
@@ -125,6 +96,7 @@ const IconAction = ({
         variant="ghost"
         size="icon-sm"
         onClick={onClick}
+        disabled={disabled}
         aria-label={label}
         className={cn(active && "bg-muted")}
       >
@@ -135,7 +107,7 @@ const IconAction = ({
   </Tooltip>
 )
 
-/** 左侧文件树：顶栏工具栏 + 可搜索的虚拟滚动目录树。 */
+/** 左侧文件树：顶栏工具栏 + 可搜索的虚拟滚动目录树。数据来自 WS `file.stat`。 */
 const Filetree = () => {
   const [searching] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -144,6 +116,32 @@ const Filetree = () => {
   const { height } = useResizeObserver<HTMLDivElement>({
     ref: treeRef as RefObject<HTMLDivElement>,
   })
+
+  const { tree, loadingPaths, rootLoading, rootError, refresh, loadChildren } =
+    useFileTree()
+
+  // 目录 → 节点索引：onToggle 只给 id，要拿节点类型才知道是不是目录
+  const nodesById = useMemo(() => {
+    const map = new Map<string, FileNode>()
+    const walk = (nodes: FileNode[]) => {
+      for (const node of nodes) {
+        map.set(node.id, node)
+        if (node.children) walk(node.children)
+      }
+    }
+    walk(tree)
+    return map
+  }, [tree])
+
+  const handleToggle = (id: string) => {
+    const node = nodesById.get(id)
+    // 没有 children 的节点是叶子，toggle 不会触发；目录则在这里懒加载
+    if (node) void loadChildren(node)
+  }
+
+  const renderRow = (props: NodeRendererProps<FileNode>) => (
+    <Row {...props} loadingPaths={loadingPaths} />
+  )
 
   return (
     <div
@@ -176,6 +174,12 @@ const Filetree = () => {
           <IconAction label="新建文件" icon={FilePlus} />
           <IconAction label="新建文件夹" icon={FolderPlus} />
           <IconAction label="复制路径" icon={Copy} />
+          <IconAction
+            label="刷新"
+            icon={RefreshCw}
+            disabled={rootLoading}
+            onClick={() => void refresh()}
+          />
         </div>
       </div>
 
@@ -192,9 +196,25 @@ const Filetree = () => {
       )}
 
       <div ref={treeRef} className="min-h-0 flex-1 px-2">
-        {height ? (
+        {rootLoading && tree.length === 0 ? (
+          <div className="flex h-10 items-center gap-2 px-1 text-xs text-muted-foreground">
+            <Spinner className="size-3.5" />
+            加载中…
+          </div>
+        ) : rootError && tree.length === 0 ? (
+          <div className="flex flex-col items-start gap-2 px-1 py-2 text-xs text-muted-foreground">
+            <span className="line-clamp-2">读取文件树失败：{rootError}</span>
+            <Button variant="outline" size="sm" onClick={() => void refresh()}>
+              重试
+            </Button>
+          </div>
+        ) : tree.length === 0 ? (
+          <div className="px-1 py-2 text-xs text-muted-foreground">
+            目录为空
+          </div>
+        ) : height ? (
           <Tree<FileNode>
-            data={mockTree}
+            data={tree}
             openByDefault={false}
             idAccessor="id"
             childrenAccessor="children"
@@ -204,13 +224,14 @@ const Filetree = () => {
             indent={14}
             paddingTop={4}
             searchTerm={searchTerm}
+            onToggle={handleToggle}
             disableDrag
             disableDrop
             disableEdit
             disableMultiSelection
             className="h-full"
           >
-            {Row}
+            {renderRow}
           </Tree>
         ) : null}
       </div>

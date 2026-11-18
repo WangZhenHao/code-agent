@@ -85,7 +85,10 @@ export function createWsClient({ devboxId }: { devboxId: string }): WsClient {
         typeof msg.error.message === "string"
           ? msg.error.message
           : "ws 请求失败"
-      entry.reject(new Error(message))
+      // 保留错误码：调用方要区分「找不到」(-32001) 和别的失败
+      const error: Error & { code?: number } = new Error(message)
+      if (typeof msg.error.code === "number") error.code = msg.error.code
+      entry.reject(error)
     } else {
       entry.resolve(msg.result)
     }
