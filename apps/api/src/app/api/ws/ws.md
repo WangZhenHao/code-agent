@@ -396,6 +396,22 @@ ws.onmessage = (e) => {
 
 `web.project_update` 是建会话的响应发出之后才到的（模型往返要几百毫秒到几秒），
 前端收到后就地更新标题栏；连接断开时这条会丢，重连后拉一次会话详情即可补齐。
+
+**请求方法清单**
+
+下面这段表格同样由 `apps/api/scripts/gen_ws_contract.py` 生成（`make gen-ws`），
+来源是 `@rpc_method` 登记时给的 `params_model` / `result_model`，不要手改表体。
+字段名以线上（序列化）名字为准，例如 `file.read` 的 `totalLine`。
+
+<!-- gen:rpc-methods -->
+| method | params | result |
+| --- | --- | --- |
+| `file.read` | `{ path: string }` | `{ content: string encoding: string size: number mtime: number ctime: number totalLine: number }` |
+| `file.stat` | `{ path: string }` | `{ path: string size: number mtime: number ctime: number isDirectory: boolean isFile: boolean isSymbolicLink: boolean permissions: string children: { name: string isDirectory: boolean size: number mtime: number }[] \| null }` |
+| `web.preview_heartbeat` | `Record<string, never>` | `{ session_id: string extended: boolean }` |
+| `web.preview_status` | `Record<string, never>` | `{ status: string preview_url: string \| null preview_enabled: boolean }` |
+| `web.sandbox_status` | `Record<string, never>` | `{ status: string preview_url: string \| null preview_enabled: boolean }` |
+<!-- gen:rpc-methods:end -->
 - **加新推送事件**：在 `apps/api/src/app/api/ws/core/events.py` 登记（params 用
   `ws/schemas.py` 里的 pydantic 模型），调用点用 `events.publish(session_id, 常量, 模型实例)`，
   再跑 `make gen-ws`——TS 类型和上面的事件表都由它生成，手写不会漂。

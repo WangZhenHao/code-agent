@@ -246,7 +246,7 @@ async def _stat(sandbox: SandboxLike, rel: str) -> tuple[_Stat, list[FileChild] 
 # ---------------------------------------------------------------------------
 
 
-@rpc_method("file.stat", params_model=FileStatParams)
+@rpc_method("file.stat", params_model=FileStatParams, result_model=FileStatResult)
 async def file_stat(ctx: ConnectionContext, params: FileStatParams) -> FileStatResult:
     sandbox = await _sandbox(ctx)
     rel = _rel_path(params.path)
@@ -265,7 +265,7 @@ async def file_stat(ctx: ConnectionContext, params: FileStatParams) -> FileStatR
     )
 
 
-@rpc_method("file.read", params_model=FileReadParams)
+@rpc_method("file.read", params_model=FileReadParams, result_model=FileReadResult)
 async def file_read(ctx: ConnectionContext, params: FileReadParams) -> FileReadResult:
     sandbox = await _sandbox(ctx)
     rel = _rel_path(params.path)
