@@ -8,6 +8,8 @@
 
 ![概览 2](docs/img/2.png)
 
+![概览 3](docs/img/3.png)
+
 
 欢迎使用 码灵编程 —— 一个开源的 AI 开发者工作台，让你为每一次提示自由选择偏好的大模型。你可以在浏览器里构建全栈 Web 应用，支持主流模型提供商（OpenAI、Anthropic、Gemini、Kimi、xAI、DeepSeek 等），任何提供商来扩展。默认启用的是 DeepSeek、Anthropic、OpenAI；其余提供商在设置中启用并配置。
 

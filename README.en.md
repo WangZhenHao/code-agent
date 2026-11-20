@@ -8,6 +8,8 @@
 
 ![Overview 2](docs/img/2.png)
 
+![Overview 2](docs/img/3.png)
+
 Welcome to CodeGenie — an open-source AI developer workspace that lets you pick your preferred LLM for every prompt. Build full-stack web apps in the browser, with support for mainstream model providers (OpenAI, Anthropic, Gemini, Kimi, xAI, DeepSeek, and more), extensible with any provider. DeepSeek, Anthropic, and OpenAI are enabled by default; the rest can be enabled and configured in Settings.
 
 ## Architecture
