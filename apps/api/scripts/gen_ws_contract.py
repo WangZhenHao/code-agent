@@ -1,10 +1,15 @@
-"""从 WS 推送事件注册表生成前端契约：TS 类型 + ws.md 的事件表。
+"""从 WS 注册表生成前端契约：TS 类型 + ws.md 的事件/方法表。
 
-单一事实源是 `app.api.ws.core.events` 里的 `_EVENTS`。本脚本只读不写业务代码，
-产出两处，内容没变时零 diff：
+两个单一事实源：
+
+- 推送事件：`app.api.ws.core.events` 里的 `_EVENTS`（含 params 模型）
+- 请求方法：`app.api.ws.core.registry` 里 `@rpc_method` 登记的 `params_model` /
+  `result_model`（所以要 `import app.api.ws.methods` 触发注册）
+
+本脚本只读不写业务代码，产出两处，内容没变时零 diff：
 
     apps/web/src/lib/ws/generated/contract.ts            前端类型
-    apps/api/src/app/api/ws/ws.md（两条标记之间的表格）  文档
+    apps/api/src/app/api/ws/ws.md（标记之间的表格）      文档
 
 用法（仓库根）：
 
@@ -21,18 +26,23 @@ import difflib
 import sys
 import types
 from pathlib import Path
-from typing import Any, Literal, Union, get_args, get_origin
+from typing import TYPE_CHECKING, Any, Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel
 
 from app.api.ws.core.events import registered
 
+if TYPE_CHECKING:
+    from app.api.ws.core.registry import MethodSpec
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TS_TARGET = REPO_ROOT / "apps/web/src/lib/ws/generated/contract.ts"
 MD_TARGET = REPO_ROOT / "apps/api/src/app/api/ws/ws.md"
 
-MARK_BEGIN = "<!-- gen:push-events -->"
-MARK_END = "<!-- gen:push-events:end -->"
+MARK_EVENTS_BEGIN = "<!-- gen:push-events -->"
+MARK_EVENTS_END = "<!-- gen:push-events:end -->"
+MARK_METHODS_BEGIN = "<!-- gen:rpc-methods -->"
+MARK_METHODS_END = "<!-- gen:rpc-methods:end -->"
 
 TS_PRIMITIVES: dict[type, str] = {
     str: "string",
@@ -93,9 +103,21 @@ def ts_object(model: type[BaseModel], indent: int = 0) -> str:
     inner = " " * (indent + 2)
     lines: list[str] = ["{"]
     for name, field in fields.items():
-        lines.append(f"{inner}{name}: {ts_type(field.annotation, indent + 2)}")
+        # 线上字段名以序列化别名为准（如 FileReadResult.total_line → totalLine）。
+        wire_name = field.serialization_alias or field.alias or name
+        lines.append(f"{inner}{wire_name}: {ts_type(field.annotation, indent + 2)}")
     lines.append(f"{pad}}}")
     return "\n".join(lines)
+
+
+def registered_methods() -> dict[str, MethodSpec]:
+    """请求方法注册表。必须先 import `app.api.ws.methods`：装饰器在 import 期跑，
+    不 import 的话注册表是空的（生成物里方法段会凭空消失）。"""
+    import app.api.ws.methods  # noqa: F401 - 借 import 副作用完成注册
+    from app.api.ws.core.registry import registered as _registered
+
+    # 按名字排序：注册顺序取决于 import 顺序，不该进生成物。
+    return dict(sorted(_registered().items()))
 
 
 def render_ts() -> str:
@@ -103,9 +125,13 @@ def render_ts() -> str:
     names = list(events)
     union = " | ".join(f'"{n}"' for n in names)
 
+    methods = registered_methods()
+    method_names = list(methods)
+    method_union = " | ".join(f'"{n}"' for n in method_names) or "never"
+
     lines = [
         "// 由 apps/api/scripts/gen_ws_contract.py 生成，不要手改。",
-        "// 重新生成：make gen-ws（改了 apps/api/src/app/api/ws/core/events.py 之后）。",
+        "// 重新生成：make gen-ws（改了 ws/core/events.py 或 @rpc_method 的模型之后）。",
         "",
         f"export type WsPushEvent = {union}",
         "",
@@ -122,12 +148,47 @@ def render_ts() -> str:
             *(f'  "{n}",' for n in names),
             "]",
             "",
+            "export type WsRequestMethod = " + method_union,
+            "",
+            "export interface WsRequestParams {",
+        ]
+    )
+    for name, spec in methods.items():
+        shape = (
+            ts_object(spec.params_model, indent=2)
+            if spec.params_model is not None
+            else "Record<string, unknown>"
+        )
+        lines.append(f'  "{name}": {shape}')
+    lines.extend(["}", "", "export interface WsRequestResult {"])
+    for name, spec in methods.items():
+        shape = (
+            ts_object(spec.result_model, indent=2)
+            if spec.result_model is not None
+            else "unknown"
+        )
+        lines.append(f'  "{name}": {shape}')
+    lines.extend(
+        [
+            "}",
+            "",
+            "export const WS_REQUEST_METHODS: readonly WsRequestMethod[] = [",
+            *(f'  "{n}",' for n in method_names),
+            "]",
+            "",
         ]
     )
     return "\n".join(lines)
 
 
-def render_md_table() -> str:
+def _one_line(model: type[BaseModel] | None) -> str:
+    if model is None:
+        return "—"
+    shape = " ".join(ts_object(model).split()).replace("|", "\\|")
+    return f"`{shape}`"
+
+
+def render_md_event_table() -> str:
     events = registered()
     rows = [
         "| method | 何时发 | params |",
@@ -139,14 +200,29 @@ def render_md_table() -> str:
     return "\n".join(rows)
 
 
-def replace_markdown_section(original: str, table: str) -> str:
-    begin = original.find(MARK_BEGIN)
-    end = original.find(MARK_END)
+def render_md_method_table() -> str:
+    methods = registered_methods()
+    rows = [
+        "| method | params | result |",
+        "| --- | --- | --- |",
+    ]
+    for name, spec in methods.items():
+        rows.append(
+            f"| `{name}` | {_one_line(spec.params_model)} | {_one_line(spec.result_model)} |"
+        )
+    return "\n".join(rows)
+
+
+def replace_markdown_section(
+    original: str, table: str, begin_mark: str, end_mark: str
+) -> str:
+    begin = original.find(begin_mark)
+    end = original.find(end_mark)
     if begin == -1 or end == -1 or end < begin:
         raise SystemExit(
-            f"{MD_TARGET} 里找不到 {MARK_BEGIN} / {MARK_END} 标记，无法定位事件表"
+            f"{MD_TARGET} 里找不到 {begin_mark} / {end_mark} 标记，无法定位表格"
         )
-    head = original[: begin + len(MARK_BEGIN)]
+    head = original[: begin + len(begin_mark)]
     tail = original[end:]
     return f"{head}\n{table}\n{tail}"
 
@@ -159,7 +235,18 @@ def main() -> int:
     args = parser.parse_args()
 
     ts_text = render_ts()
-    md_text = replace_markdown_section(MD_TARGET.read_text(), render_md_table())
+    md_text = replace_markdown_section(
+        MD_TARGET.read_text(),
+        render_md_event_table(),
+        MARK_EVENTS_BEGIN,
+        MARK_EVENTS_END,
+    )
+    md_text = replace_markdown_section(
+        md_text,
+        render_md_method_table(),
+        MARK_METHODS_BEGIN,
+        MARK_METHODS_END,
+    )
 
     targets = [(TS_TARGET, ts_text), (MD_TARGET, md_text)]
     drift = False

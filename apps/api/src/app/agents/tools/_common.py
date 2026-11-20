@@ -14,6 +14,7 @@ k8s-agent-sandbox 的客户端基于 requests，全套同步 API。本项目的�
 from __future__ import annotations
 
 import shlex
+from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 
 # 沙箱内的工作根目录。必须与镜像的 SANDBOX_BASE_DIR 一致（见
@@ -54,8 +55,19 @@ class CommandAPI(Protocol):
     def run(self, command: str, timeout: int = ...) -> CommandResult: ...
 
 
+class FileEntry(Protocol):
+    """files.list() 的一条。字段对应 SDK 的 FileEntry（k8s_agent_sandbox.models）。"""
+
+    name: str
+    size: int
+    type: str  # "file" | "directory"
+    modified: datetime
+
+
 class FilesAPI(Protocol):
     def read(self, path: str, timeout: int = ...) -> bytes: ...
+
+    def list(self, path: str, timeout: int = ...) -> list[FileEntry]: ...
 
     def write(
         self,

@@ -25,7 +25,11 @@ class PreviewStatusParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-@rpc_method("web.preview_status", params_model=PreviewStatusParams)
+@rpc_method(
+    "web.preview_status",
+    params_model=PreviewStatusParams,
+    result_model=PreviewStatusResult,
+)
 async def preview_status(
     ctx: ConnectionContext, params: PreviewStatusParams
 ) -> PreviewStatusResult:

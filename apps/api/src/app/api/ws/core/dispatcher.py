@@ -122,7 +122,8 @@ async def _invoke(req: schemas.JsonRpcRequest, ctx: ConnectionContext) -> str:
         )
 
     # 结果统一成 JSON 原生类型：datetime / StrEnum / BaseModel 都在这里落地，
-    # 免得每个 handler 自己记着 model_dump。
+    # 免得每个 handler 自己记着 model_dump。by_alias=True：线上字段名以
+    # serialization_alias 为准（file.read 的 totalLine 等 camelCase 契约）。
     if hasattr(result, "model_dump"):
-        result = result.model_dump(mode="json")
+        result = result.model_dump(mode="json", by_alias=True)
     return schemas.dumps(schemas.response(req.id, result))

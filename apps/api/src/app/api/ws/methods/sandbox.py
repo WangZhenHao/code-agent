@@ -47,7 +47,9 @@ class PreviewHeartbeatResult(BaseModel):
     extended: bool = False
 
 
-@rpc_method("web.sandbox_status", params_model=_NoParams)
+@rpc_method(
+    "web.sandbox_status", params_model=_NoParams, result_model=SandboxStatusResult
+)
 async def sandbox_status(
     ctx: ConnectionContext, params: _NoParams
 ) -> SandboxStatusResult:
@@ -70,7 +72,9 @@ async def sandbox_status(
     return SandboxStatusResult(**preview_params(row))
 
 
-@rpc_method("web.preview_heartbeat", params_model=_NoParams)
+@rpc_method(
+    "web.preview_heartbeat", params_model=_NoParams, result_model=PreviewHeartbeatResult
+)
 async def preview_heartbeat(
     ctx: ConnectionContext, params: _NoParams
 ) -> PreviewHeartbeatResult:

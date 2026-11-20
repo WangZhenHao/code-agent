@@ -26,12 +26,20 @@ class MethodSpec:
     handler: Handler
     # params 的校验模型；None 表示该方法不校验（只有确实「什么参数都收」时才用）
     params_model: type[BaseModel] | None
+    # 应答模型，只给生成器读（`scripts/gen_ws_contract.py` 生成前端 TS 契约）；
+    # 运行时 dispatcher 不看它。
+    result_model: type[BaseModel] | None = None
 
 
 _METHODS: dict[str, MethodSpec] = {}
 
 
-def rpc_method(name: str, *, params_model: type[BaseModel] | None = None):
+def rpc_method(
+    name: str,
+    *,
+    params_model: type[BaseModel] | None = None,
+    result_model: type[BaseModel] | None = None,
+):
     """登记一个 JSON-RPC 方法。
 
     **装饰器返回原函数，不包一层 wrapper**：测试里 `mock.patch.object(模块, "x")`
@@ -42,7 +50,12 @@ def rpc_method(name: str, *, params_model: type[BaseModel] | None = None):
     def deco(fn: Handler) -> Handler:
         if name in _METHODS:
             raise RuntimeError(f"JSON-RPC 方法重复注册: {name}")
-        _METHODS[name] = MethodSpec(name=name, handler=fn, params_model=params_model)
+        _METHODS[name] = MethodSpec(
+            name=name,
+            handler=fn,
+            params_model=params_model,
+            result_model=result_model,
+        )
         return fn
 
     return deco

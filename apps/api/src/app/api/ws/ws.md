@@ -291,7 +291,7 @@ loop.call_soon_threadsafe(
 推送是后端 → 前端；如果前端要**主动问**一个新东西，那是往 `methods/` 加 handler：
 
 ```python
-# apps/api/src/app/api/ws/methods/file.py
+# apps/api/src/app/api/ws/methods/file.py（节选，完整实现看该文件）
 from pydantic import BaseModel, ConfigDict
 
 from app.api.ws.core.registry import rpc_method
@@ -299,33 +299,41 @@ from app.api.ws.core.registry import rpc_method
 
 class FileStatParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    path: str
-
-
-class FileStatResult(BaseModel):
-    path: str
-    size: int
+    path: str = ""
 
 
 @rpc_method("file.stat", params_model=FileStatParams)
 async def file_stat(ctx, params: FileStatParams) -> FileStatResult:
     # ctx.user / ctx.session_id 可用；也能用 ctx.notify(...) 推消息
-    return FileStatResult(path=params.path, size=0)
+    sandbox = await _sandbox(ctx)  # 归属校验 + start_sandbox
+    ...
 ```
 
 然后在 `apps/api/src/app/api/ws/methods/__init__.py` 里 import 一次：
 
 ```python
-from app.api.ws.methods import file, preview  # noqa: F401
+from app.api.ws.methods import file, preview, sandbox  # noqa: F401
 ```
 
 漏了这一步的表现是方法存在但永远回 -32601。
 
+**要碰沙箱的 handler 注意两点**：
+
+1. 先 `resolve_devbox(ctx.session_id, ctx.user.id)` 校验归属，再 `start_sandbox()`
+   拿句柄——`ConnectionContext` 不带沙箱，得自己去取。
+2. 沙箱 SDK 是**同步 requests**，所有 `commands.run` / `files.read` 都要
+   `asyncio.to_thread(...)`，直接在事件循环里调会卡住整个进程（别的连接的心跳
+   也一起停）。
+
+错误用 `schemas.JsonRpcError(code, message)` 精确控制错误码（-32001 文件不存在、
+-32602 参数错），别让 `WsAuthError` / `SandboxToolError` 冒上去——dispatcher
+会统一吞成 -32603 "服务器内部错误"。
+
 前端调用：
 
 ```ts
-await call(ws, "file.stat", { path: "" });
-// → {"jsonrpc":"2.0","id":1,"result":{"path":"","size":0}}
+await call(ws, "file.stat", { path: "src" });
+// → {"jsonrpc":"2.0","id":1,"result":{"path":"src","size":4096,...}}
 ```
 
 ---
@@ -366,8 +374,11 @@ ws.onmessage = (e) => {
 
 ## 方法命名约定
 
-- 统一 `web.` 前缀 + 下划线：`web.preview_status`、`web.sandbox_status`、
+- 自研方法统一 `web.` 前缀 + 下划线：`web.preview_status`、`web.sandbox_status`、
   `web.preview_heartbeat`、`web.server_status_changed`、`web.project_update`
+- **例外**：`file.read` / `file.stat` 不带前缀，名字沿用 Coze IDE 的线上协议
+  （抓包见 `docs/test.md`），前端按原名字调用。别再往 `file.*` 下加新名字，
+  那是改前端代码；新方法还是走 `web.`。
 - 请求和推送共用同一命名空间，方法名不重复即可：请求 `web.preview_status`
   （前端主动问），推送 `web.server_status_changed`（沿用 Coze 的名字）
 
@@ -385,6 +396,22 @@ ws.onmessage = (e) => {
 
 `web.project_update` 是建会话的响应发出之后才到的（模型往返要几百毫秒到几秒），
 前端收到后就地更新标题栏；连接断开时这条会丢，重连后拉一次会话详情即可补齐。
+
+**请求方法清单**
+
+下面这段表格同样由 `apps/api/scripts/gen_ws_contract.py` 生成（`make gen-ws`），
+来源是 `@rpc_method` 登记时给的 `params_model` / `result_model`，不要手改表体。
+字段名以线上（序列化）名字为准，例如 `file.read` 的 `totalLine`。
+
+<!-- gen:rpc-methods -->
+| method | params | result |
+| --- | --- | --- |
+| `file.read` | `{ path: string }` | `{ content: string encoding: string size: number mtime: number ctime: number totalLine: number }` |
+| `file.stat` | `{ path: string }` | `{ path: string size: number mtime: number ctime: number isDirectory: boolean isFile: boolean isSymbolicLink: boolean permissions: string children: { name: string isDirectory: boolean size: number mtime: number }[] \| null }` |
+| `web.preview_heartbeat` | `Record<string, never>` | `{ session_id: string extended: boolean }` |
+| `web.preview_status` | `Record<string, never>` | `{ status: string preview_url: string \| null preview_enabled: boolean }` |
+| `web.sandbox_status` | `Record<string, never>` | `{ status: string preview_url: string \| null preview_enabled: boolean }` |
+<!-- gen:rpc-methods:end -->
 - **加新推送事件**：在 `apps/api/src/app/api/ws/core/events.py` 登记（params 用
   `ws/schemas.py` 里的 pydantic 模型），调用点用 `events.publish(session_id, 常量, 模型实例)`，
   再跑 `make gen-ws`——TS 类型和上面的事件表都由它生成，手写不会漂。

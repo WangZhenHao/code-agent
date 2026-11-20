@@ -57,6 +57,11 @@ ws 路由**不进 OpenAPI**（`/openapi.json` 里看不到），所以协议写�
     web.preview_heartbeat  {} → 续期（把 preview_time 刷成当前时刻），返回
                                {session_id, extended}。extended=false 表示沙箱
                                已不在跑，不会复活。
+    file.stat              {"path"} → 文件/目录元数据；目录带直接子项 children。
+    file.read              {"path"} → {content, encoding, size, mtime, ctime, totalLine}。
+
+    例外：`file.*` 不带 `web.` 前缀——名字沿用 Coze IDE 的线上协议（docs/test.md），
+    前端按原名字调用。
 
 ## 后端推送（无 id，前端按 method 分发）
 
