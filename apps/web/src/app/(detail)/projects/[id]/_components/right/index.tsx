@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { useShallow } from "zustand/react/shallow"
 
 import Header, { type TabItem } from "./header"
 import Preview from "./preview"
@@ -15,14 +16,16 @@ import {
 
 const Right = () => {
   const isHydrated = useProjectOperateHydrated()
-  const currentTab = useProjectOperateStore(
-    (state) => state.operation.currentTab
-  )
-  const tabList = useProjectOperateStore((state) => state.operation.tabList)
-  const showCodeFileTree = useProjectOperateStore(
-    (state) => state.operation.showCodeFileTree
-  )
-  const updateField = useProjectOperateStore((state) => state.updateField)
+  const { currentTab, tabList, showCodeFileTree, updateField, closeFile } =
+    useProjectOperateStore(
+      useShallow((state) => ({
+        currentTab: state.operation.currentTab,
+        tabList: state.operation.tabList,
+        showCodeFileTree: state.operation.showCodeFileTree,
+        updateField: state.updateField,
+        closeFile: state.closeFile,
+      }))
+    )
 
   // 固定「预览」+ operation.tabList 里追加的文件 tab
   const tabs = useMemo<TabItem[]>(() => [PREVIEW_TAB, ...tabList], [tabList])
@@ -47,7 +50,12 @@ const Right = () => {
     <div className="flex flex-1 py-2 pr-2">
       {isHydrated && showCodeFileTree && <Filetree />}
       <div className="flex flex-1 flex-col">
-        <Header tabList={tabs} tab={currentTab} setTab={setTabHandle} />
+        <Header
+          tabList={tabs}
+          tab={currentTab}
+          setTab={setTabHandle}
+          closeTab={closeFile}
+        />
         {renderPanel()}
       </div>
     </div>

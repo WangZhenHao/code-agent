@@ -1,6 +1,6 @@
 "use client"
 
-import { ExternalLink, AppWindow } from "lucide-react"
+import { ExternalLink, AppWindow, XIcon } from "lucide-react"
 import { FileIcon } from "@react-symbols/icons/utils"
 
 import { Button } from "@/components/ui/button"
@@ -46,10 +46,13 @@ const Header = ({
   tab,
   setTab,
   tabList,
+  closeTab,
 }: {
   tab: string
   setTab: (tab: string) => void
   tabList: TabItem[]
+  /** 关闭可关闭的 tab（`canClose`）。预览是固定 tab，不传关闭入口。 */
+  closeTab: (value: string) => void
 }) => {
   const projectInfo = useProjectDetailStore((state) => state.info)
   const opendHandle = () => {
@@ -62,14 +65,36 @@ const Header = ({
       <div className="flex min-w-0 items-center gap-1">
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList variant="line">
-            {tabList.map(({ value, label, icon }) => (
+            {tabList.map(({ value, label, icon, canClose }) => (
               <TabsTrigger
                 key={value}
                 value={value}
-                className="cursor-pointer data-active:bg-muted dark:data-active:bg-muted"
+                className="group/tab cursor-pointer data-active:bg-muted dark:data-active:bg-muted"
               >
                 <TabIconView icon={icon} label={label} />
                 {label}
+                {canClose && (
+                  // TabsTrigger 渲染出来就是 <button>，里面不能再嵌 button，
+                  // 所以关闭图标用 span 顶替按钮。mousedown 也要拦住——Radix
+                  // 的 tab 是在 mousedown 时切换的，只拦 click 会先把 tab 激活再关掉。
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    aria-label={`关闭 ${label}`}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                    }}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      closeTab(value)
+                    }}
+                    className="inline-flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity group-hover/tab:opacity-100 group-data-active/tab:opacity-100 hover:bg-foreground/10 hover:text-foreground"
+                  >
+                    <XIcon className="size-3.5" />
+                  </span>
+                )}
               </TabsTrigger>
             ))}
           </TabsList>

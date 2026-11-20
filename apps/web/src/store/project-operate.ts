@@ -33,6 +33,12 @@ interface ProjectOperateState {
 
   /** 打开（或聚焦）一个文件 tab：已打开则复用，不重复追加 */
   openFile: (path: string, content: string) => void
+
+  /**
+   * 关闭一个 tab（按 value 删除）。关掉的是当前 tab 时退回「预览」；
+   * 固定 tab（预览）不受影响，调了也删不掉。
+   */
+  closeFile: (value: string) => void
 }
 
 /** 固定 tab：预览永远排第一个，不参与关闭 */
@@ -84,33 +90,73 @@ export const useProjectOperateStore = create<ProjectOperateState>()(
                   )
                 : [
                     ...state.operation.tabList,
-                    { value, label: path, content, icon: "path" },
+                    {
+                      value,
+                      label: path,
+                      content,
+                      icon: "path",
+                      canClose: true,
+                    },
                   ],
+            },
+          }
+        }),
+      closeFile: (value) =>
+        set((state) => {
+          // 删的正好是当前 tab：落到「预览」上。文件 tab 以外的项（预览）
+          // 本就不在 tabList 里，过滤是空操作。
+          const currentTab =
+            state.operation.currentTab === value
+              ? PREVIEW_TAB.value
+              : state.operation.currentTab
+          return {
+            operation: {
+              ...state.operation,
+              currentTab,
+              tabList: state.operation.tabList.filter(
+                (tab) => tab.value !== value
+              ),
             },
           }
         }),
     }),
     {
       name: "code-agent-project-operate",
-      // icon 现在是字符串，可以和 content 一起存进 localStorage
+      // icon 现在是字符串，可以和 content 一起存进 localStorage。
+      // canClose 必须一起存：丢了它，刷新后文件 tab 就没有关闭图标了。
       partialize: (state) => ({
         operation: {
           currentTab: state.operation.currentTab,
           showCodeFileTree: state.operation.showCodeFileTree,
           tabList: state.operation.tabList.map(
-            ({ value, label, icon, content }) => ({
+            ({ value, label, icon, content, canClose }) => ({
               value,
               label,
               icon,
               content,
+              canClose,
             })
           ),
         },
       }),
       // v0 存的是带 React 组件图标的演示 tab（value 还是无前缀的 "codeEditor"），
       // 形状对不上，直接丢弃重来，避免刷新后渲染出空 tab。
-      version: 1,
-      migrate: () => ({ operation: INITIAL_OPERATION }),
+      // v1.1 的 tabList 没存 canClose，补成 true——那时 tabList 里本来就只有文件 tab。
+      version: 1.2,
+      migrate: (persisted, version) => {
+        if (version < 1.1) return { operation: INITIAL_OPERATION }
+        // zustand 把 persisted 标成 unknown（真正的形状由 partialize 决定）
+        const { operation } = persisted as { operation: Operation }
+        return {
+          operation: {
+            ...operation,
+            tabList: operation.tabList.map((tab) => ({
+              ...tab,
+              canClose: true,
+            })),
+          },
+        }
+      },
     }
   )
 )
