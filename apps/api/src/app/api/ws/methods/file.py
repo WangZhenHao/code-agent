@@ -17,6 +17,9 @@
 - `mtime` / `ctime` 是**毫秒**时间戳（`docs/test.md` 抓的就是毫秒），
   `stat -c %Y/%Z` 给的是秒，这里乘 1000。
 - `permissions` 是八进制权限位字符串（`"755"`），不带前导 0。
+- `file.stat` 展开目录时，`children` 按项目 `.gitignore` 过滤（git 判定，见
+  `_ignored_paths`）；`.git` 永远不列出。注意这是**展示过滤**：直接 stat / read
+  被忽略的路径仍然可以成功——树里本来就不会给出它们，但别指望这层是访问控制。
 
 为什么用 shell 而不是 SDK：`files` API 只有 read/write/list，没有 stat，拿不到
 `ctime` / `permissions`；`find -printf` / `stat -c` 一次往返就全有了。镜像基于
@@ -207,12 +210,76 @@ if [ -L "$p" ]; then echo 'link=1'; else echo 'link=0'; fi
 """
 
 
+# 文件树里永远不列出的名字：`.git` 不是项目内容，且不受 .gitignore 管辖
+# （git 自己不会「忽略」它），不显式挡的话根目录下会冒出来。
+_PRUNED_NAMES = frozenset({".git"})
+
+
+def _child_path(rel: str, name: str) -> str:
+    """子项仓库根相对路径。`rel` 是 `.` 时直接给名字，别让 gitignore 匹配到 `./x`。"""
+    return name if rel in ("", ".") else f"{rel}/{name}"
+
+
+def _ignore_script(paths: list[str]) -> str:
+    """把子项路径喂给 `git check-ignore`，stdout 是被忽略的那些（NUL 分隔）。
+
+    用 git 而不是自己解析 .gitignore：嵌套的 .gitignore、否定规则、`/` 锚定这些
+    细节 git 自己最清楚。`--no-index` 让已被跟踪的文件也参与判断——文件树要的是
+    "按规则该不该隐藏"，不是"git 会不会提交它"。
+
+    沙箱的工作区常常不是 git 仓库（模板直接铺开，没 init）。check-ignore 只要求
+    有 work tree 和 GIT_DIR，于是借 /tmp 下一个固定目录当仓库：不往 /workspace
+    写任何一个字节，二次展开也复用同一个。仓库里没有 index，`--no-index` 本来
+    也不需要它。
+    """
+    feed = " ".join(shlex.quote(p) for p in paths)
+    return f"""
+git_args=()
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  scratch="${{TMPDIR:-/tmp}}/code-agent-file-tree.git"
+  if [ ! -f "$scratch/config" ]; then
+    git --git-dir="$scratch" --work-tree=. init -q >/dev/null 2>&1 || exit 4
+  fi
+  git_args=(--git-dir="$scratch" --work-tree=.)
+fi
+printf '%s\\0' {feed} | git "${{git_args[@]}}" check-ignore --no-index -z --stdin
+"""
+
+
+def _ignored_paths(sandbox: SandboxLike, paths: list[str]) -> set[str]:
+    """`paths` 里被 .gitignore 命中的子集。调用方已在线程里，直接同步跑。
+
+    失败（git 缺失、仓库建不起来）时退化成"什么都没忽略"并留日志：文件树宁可
+    多显示几个目录，也不该因为过滤坏了打不开。
+    """
+    if not paths:
+        return set()
+
+    from app.agents.tools._common import run_shell_raw
+
+    # 0 = 有被忽略的，1 = 一个都没有，两者都是正常结果。
+    stdout, stderr, code = run_shell_raw(sandbox, _ignore_script(paths))
+    if code not in (0, 1):
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "git check-ignore 失败（exit=%s）：%s", code, stderr.strip()
+        )
+        return set()
+    return {p for p in stdout.split("\0") if p}
+
+
 def _list_children(sandbox: SandboxLike, rel: str) -> list[FileChild]:
     """目录的直接子项。SDK 的 `list()` 只给一层，正好是树的一次展开。
 
+    子项按项目 .gitignore 过滤（`_ignored_paths` 一次往返），`.git` 一律不返回——
+    它不是项目内容，也不受 .gitignore 管辖。
+
     同步调用——调用方用 `asyncio.to_thread` 包起来。
     """
-    entries = sandbox.files.list(rel)
+    entries = [e for e in sandbox.files.list(rel) if e.name not in _PRUNED_NAMES]
+    paths = [_child_path(rel, e.name) for e in entries]
+    ignored = _ignored_paths(sandbox, paths)
     return [
         FileChild(
             name=entry.name,
@@ -221,7 +288,8 @@ def _list_children(sandbox: SandboxLike, rel: str) -> list[FileChild]:
             # SDK 已是 timezone-aware datetime，毫秒对齐线上契约。
             mtime=int(entry.modified.timestamp() * 1000),
         )
-        for entry in entries
+        for entry, path in zip(entries, paths, strict=True)
+        if path not in ignored
     ]
 
 

@@ -36,14 +36,21 @@ class ExecResult:
 
 
 class FakeCommands:
-    """按预置脚本返回 stat 输出；不真的跑 shell（宿主机是 BSD stat，没 -c）。"""
+    """按预置脚本返回输出；不真的跑 shell（宿主机是 BSD stat，没 -c）。
 
-    def __init__(self, result: ExecResult) -> None:
+    `file.stat` 展开目录时会多发一条 `git check-ignore`，按脚本内容分流：
+    `ignore` 缺省表示「什么都没被忽略」（git 的退出码 1）。
+    """
+
+    def __init__(self, result: ExecResult, ignore: ExecResult | None = None) -> None:
         self.result = result
+        self.ignore = ignore or ExecResult("", "", 1)
         self.scripts: list[str] = []
 
     def run(self, command: str, timeout: int = 60) -> ExecResult:
         self.scripts.append(command)
+        if "check-ignore" in command:
+            return self.ignore
         return self.result
 
 
@@ -147,6 +154,114 @@ class TestFileStat(_Base):
         self.assertTrue(result.children[0].isDirectory)
         self.assertFalse(result.children[1].isDirectory)
         self.assertEqual(result.children[1].mtime, 1786190400000)  # 2026-08-08T12:00Z
+
+    async def test_ignored_children_hidden(self):
+        entries = [
+            SimpleNamespace(
+                name="node_modules",
+                size=4096,
+                type="directory",
+                modified=datetime(2026, 8, 8, 12, 0, tzinfo=UTC),
+            ),
+            SimpleNamespace(
+                name="a.log",
+                size=10,
+                type="file",
+                modified=datetime(2026, 8, 8, 12, 0, tzinfo=UTC),
+            ),
+            SimpleNamespace(
+                name="src",
+                size=4096,
+                type="directory",
+                modified=datetime(2026, 8, 8, 12, 0, tzinfo=UTC),
+            ),
+        ]
+        commands = FakeCommands(
+            ExecResult(stat_output(size=4096, kind="directory")),
+            # `git check-ignore -z` 的输出：NUL 分隔的被忽略路径，原样回显入参。
+            ignore=ExecResult("node_modules\0a.log\0", "", 0),
+        )
+        self.use(fake_sandbox(commands, FakeFiles(entries=entries)))
+
+        result = await file_stat(CTX, FileStatParams(path=""))
+
+        self.assertEqual([c.name for c in result.children], ["src"])
+        ignore_script = next(s for s in commands.scripts if "check-ignore" in s)
+        # 根目录的子项直接给名字，不带 "./" 前缀——check-ignore 按仓库根相对路径匹配。
+        self.assertIn(" node_modules a.log src | git", ignore_script)
+
+    async def test_gitignore_subdir_paths(self):
+        entry = SimpleNamespace(
+            name="dist",
+            size=4096,
+            type="directory",
+            modified=datetime(2026, 8, 8, 12, 0, tzinfo=UTC),
+        )
+        commands = FakeCommands(
+            ExecResult(stat_output(size=4096, kind="directory")),
+            ignore=ExecResult("src/dist\0", "", 0),
+        )
+        self.use(fake_sandbox(commands, FakeFiles(entries=[entry])))
+
+        result = await file_stat(CTX, FileStatParams(path="src"))
+
+        self.assertEqual(result.children, [])
+        ignore_script = next(s for s in commands.scripts if "check-ignore" in s)
+        self.assertIn(" src/dist | git", ignore_script)
+
+    async def test_dot_git_hidden(self):
+        entries = [
+            SimpleNamespace(
+                name=".git",
+                size=4096,
+                type="directory",
+                modified=datetime(2026, 8, 8, 12, 0, tzinfo=UTC),
+            ),
+            SimpleNamespace(
+                name="README.md",
+                size=20,
+                type="file",
+                modified=datetime(2026, 8, 8, 12, 0, tzinfo=UTC),
+            ),
+        ]
+        commands = FakeCommands(ExecResult(stat_output(size=4096, kind="directory")))
+        self.use(fake_sandbox(commands, FakeFiles(entries=entries)))
+
+        result = await file_stat(CTX, FileStatParams(path=""))
+
+        self.assertEqual([c.name for c in result.children], ["README.md"])
+        # 只剩一个子项，还是发一次 check-ignore（README 可能被 *.md 之类忽略）。
+        ignore_script = next(s for s in commands.scripts if "check-ignore" in s)
+        self.assertIn(" README.md | git", ignore_script)
+        self.assertNotIn(" .git |", ignore_script)
+
+    async def test_gitignore_failure_degrades_to_unfiltered(self):
+        # git 缺失 / 仓库建不起来时不拦树：宁可多显示，也不让文件树打不开。
+        entries = [
+            SimpleNamespace(
+                name="node_modules",
+                size=4096,
+                type="directory",
+                modified=datetime(2026, 8, 8, 12, 0, tzinfo=UTC),
+            ),
+        ]
+        commands = FakeCommands(
+            ExecResult(stat_output(size=4096, kind="directory")),
+            ignore=ExecResult("", "fatal: not a git repository", 128),
+        )
+        self.use(fake_sandbox(commands, FakeFiles(entries=entries)))
+
+        result = await file_stat(CTX, FileStatParams(path=""))
+
+        self.assertEqual([c.name for c in result.children], ["node_modules"])
+
+    async def test_file_does_not_check_ignore(self):
+        commands = FakeCommands(ExecResult(stat_output()))
+        self.use(fake_sandbox(commands, FakeFiles()))
+
+        await file_stat(CTX, FileStatParams(path="a.py"))
+
+        self.assertEqual(len(commands.scripts), 1)  # 只有 stat，没有 check-ignore
 
     async def test_missing_returns_32001(self):
         self.use(
