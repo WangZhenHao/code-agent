@@ -8,19 +8,10 @@ import CodeEditor from "./code-editor"
 import Filetree from "./file-tree"
 import {
   PREVIEW_TAB,
+  isCodeEditorTab,
   useProjectOperateHydrated,
   useProjectOperateStore,
 } from "@/store/project-operate"
-
-/** 演示数据：文件树接上接口后删掉，内容改从接口拉 */
-const MOCK_FILE = {
-  path: "app/config.ts",
-  content: `// 配置文件
-export const config = {
-  apiUrl: "https://api.example.com",
-  timeout: 5000
-}`,
-}
 
 const Right = () => {
   const isHydrated = useProjectOperateHydrated()
@@ -43,8 +34,11 @@ const Right = () => {
   const renderPanel = () => {
     if (!isHydrated) return null
     if (currentTab === "preview") return <Preview />
-    if (currentTab === "codeEditor") {
-      return <CodeEditor path={MOCK_FILE.path} content={MOCK_FILE.content} />
+    if (isCodeEditorTab(currentTab)) {
+      // 文件 tab 的 label 就是路径，内容挂在 item 上
+      const tab = tabList.find((item) => item.value === currentTab)
+      if (!tab) return null
+      return <CodeEditor path={tab.label} content={tab.content ?? ""} />
     }
     return null
   }

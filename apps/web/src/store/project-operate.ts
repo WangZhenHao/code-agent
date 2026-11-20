@@ -3,9 +3,15 @@
 import { useSyncExternalStore } from "react"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import { AppWindow, FileCode } from "lucide-react"
 
 import type { TabItem } from "@/app/(detail)/projects/[id]/_components/right/header"
+
+/** 文件 tab 的 value 前缀：`codeEditor:<相对路径>`，路径本身也能从 value 里还原 */
+export const CODE_EDITOR_PREFIX = "codeEditor:"
+
+/** 判断某个 tab 是不是文件 tab */
+export const isCodeEditorTab = (value: string) =>
+  value.startsWith(CODE_EDITOR_PREFIX)
 
 interface Operation {
   /** 当前选中的 tab：固定 tab 用 "preview"，文件 tab 用 file 的 value */
@@ -24,25 +30,21 @@ interface ProjectOperateState {
 
   /** 切换文件树显隐 */
   toggleCodeFileTree: () => void
+
+  /** 打开（或聚焦）一个文件 tab：已打开则复用，不重复追加 */
+  openFile: (path: string, content: string) => void
 }
 
 /** 固定 tab：预览永远排第一个，不参与关闭 */
 export const PREVIEW_TAB: TabItem = {
   value: "preview",
   label: "预览",
-  icon: AppWindow,
-}
-
-/** 演示数据：文件树接上接口后删掉 */
-const DEMO_TAB: TabItem = {
-  value: "codeEditor",
-  label: "app/config.ts",
-  icon: FileCode,
+  icon: "preview",
 }
 
 const INITIAL_OPERATION: Operation = {
   currentTab: "preview",
-  tabList: [DEMO_TAB],
+  tabList: [],
   showCodeFileTree: false,
 }
 
@@ -65,20 +67,50 @@ export const useProjectOperateStore = create<ProjectOperateState>()(
             showCodeFileTree: !state.operation.showCodeFileTree,
           },
         })),
+      openFile: (path, content) =>
+        set((state) => {
+          const value = `${CODE_EDITOR_PREFIX}${path}`
+          const exists = state.operation.tabList.some(
+            (tab) => tab.value === value
+          )
+          return {
+            operation: {
+              ...state.operation,
+              currentTab: value,
+              tabList: exists
+                ? // 已打开过：用最新内容覆盖，避免展示上次的旧内容
+                  state.operation.tabList.map((tab) =>
+                    tab.value === value ? { ...tab, content } : tab
+                  )
+                : [
+                    ...state.operation.tabList,
+                    { value, label: path, content, icon: "path" },
+                  ],
+            },
+          }
+        }),
     }),
     {
       name: "code-agent-project-operate",
-      // icon 是 React 组件，存不进 localStorage；只存 value/label
+      // icon 现在是字符串，可以和 content 一起存进 localStorage
       partialize: (state) => ({
         operation: {
           currentTab: state.operation.currentTab,
           showCodeFileTree: state.operation.showCodeFileTree,
-          tabList: state.operation.tabList.map(({ value, label }) => ({
-            value,
-            label,
-          })),
+          tabList: state.operation.tabList.map(
+            ({ value, label, icon, content }) => ({
+              value,
+              label,
+              icon,
+              content,
+            })
+          ),
         },
       }),
+      // v0 存的是带 React 组件图标的演示 tab（value 还是无前缀的 "codeEditor"），
+      // 形状对不上，直接丢弃重来，避免刷新后渲染出空 tab。
+      version: 1,
+      migrate: () => ({ operation: INITIAL_OPERATION }),
     }
   )
 )

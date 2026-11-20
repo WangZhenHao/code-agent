@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useRef, useState, type RefObject } from "react"
+import { useCallback, useMemo, useRef, useState, type RefObject } from "react"
+import { toast } from "sonner"
 
 import {
   FilePlus,
@@ -30,6 +31,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useWsRequest } from "@/lib/ws/request"
+import { useProjectOperateStore } from "@/store/project-operate"
 import { useFileTree, type FileNode } from "./use-file-tree"
 
 const Row = ({
@@ -37,14 +40,29 @@ const Row = ({
   style,
   dragHandle,
   loadingPaths,
-}: NodeRendererProps<FileNode> & { loadingPaths: ReadonlySet<string> }) => {
+  openingPaths,
+  onOpenFile,
+}: NodeRendererProps<FileNode> & {
+  loadingPaths: ReadonlySet<string>
+  /** 正在 `file.read` 的文件路径集合，行首显示 spinner */
+  openingPaths: ReadonlySet<string>
+  onOpenFile: (node: FileNode) => void
+}) => {
   const { data, isOpen, isLeaf } = node
-  const loading = loadingPaths.has(data.id)
+  const loading = loadingPaths.has(data.id) || openingPaths.has(data.id)
   return (
     <div
       style={style}
       ref={dragHandle}
-      onClick={() => node.toggle()}
+      onClick={() => {
+        // 文件不展开，点击即读内容并打开 tab；目录照旧懒加载子项
+        if (data.type === "file") {
+          node.select()
+          onOpenFile(data)
+        } else {
+          node.toggle()
+        }
+      }}
       className={cn(
         "flex h-full cursor-pointer items-center gap-1.5 rounded-md pr-2 text-sm text-foreground select-none",
         "hover:bg-muted",
@@ -119,6 +137,11 @@ const Filetree = () => {
 
   const { tree, loadingPaths, rootLoading, rootError, refresh, loadChildren } =
     useFileTree()
+  const { invoke } = useWsRequest()
+  const openFile = useProjectOperateStore((state) => state.openFile)
+  const [openingPaths, setOpeningPaths] = useState<ReadonlySet<string>>(
+    new Set()
+  )
 
   // 目录 → 节点索引：onToggle 只给 id，要拿节点类型才知道是不是目录
   const nodesById = useMemo(() => {
@@ -139,8 +162,35 @@ const Filetree = () => {
     if (node) void loadChildren(node)
   }
 
+  // 点文件：`file.read` 拉内容，塞进 tabList 并切过去
+  const handleOpenFile = useCallback(
+    async (node: FileNode) => {
+      if (openingPaths.has(node.id)) return
+      setOpeningPaths((prev) => new Set(prev).add(node.id))
+      try {
+        const result = await invoke("file.read", { path: node.id })
+        openFile(node.id, result.content)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "读取文件失败"
+        toast.error(`打开 ${node.id} 失败：${message}`)
+      } finally {
+        setOpeningPaths((prev) => {
+          const next = new Set(prev)
+          next.delete(node.id)
+          return next
+        })
+      }
+    },
+    [invoke, openFile, openingPaths]
+  )
+
   const renderRow = (props: NodeRendererProps<FileNode>) => (
-    <Row {...props} loadingPaths={loadingPaths} />
+    <Row
+      {...props}
+      loadingPaths={loadingPaths}
+      openingPaths={openingPaths}
+      onOpenFile={(node) => void handleOpenFile(node)}
+    />
   )
 
   return (
